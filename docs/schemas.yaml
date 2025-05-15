@@ -1,0 +1,190 @@
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Error message"
+    
+    Success:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation successful"
+    
+    Topic:
+      type: object
+      properties:
+        topic_id:
+          type: integer
+          example: 1
+        topic_title:
+          type: string
+          example: "Climate Change"
+        topic_hash_tags:
+          type: string
+          example: "#climate|#environment"
+        topic_urls:
+          type: string
+          example: "example.com/climate|example.com/environment"
+        topic_user_id:
+          type: integer
+          example: 1
+        topic_keywords:
+          type: string
+          example: "climate,environment,global warming"
+        topic_created_at:
+          type: string
+          format: date-time
+        topic_updated_at:
+          type: string
+          format: date-time
+        topic_is_deleted:
+          type: string
+          example: "N"
+        topic_exclude_words:
+          type: string
+          example: "exclude,these,words"
+        topic_exclude_accounts:
+          type: string
+          example: "account1,account2"
+        topic_data_source:
+          type: string
+          example: "Twitter,Facebook,Instagram"
+        topic_data_location:
+          type: string
+          example: "UAE,Dubai,Abu Dhabi"
+        topic_data_lang:
+          type: string
+          example: "en,ar"
+        topic_is_premium:
+          type: string
+          example: "Y"
+        customer_portal:
+          type: string
+          example: "D24"
+        customer_sub_account_id:
+          type: integer
+          example: 1
+        topic_logo:
+          type: string
+          example: "logo.png"
+        topic_industry:
+          type: string
+          example: "Technology"
+        topic_gmaps_url:
+          type: string
+          example: "https://maps.google.com/..."
+    
+    SubTopic:
+      type: object
+      properties:
+        exp_id:
+          type: integer
+          example: 1
+        exp_name:
+          type: string
+          example: "Customer Experience"
+        exp_uid:
+          type: integer
+          example: 1
+        exp_topic_id:
+          type: integer
+          example: 1
+        exp_keywords:
+          type: string
+          example: "experience,customer,service"
+        exp_exclude_keywords:
+          type: string
+          example: "exclude,these,words"
+        exp_exclude_accounts:
+          type: string
+          example: "account1,account2"
+        exp_metrics:
+          type: string
+          example: ""
+        exp_source:
+          type: string
+          example: "Twitter,Facebook"
+        exp_logo:
+          type: string
+          example: "logo.png"
+        exp_detail:
+          type: string
+          example: ""
+        exp_dms:
+          type: string
+          example: ""
+        exp_type:
+          type: string
+          example: "sentiment"
+    
+    Touchpoint:
+      type: object
+      properties:
+        tp_id:
+          type: integer
+          example: 1
+        tp_name:
+          type: string
+          example: "Customer Support"
+        tp_keywords:
+          type: string
+          example: "support,help,assistance"
+        tp_uid:
+          type: integer
+          example: 1
+        tp_cx_id:
+          type: integer
+          example: 1
+        tp_date:
+          type: string
+          format: date-time
+    
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        name:
+          type: string
+          example: "John Doe"
+        role:
+          type: string
+          example: "user"
+    
+    Token:
+      type: object
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    
+    Dashboard:
+      type: object
+      properties:
+        googleCount:
+          type: integer
+          example: 150
+        socialMediaCount:
+          type: integer
+          example: 250
+        googlePOIs:
+          type: integer
+          example: 10
+        socialMediaPOIs:
+          type: integer
+          example: 15 

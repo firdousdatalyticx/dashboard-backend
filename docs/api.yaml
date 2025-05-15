@@ -1,0 +1,49 @@
+openapi: 3.0.0
+info:
+  title: SCAD Backend API
+  version: 1.0.0
+  description: API documentation for SCAD Backend
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: /api
+    description: Development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Users
+    description: User management endpoints
+  - name: Topic Categories
+    description: Topic categories management endpoints
+  - name: Posts
+    description: Social media posts management and retrieval
+  - name: Social Media
+    description: Social media analytics endpoints for mentions, sentiments, and engagement
+  - name: Comparison Analysis
+    description: Tools for comparing data between two different topics
+  - name: Reports
+    description: Generation and retrieval of various reports and data exports
+  - name: Alerts
+    description: Configuration and management of notification alerts
+  - name: Health
+    description: API health check endpoints
+  - name: Dashboard
+    description: Dashboard configuration and data
+  - name: Middleware
+    description: Application middleware documentation
+    externalDocs:
+      description: Learn more about our middleware
+      url: # 

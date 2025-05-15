@@ -1,0 +1,902 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model activity_log {
+  al_id      Int      @id @default(autoincrement())
+  al_cid     Int?
+  al_message String?  @db.Text
+  al_tid     Int?
+  al_stid    Int?
+  al_tpid    Int?
+  al_ca_id   Int?
+  al_time    DateTime @default(now()) @db.DateTime(0)
+}
+
+model ai_summary {
+  summary_id     Int       @id @default(autoincrement())
+  summary_name   String?   @db.VarChar(250)
+  topic_user_id  Int?
+  topic_name     String?   @db.VarChar(250)
+  summary_text   String?   @db.Text
+  created_at     DateTime? @db.DateTime(0)
+  chart_data     Json?
+  dashboard_type String?   @db.VarChar(250)
+  from_date      String?   @db.VarChar(250)
+  to_date        String?   @db.VarChar(250)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model audio_video {
+  av_id             Int       @id @default(autoincrement())
+  av_filename       String?   @db.VarChar(100)
+  av_type           String?   @db.VarChar(10)
+  av_json           String?   @db.MediumText
+  av_json_new       String?   @db.Text
+  av_delay          Int?      @default(3)
+  av_lang           String    @default("en") @db.VarChar(30)
+  av_mode           String?   @db.VarChar(20)
+  av_added_time     DateTime  @default(now()) @db.Timestamp(0)
+  av_completed_time DateTime? @db.Timestamp(0)
+  av_status         String?   @default("p") @db.Char(1)
+  av_is_zoom        String?   @default("n") @db.Char(1)
+  av_analysis_type  String    @default("a") @db.Char(1)
+}
+
+model auto_replies {
+  reply_id       Int     @id @default(autoincrement())
+  reply_keywords String? @db.Text
+  reply_detail   String  @db.Text
+  reply_cid      Int
+}
+
+model boost_keywords {
+  boost_id         Int       @id @default(autoincrement())
+  boosted_keywords String?   @db.Text
+  updated_date     DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model choice {
+  choice_id    Int      @id @default(autoincrement())
+  question_id  Int
+  choice_text  String?  @db.Text
+  choice_order Int?
+  question     question @relation(fields: [question_id], references: [question_id], onDelete: Cascade, map: "choice_ibfk_1")
+
+  @@index([question_id], map: "question_id")
+}
+
+model competitor_analysis {
+  ca_id         Int      @id @default(autoincrement())
+  ca_title      String   @db.VarChar(250)
+  ca_tids       String   @db.VarChar(200)
+  ca_cid        Int
+  ca_date       DateTime @default(now()) @db.DateTime(0)
+  time_duration String?
+}
+
+model countries_list {
+  country_id   Int    @id @default(autoincrement())
+  country_code String @default("") @db.VarChar(2)
+  country_name String @default("") @db.VarChar(100)
+}
+
+model crises_management {
+  crises_id         Int      @id @default(autoincrement())
+  crises_cid        Int
+  crises_tid        Int
+  crises_p_id       String   @db.VarChar(250)
+  crises_p_url      String   @db.Text
+  crises_visited    String   @db.Char(3)
+  crises_date_added DateTime @default(now()) @db.DateTime(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model customer_experience {
+  exp_id               Int      @id @unique(map: "exp_id_UNIQUE") @default(autoincrement())
+  exp_name             String?  @db.VarChar(250)
+  exp_keywords         String?  @db.Text
+  exp_exclude_keywords String?  @db.Text
+  exp_exclude_accounts String?  @db.Text
+  exp_metrics          String?  @db.VarChar(100)
+  exp_source           String?  @db.VarChar(200)
+  exp_uid              Int?
+  exp_topic_id         String?  @db.VarChar(45)
+  exp_date             DateTime @default(now()) @db.DateTime(0)
+  exp_dash             String?  @default("no") @db.VarChar(3)
+  exp_logo             String?  @db.VarChar(200)
+  exp_detail           String?  @db.Text
+  exp_dms              String?  @db.VarChar(100)
+  exp_type             String?  @default("campaign_monitoring") @db.VarChar(50)
+}
+
+model customer_invitations {
+  invitation_id                   Int      @id @default(autoincrement())
+  invitation_name                 String   @db.VarChar(200)
+  invitation_email                String   @db.VarChar(200)
+  invitation_sent_by              String   @db.VarChar(200)
+  invitation_code                 String   @db.MediumText
+  invitation_sent_date            DateTime @db.DateTime(0)
+  invitation_used                 String   @default("N") @db.Char(1)
+  invitation_engage_external_user String?  @default("n") @db.Char(1)
+  invitation_engage_admin         String   @default("no") @db.Char(3)
+  invitation_engage_department    String?  @db.VarChar(100)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model customer_topics {
+  topic_id                  Int       @id @default(autoincrement())
+  topic_title               String?   @db.VarChar(250)
+  topic_hash_tags           String?   @db.MediumText
+  topic_urls                String?   @db.MediumText
+  topic_keywords            String?   @db.MediumText
+  topic_user_id             Int?
+  topic_created_at          DateTime? @db.DateTime(0)
+  topic_updated_at          DateTime? @db.DateTime(0)
+  topic_is_deleted          String?   @db.Char(1)
+  topic_exclude_words       String?   @db.MediumText
+  topic_exclude_accounts    String?   @db.Text
+  topic_data_source         String?   @db.MediumText
+  topic_data_location       String?   @db.MediumText
+  topic_data_lang           String?   @db.MediumText
+  topic_is_premium          String?   @db.Char(1)
+  customer_portal           String?   @db.VarChar(20)
+  customer_sub_account_id   Int?
+  topic_logo                String?   @db.VarChar(100)
+  topic_gmaps_url           String?   @db.Text
+  topic_email_notify        String?   @default("no") @db.Char(3)
+  topic_send_monthly_report String?   @default("no") @db.Char(3)
+  topic_order               Int?
+  topic_summary             String?   @db.Text
+  topic_summary_twitter     String?   @db.Text
+  topic_summary_fb          String?   @db.Text
+  topic_summary_insta       String?   @db.Text
+  topic_industry            String?   @db.VarChar(100)
+  topic_region            String?   @db.VarChar(50)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model customers {
+  customer_id                     Int       @id @default(autoincrement())
+  customer_name                   String    @db.VarChar(250)
+  customer_email                  String    @db.VarChar(250)
+  customer_pass                   String    @db.VarChar(200)
+  customer_reg_time               DateTime  @default(now()) @db.DateTime(0)
+  customer_reg_scope              String    @db.Char(2)
+  customer_acc_expiry             DateTime? @db.Date
+  customer_company_name           String?   @db.VarChar(250)
+  customer_phone                  String?   @db.VarChar(50)
+  customer_reset_code             String?   @db.VarChar(100)
+  customer_upgrade_date           DateTime? @db.DateTime(0)
+  customer_upgrade_email          String?   @db.VarChar(150)
+  customer_subscription_id        String?   @db.VarChar(100)
+  customer_sub_cancelled          String?   @db.Char(1)
+  customer_sub_cancel_date        DateTime? @db.DateTime(0)
+  customer_dashboard_expiry       DateTime? @db.DateTime(0)
+  customer_notification_freq      String?   @db.VarChar(10)
+  customer_designation            String?   @db.VarChar(200)
+  customer_designation_other      String?   @db.VarChar(200)
+  customer_industry               String?   @db.VarChar(200)
+  customer_industry_other         String?   @db.VarChar(200)
+  customer_country                String?   @db.VarChar(200)
+  customer_account_type           Boolean
+  customer_allowed_invitations    String?   @db.VarChar(100)
+  customer_allowed_topics         String?   @db.VarChar(100)
+  customer_month_price            String?   @db.VarChar(100)
+  customer_show_in_list           Boolean   @default(true)
+  customer_account_parent         String?   @db.VarChar(200)
+  customer_engage_admin           String?   @db.Char(3)
+  customer_engage_department      Int?
+  customer_engage_key             String?   @db.Text
+  customer_allow_dashboard        String    @default("n") @db.Char(1)
+  customer_allow_engage_dashboard String    @default("n") @db.Char(1)
+  customer_allow_zoom             String    @default("n") @db.Char(1)
+  customer_allow_csat             String    @default("n") @db.Char(1)
+  customer_allow_revenue_impact   String    @default("n") @db.Char(1)
+  customer_layout_settings        String    @default("light") @db.VarChar(55)
+  customer_reviews_key            String?   @db.VarChar(100)
+  customer_topics_access          String?   @db.VarChar(200)
+  customer_subtopics_access       String?   @db.VarChar(200)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model customers_bak {
+  customer_id                     Int       @id @default(autoincrement())
+  customer_name                   String    @db.VarChar(250)
+  customer_email                  String    @db.VarChar(250)
+  customer_pass                   String    @db.VarChar(200)
+  customer_reg_time               DateTime  @default(now()) @db.DateTime(0)
+  customer_reg_scope              String    @db.Char(2)
+  customer_acc_expiry             DateTime? @db.Date
+  customer_company_name           String?   @db.VarChar(250)
+  customer_phone                  String?   @db.VarChar(50)
+  customer_reset_code             String?   @db.VarChar(100)
+  customer_upgrade_date           DateTime? @db.DateTime(0)
+  customer_upgrade_email          String?   @db.VarChar(150)
+  customer_subscription_id        String?   @db.VarChar(100)
+  customer_sub_cancelled          String?   @db.Char(1)
+  customer_sub_cancel_date        DateTime? @db.DateTime(0)
+  customer_dashboard_expiry       DateTime? @db.DateTime(0)
+  customer_notification_freq      String?   @db.VarChar(10)
+  customer_designation            String?   @db.VarChar(200)
+  customer_designation_other      String?   @db.VarChar(200)
+  customer_industry               String?   @db.VarChar(200)
+  customer_industry_other         String?   @db.VarChar(200)
+  customer_country                String?   @db.VarChar(200)
+  customer_account_type           Boolean
+  customer_allowed_invitations    String?   @db.VarChar(100)
+  customer_allowed_topics         String?   @db.VarChar(100)
+  customer_month_price            String?   @db.VarChar(100)
+  customer_show_in_list           Boolean   @default(true)
+  customer_account_parent         String?   @db.VarChar(200)
+  customer_engage_admin           String?   @db.Char(3)
+  customer_engage_department      Int?
+  customer_engage_key             String?   @db.Text
+  customer_allow_dashboard        String    @default("n") @db.Char(1)
+  customer_allow_engage_dashboard String    @default("n") @db.Char(1)
+  customer_allow_zoom             String    @default("n") @db.Char(1)
+  customer_allow_csat             String    @default("n") @db.Char(1)
+  customer_allow_revenue_impact   String    @default("n") @db.Char(1)
+  customer_layout_settings        String    @default("light") @db.VarChar(55)
+  customer_reviews_key            String?   @db.VarChar(100)
+  customer_topics_access          String?   @db.VarChar(200)
+  customer_subtopics_access       String?   @db.VarChar(200)
+}
+
+model customers_label_data {
+  label_id                            Int       @id @default(autoincrement())
+  p_message                           String?   @db.LongText
+  predicted_sentiment_value_requested String?   @db.VarChar(50)
+  predicted_sentiment_value_current   String?   @db.VarChar(50)
+  req_status                          String?   @db.Char(1)
+  p_id                                String?   @db.MediumText
+  req_uid                             Int?
+  lange_detect                        String?   @db.VarChar(50)
+  request_date                        DateTime? @db.DateTime(0)
+  topic_id                            Int?
+  hatespeech_requested                String?   @db.VarChar(50)
+  hatespeech_current                  String?   @db.VarChar(50)
+  category_current                    String?   @db.VarChar(50)
+  category_requested                  String?   @db.VarChar(50)
+  political_current                   String?   @db.VarChar(50)
+  political_requested                 String?   @db.VarChar(50)
+  fake_score_current                  String?   @db.VarChar(50)
+  fake_score_requested                String?   @db.VarChar(50)
+  emotion_current                     String?   @db.VarChar(45)
+  emotion_requested                   String?   @db.VarChar(45)
+  account_type_requested              String?   @db.Char(1)
+  account_type_current                String?   @db.Char(1)
+}
+
+model customers_label_data_bak {
+  label_id                            Int       @id @default(autoincrement())
+  p_message                           String?   @db.LongText
+  predicted_sentiment_value_requested String?   @db.VarChar(50)
+  predicted_sentiment_value_current   String?   @db.VarChar(50)
+  req_status                          String?   @db.Char(1)
+  p_id                                String?   @db.MediumText
+  req_uid                             Int?
+  lange_detect                        String?   @db.VarChar(50)
+  request_date                        DateTime? @db.DateTime(0)
+  topic_id                            Int?
+  hatespeech_requested                String?   @db.VarChar(50)
+  hatespeech_current                  String?   @db.VarChar(50)
+  category_current                    String?   @db.VarChar(50)
+  category_requested                  String?   @db.VarChar(50)
+  political_current                   String?   @db.VarChar(50)
+  political_requested                 String?   @db.VarChar(50)
+}
+
+model cx_touch_points {
+  cx_tp_id    Int  @id @default(autoincrement())
+  cx_tp_cx_id Int?
+  cx_tp_tp_id Int?
+}
+
+model d24_admins {
+  admin_id       Int    @id @default(autoincrement())
+  admin_name     String @db.VarChar(200)
+  admin_email    String @db.VarChar(200)
+  admin_password String @db.MediumText
+  admin_pin      Int?
+}
+
+model dashboard_report_data {
+  data_id              Int      @id @default(autoincrement())
+  data_topic_id        Int
+  data_uid             Int
+  data_section         String   @db.VarChar(100)
+  data_cx_id           Int?
+  data_cx_data_str     String?  @db.Text
+  data_cx_elements_str String?  @db.Text
+  data_cx_csat         Int?
+  data_cx_loss         String?  @db.VarChar(100)
+  data_image           String?  @db.LongText
+  data_date_range      String?  @db.VarChar(100)
+  data_updated_at      DateTime @default(now()) @db.DateTime(0)
+  data_query           String?  @db.Text
+}
+
+model departments {
+  department_id          Int      @id @default(autoincrement())
+  department_name        String   @db.VarChar(200)
+  department_customer_id Int
+  department_created_at  DateTime @default(now()) @db.Timestamp(0)
+}
+
+model email_extraction {
+  id                Int       @id @default(autoincrement())
+  from              String?   @db.VarChar(200)
+  to                String?   @db.VarChar(200)
+  subject           String?   @db.VarChar(200)
+  date              DateTime? @db.Timestamp(0)
+  Message_ID        String?   @map("Message-ID") @db.VarChar(200)
+  content           String?   @db.Text
+  is_processed      String?   @default("n") @db.Char(1)
+  analysis_response String?   @db.Text
+  created_at        DateTime  @default(now()) @db.Timestamp(0)
+  updated_at        DateTime  @default(now()) @db.Timestamp(0)
+}
+
+model failed_jobs {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  uuid       String   @unique(map: "failed_jobs_uuid_unique") @db.VarChar(255)
+  connection String   @db.Text
+  queue      String   @db.Text
+  payload    String   @db.LongText
+  exception  String   @db.LongText
+  failed_at  DateTime @default(now()) @db.Timestamp(0)
+}
+
+model image_analyzer {
+  a_id    Int     @id @default(autoincrement())
+  a_cid   Int?
+  a_image String? @db.Text
+  a_label String? @db.Text
+  a_face  String? @db.Text
+  a_logo  String? @db.Text
+  a_text  String? @db.Text
+}
+
+model keywords_analysis {
+  key_id      Int     @id @unique(map: "key_id_UNIQUE") @default(autoincrement())
+  customer_id Int?
+  topic_id    Int?
+  keywords    String? @db.LongText
+  from_date   String? @db.VarChar(45)
+  to_date     String? @db.VarChar(45)
+}
+
+model login {
+  login_id   Int    @id @default(autoincrement())
+  email      String @db.Text
+  password   String @db.Text
+  first_name String @db.Text
+  last_name  String @db.Text
+}
+
+model migrations {
+  id        Int    @id @default(autoincrement()) @db.UnsignedInt
+  migration String @db.VarChar(255)
+  batch     Int
+}
+
+model news_sources {
+  source_id      Int     @id @default(autoincrement())
+  source_name    String? @db.VarChar(200)
+  source_image   String? @db.VarChar(45)
+  source_reach   String? @db.VarChar(100)
+  source_company String? @db.VarChar(50)
+}
+
+model omit_words {
+  id   Int     @id @default(autoincrement())
+  word String? @db.VarChar(150)
+}
+
+model omran_admins {
+  admin_id       Int     @id @default(autoincrement())
+  admin_name     String  @db.VarChar(200)
+  admin_email    String  @db.VarChar(200)
+  admin_password String  @db.MediumText
+  admin_company  String? @db.VarChar(50)
+}
+
+model omran_docs {
+  doc_id                   Int       @id @default(autoincrement())
+  doc_title                String?   @db.VarChar(250)
+  doc_name                 String    @db.VarChar(100)
+  doc_time                 DateTime  @default(now()) @db.Timestamp(0)
+  doc_search_result        String?   @db.MediumText
+  doc_results_updated_time DateTime? @db.Timestamp(0)
+  doc_title_id             Int?
+}
+
+model omran_posts {
+  post_id              Int      @id @default(autoincrement())
+  post_title           String?  @db.MediumText
+  post_detail          String?  @db.MediumText
+  post_full_detail_url String?  @db.MediumText
+  post_full_detail_doc String?  @db.VarChar(50)
+  post_image_url       String?  @db.MediumText
+  post_image_file      String?  @db.VarChar(50)
+  post_source_title    String?  @db.VarChar(200)
+  post_source_id       String?  @db.VarChar(100)
+  post_reach           String?  @db.VarChar(100)
+  post_sentiment       String?  @db.VarChar(20)
+  post_emotion         String?  @db.VarChar(50)
+  post_category        String?  @db.VarChar(30)
+  post_created_time    DateTime @default(now()) @db.DateTime(0)
+  post_admin           Int?
+  post_company         String?  @db.VarChar(50)
+}
+
+model omran_posts_temp {
+  post_id           Int      @id @default(autoincrement())
+  post_title        String?  @db.MediumText
+  post_detail       String?  @db.MediumText
+  post_source_title String?  @db.VarChar(200)
+  post_reach        String?  @db.VarChar(100)
+  post_created_time DateTime @default(now()) @db.DateTime(0)
+}
+
+model on_demand_analysis {
+  oda_id         Int       @id @default(autoincrement())
+  oda_topic_id   Int
+  oda_title      String    @db.VarChar(250)
+  oda_from_date  DateTime? @db.DateTime(0)
+  oda_to_date    DateTime? @db.DateTime(0)
+  oda_start_time DateTime? @db.DateTime(0)
+  oda_end_time   DateTime? @db.DateTime(0)
+  oda_completed  String    @db.Char(1)
+  oda_notified   String    @db.Char(1)
+}
+
+model packages {
+  package_id             Int    @id @default(autoincrement())
+  package_name           String @db.VarChar(250)
+  package_mentions       Int
+  package_price          Float  @db.Float
+  package_symbol         String @db.Char(3)
+  package_allowed_topics Int
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model password_resets {
+  email      String    @db.VarChar(255)
+  token      String    @db.VarChar(255)
+  created_at DateTime? @db.Timestamp(0)
+  id         Int       @id @default(autoincrement())
+
+  @@index([email], map: "password_resets_email_index")
+  @@ignore
+}
+
+model pdf_report_data {
+  data_id       Int    @id @default(autoincrement())
+  data_user_id  Int
+  data_topic_id Int
+  data_section  String @db.VarChar(50)
+  data_image    String @db.LongText
+}
+
+model personal_access_tokens {
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tokenable_type String    @db.VarChar(255)
+  tokenable_id   BigInt    @db.UnsignedBigInt
+  name           String    @db.VarChar(255)
+  token          String    @unique(map: "personal_access_tokens_token_unique") @db.VarChar(64)
+  abilities      String?   @db.Text
+  last_used_at   DateTime? @db.Timestamp(0)
+  created_at     DateTime? @db.Timestamp(0)
+  updated_at     DateTime? @db.Timestamp(0)
+
+  @@index([tokenable_type, tokenable_id], map: "personal_access_tokens_tokenable_type_tokenable_id_index")
+}
+
+model post_data_update_requests {
+  req_id                              Int    @id @default(autoincrement())
+  req_uid                             Int
+  p_id                                String @db.VarChar(100)
+  p_message                           String @db.LongText
+  predicted_sentiment_value_current   String @db.VarChar(50)
+  predicted_sentiment_value_requested String @db.VarChar(50)
+  req_status                          String @db.Char(1)
+}
+
+model print_media_companies {
+  pm_c_id   Int      @id @default(autoincrement())
+  pm_c_name String   @db.VarChar(150)
+  pm_c_date DateTime @default(now()) @db.DateTime(0)
+}
+
+model printmedia_admins {
+  admin_id       Int      @id @default(autoincrement())
+  admin_name     String   @db.VarChar(200)
+  admin_email    String   @db.VarChar(200)
+  admin_password String   @db.MediumText
+  admin_company  String?  @db.VarChar(100)
+  admin_date     DateTime @default(now()) @db.DateTime(0)
+}
+
+model question {
+  question_id       Int             @id @default(autoincrement())
+  survey_id         Int
+  question_type     String?         @db.Text
+  question_text     String?         @db.Text
+  is_required       Int?
+  is_rate_service   Int?
+  is_nps_service    Int?
+  is_rate15_service Int?
+  question_order    Int?
+  choice            choice[]
+  survey            survey          @relation(fields: [survey_id], references: [survey_id], onDelete: Cascade, map: "question_ibfk_1")
+  survey_answer     survey_answer[]
+
+  @@index([survey_id], map: "survey_id")
+}
+
+model reports {
+  id           Int      @id @default(autoincrement())
+  title        String
+  report_data  String?  @db.Text
+  date_created DateTime @default(now())
+  user_id       Int?
+}
+
+model reports_data {
+  data_id         Int      @id @default(autoincrement())
+  data_rid        Int
+  data_topic_id   Int
+  data_uid        Int
+  data_cx_id      Int?
+  data_tp_id      Int?
+  data_section    String   @db.VarChar(100)
+  data_image      String?  @db.LongText
+  data_updated_at DateTime @default(now()) @db.DateTime(0)
+}
+
+model reports_settings {
+  rs_id                     Int       @id @default(autoincrement())
+  rs_uid                    Int
+  rs_uid_loggedin           Int?
+  rs_tid                    Int
+  rs_bg_color               String    @db.VarChar(10)
+  rs_font_color             String?   @db.VarChar(10)
+  rs_logo                   String?   @db.VarChar(150)
+  rs_bg_image_first_page    String?   @db.VarChar(150)
+  rs_bg_image_last_page     String?   @db.VarChar(150)
+  rs_topic_from_date        String?   @db.VarChar(25)
+  rs_topic_to_date          String?   @db.VarChar(25)
+  rs_subtopic_ids           String?   @db.VarChar(200)
+  rs_subtopic_font_color    String?   @db.VarChar(10)
+  rs_subtopic_bg_color      String?   @db.VarChar(50)
+  rs_subtopic_bg_image      String?   @db.VarChar(150)
+  rs_subtopic_from_date     String?   @db.VarChar(25)
+  rs_subtopic_to_date       String?   @db.VarChar(25)
+  rs_req_time               DateTime? @db.DateTime(0)
+  rs_status                 String    @default("p") @db.Char(1)
+  rs_filename               String?   @db.VarChar(200)
+  rs_completed_time         DateTime? @db.DateTime(0)
+  rs_filesize               String?   @db.VarChar(50)
+  rs_is_auto_monthly_report String?   @default("no") @db.Char(3)
+}
+
+model roi_settings {
+  roi_id          Int    @id @default(autoincrement())
+  roi_cid         Int
+  roi_currency    String @db.VarChar(3)
+  roi_avg_revenue String @db.VarChar(20)
+  roi_churn_rate  Int
+  roi_cx_id       Int?
+}
+
+model rss_feeds {
+  rss_id               Int       @id @default(autoincrement())
+  urls                 String?   @db.LongText
+  country              String?   @db.VarChar(100)
+  name                 String?   @db.VarChar(100)
+  logo                 String?   @db.VarChar(300)
+  estimated_pageviews  String?   @db.VarChar(100)
+  permillion_pageviews String?   @db.VarChar(100)
+  estimated_reach      String?   @db.VarChar(100)
+  permillion_reach     String?   @db.VarChar(100)
+  alexa_rank           String?   @db.VarChar(100)
+  source               String?   @db.VarChar(100)
+  Status               String?   @db.VarChar(15)
+  website              String?   @db.VarChar(100)
+  status_updated_at    DateTime? @db.DateTime(0)
+  language             String?   @db.VarChar(45)
+  entries              Int?
+  update_frequency     String?   @db.VarChar(45)
+  pubDate_diff_secs    Int?
+  checked_by           String?   @db.VarChar(45)
+}
+
+model sessions {
+  id            String  @id @db.VarChar(255)
+  user_id       BigInt? @db.UnsignedBigInt
+  ip_address    String? @db.VarChar(45)
+  user_agent    String? @db.Text
+  payload       String  @db.Text
+  last_activity Int
+
+  @@index([last_activity], map: "sessions_last_activity_index")
+  @@index([user_id], map: "sessions_user_id_index")
+}
+
+model source_handles {
+  sh_id                 Int      @id @default(autoincrement())
+  sh_cid                Int
+  sh_type               String   @db.VarChar(50)
+  sh_oauth_token        String?  @db.Text
+  sh_oauth_token_secret String?  @db.Text
+  sh_user_id            String?  @db.VarChar(200)
+  sh_screen_name        String?  @db.VarChar(200)
+  sh_auth_time          DateTime @default(now()) @db.DateTime(0)
+}
+
+model stopwords_data {
+  id           Int       @id @default(autoincrement())
+  Word         String?   @db.Text
+  Is_Ignore    String?   @db.Text
+  Language     String?   @db.Text
+  created_time DateTime? @db.DateTime(0)
+  updated_time DateTime? @db.DateTime(0)
+}
+
+model survey {
+  survey_id                   Int               @id @default(autoincrement())
+  survey_name                 String            @db.Text
+  survey_code                 String?           @db.VarChar(100)
+  survey_cid                  Int
+  survey_pid                  Int
+  survey_region_id            Int?
+  survey_type_id              Int?
+  survey_arabic_id            Int?
+  survey_is_template          String?           @default("n") @db.Char(1)
+  survey_logo                 String?           @db.Text
+  survey_ask_customer_details String?           @db.Char(1)
+  survey_csat                 String?           @default("0") @db.VarChar(10)
+  survey_active               String            @default("n") @db.Char(1)
+  survey_date                 DateTime          @default(now()) @db.DateTime(0)
+  question                    question[]
+  survey_response             survey_response[]
+}
+
+model survey_answer {
+  survey_answer_id   Int             @id @default(autoincrement())
+  survey_response_id Int
+  question_id        Int
+  answer_value       String?         @db.Text
+  updated_at         DateTime        @default(now()) @db.Timestamp(0)
+  created_at         DateTime        @default(now()) @db.Timestamp(0)
+  survey_response    survey_response @relation(fields: [survey_response_id], references: [survey_response_id], onDelete: Cascade, map: "survey_answer_ibfk_1")
+  question           question        @relation(fields: [question_id], references: [question_id], onDelete: Cascade, map: "survey_answer_ibfk_2")
+
+  @@index([question_id], map: "question_id")
+  @@index([survey_response_id], map: "survey_response_id")
+}
+
+model survey_region {
+  sr_id   Int    @id @default(autoincrement())
+  sr_name String @db.VarChar(100)
+  sr_uid  Int
+}
+
+model survey_response {
+  survey_response_id    Int             @id @default(autoincrement())
+  survey_id             Int
+  survey_customer_name  String?         @db.VarChar(100)
+  survey_customer_email String?         @db.VarChar(100)
+  survey_customer_phone String?         @db.VarChar(30)
+  time_taken            String?         @db.Text
+  updated_at            DateTime        @default(now()) @db.Timestamp(0)
+  created_at            DateTime        @default(now()) @db.Timestamp(0)
+  survey_answer         survey_answer[]
+  survey                survey          @relation(fields: [survey_id], references: [survey_id], onDelete: Cascade, map: "survey_response_ibfk_1")
+
+  @@index([survey_id], map: "survey_id")
+}
+
+model survey_type {
+  survey_type_id   Int    @id @default(autoincrement())
+  survey_type_name String @db.VarChar(100)
+  survey_type_cid  Int
+}
+
+model ticket_comments {
+  comment_id        Int      @id @default(autoincrement())
+  comment_cid       Int
+  comment_ticket_id Int
+  comment_text      String   @db.Text
+  comment_time      DateTime @default(now()) @db.Timestamp(0)
+}
+
+model ticket_replies {
+  reply_id     Int    @id @default(autoincrement())
+  reply_title  String @db.VarChar(250)
+  reply_detail String @db.Text
+  reply_cid    Int
+}
+
+model ticket_status {
+  status_id   Int     @id @default(autoincrement())
+  status_name String? @db.VarChar(100)
+}
+
+model tickets {
+  ticket_id              Int       @id @default(autoincrement())
+  ticket_cid             Int
+  ticket_subject         String    @db.Text
+  ticket_detail          String    @db.Text
+  ticket_file            String?   @db.VarChar(100)
+  ticket_assigned_to     Int
+  ticket_status          Int
+  ticket_created_date    DateTime  @default(now()) @db.Timestamp(0)
+  ticket_completion_date DateTime? @db.Timestamp(0)
+}
+
+model topic_notification_spike {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  filter_topic_id Int
+  total_mentions  Int       @default(0)
+  filter_freq     String    @db.Text
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
+}
+
+model topics_notification_filter {
+  filter_id           Int       @id @default(autoincrement())
+  filter_keywords     String    @db.Text
+  filter_freq         String    @db.VarChar(20)
+  filter_topic_id     Int
+  filter_emails       String?   @db.Text
+  filter_sentiment    String?   @db.VarChar(200)
+  filter_u_type       String?   @db.VarChar(200)
+  filter_speech       String?   @db.VarChar(200)
+  filter_polit        String?   @db.VarChar(200)
+  filter_source       String?   @db.VarChar(200)
+  filter_created_date DateTime? @default(now()) @db.DateTime(0)
+}
+
+model touch_points {
+  tp_id               Int      @id @unique(map: "exp_id_UNIQUE") @default(autoincrement())
+  tp_name             String?  @db.VarChar(250)
+  tp_keywords         String?  @db.Text
+  tp_exclude_keywords String?  @db.Text
+  tp_uid              Int?
+  tp_cx_id            Int?
+  tp_date             DateTime @default(now()) @db.DateTime(0)
+}
+
+model users {
+  id                BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  name              String    @db.VarChar(255)
+  email             String    @unique(map: "users_email_unique") @db.VarChar(255)
+  email_verified_at DateTime? @db.Timestamp(0)
+  password          String    @db.VarChar(255)
+  remember_token    String?   @db.VarChar(100)
+  created_at        DateTime? @db.Timestamp(0)
+  updated_at        DateTime? @db.Timestamp(0)
+}
+
+model wordcloud_data {
+  wc_id         Int      @id @default(autoincrement())
+  wc_tid        Int?
+  wc_stid       Int?
+  wc_str        Json?
+  wc_str_sorted Json?
+  wc_time       DateTime @default(now()) @db.DateTime(0)
+}
+
+model wordcloud_cx_data {
+  wc_tid                 Int?
+  wc_str                 Json?
+  wc_str_sorted          Json?
+  wc_positive_str        Json?
+  wc_negative_str        Json?
+  wc_positive_sorted_str Json?
+  wc_negative_sorted_str Json?
+  wc_time                DateTime @default(now()) @db.DateTime(0)
+  wc_id                  Int      @id @default(autoincrement())
+}
+
+model zoom_meetings {
+  zid             Int     @id @default(autoincrement())
+  d24_uid         Int
+  uuid            String? @db.VarChar(100)
+  id              String? @db.VarChar(100)
+  account_id      String? @db.VarChar(100)
+  host_id         String? @db.VarChar(100)
+  topic           String? @db.Text
+  type            String? @db.VarChar(100)
+  start_time      String? @db.VarChar(100)
+  duration        String? @db.VarChar(10)
+  timezone        String? @db.VarChar(100)
+  total_size      String? @db.VarChar(100)
+  created_at      String? @db.VarChar(100)
+  join_url        String? @db.Text
+  pmi             String? @db.VarChar(100)
+  recording_count String? @db.VarChar(100)
+  share_url       String? @db.Text
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model zoom_recordings {
+  rid             Int     @id @default(autoincrement())
+  meeting_id      String? @db.VarChar(100)
+  recording_start String? @db.VarChar(100)
+  recording_end   String? @db.VarChar(100)
+  file_type       String? @db.VarChar(50)
+  file_extension  String? @db.VarChar(30)
+  file_size       String? @db.VarChar(100)
+  play_url        String? @db.Text
+  download_url    String? @db.Text
+  status          String? @db.VarChar(50)
+  recording_type  String? @db.VarChar(100)
+  id              String? @db.VarChar(150)
+}
+
+model topic_categories {
+  id             Int      @id @default(autoincrement())
+  customer_topic_id        Int
+  category_title  String
+  topic_hash_tags  String
+  topic_urls      String
+  topic_keywords String
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+}
+
+
+model alerts {
+  id              Int      @id @default(autoincrement())
+  frequency       String? 
+  title           String?
+  keywords        String? 
+  emails          String? 
+  sentimentTypes  String? 
+  filterBySource  String? 
+  user_id         Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime?
+  lastUpdatedAt   DateTime?
+  lastUpdatedFrom DateTime?
+  topicId         Int?
+  topicName       String? 
+  isDeleted       Boolean? @default(false)
+  notifications   notification[] @relation("AlertNotifications")
+}
+
+model notification {
+ id              Int      @id @default(autoincrement())
+ createdAt       DateTime? @default(now())
+ alertId         Int
+ alert           alerts   @relation("AlertNotifications", fields: [alertId], references: [id])
+ startDate       DateTime?
+ endDate         DateTime?
+ type            String?
+ idRead          Boolean? @default(false)
+ total_mentions  Int?
+}
+
+model comparisonsanalysisreports {
+  id               Int      @id @default(autoincrement())
+  poiTitle1        String? 
+  poiTitle2        String? 
+  report_data      String?  @db.Text
+  date_created     DateTime @default(now())
+  user_id          Int?
+  topicId1         Int?
+  topicId2         Int?
+  startDate        DateTime?
+  endDate          DateTime?
+  startDate2       DateTime?
+  endDate2         DateTime?
+}

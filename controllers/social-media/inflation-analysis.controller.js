@@ -1,0 +1,399 @@
+const { elasticClient } = require('../../config/elasticsearch');
+const { format, parseISO, subDays } = require('date-fns');
+
+/**
+ * Controller for analyzing inflation-related phrases from social media posts
+ */
+const inflationAnalysisController = {
+    /**
+     * Get inflation phrases analysis data from social media posts
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     * @returns {Object} JSON response with inflation phrases analysis
+     */
+    getInflationAnalysis: async (req, res) => {
+        try {
+            const {
+                interval = 'monthly',
+                source = 'All',
+                category = 'all',
+                timeSlot,
+                fromDate,
+                toDate
+            } = req.body;
+
+
+            // Get category data from middleware
+            const categoryData = req.processedCategories || {};
+            const rawCategories = req.rawCategories || [];
+
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({
+                    success: true,
+                    inflationPhrases: [],
+                    totalInflationPosts: 0
+                });
+            }
+
+            // Handle date range based on timeSlot
+            const now = new Date();
+            let startDate;
+            let endDate = now;
+            let useTimeFilter = true;
+
+            // Only apply date filter if timeSlot is provided
+            if (!timeSlot && !fromDate && !toDate) {
+                useTimeFilter = false;
+            } else if (timeSlot === 'Custom date' && fromDate && toDate) {
+                startDate = parseISO(fromDate);
+                endDate = parseISO(toDate);
+            } else if (timeSlot) {
+                // Handle predefined time slots
+                switch (timeSlot) {
+                    case 'last24hours':
+                        startDate = subDays(now, 1);
+                        break;
+                    case 'last7days':
+                        startDate = subDays(now, 7);
+                        break;
+                    case 'last30days':
+                        startDate = subDays(now, 30);
+                        break;
+                    case 'last60days':
+                        startDate = subDays(now, 60);
+                        break;
+                    case 'last120days':
+                        startDate = subDays(now, 120);
+                        break;
+                    case 'last90days':
+                        startDate = subDays(now, 90);
+                        break;
+                    default:
+                        useTimeFilter = false;
+                        break;
+                }
+            } else {
+                useTimeFilter = false;
+            }
+            
+            const greaterThanTime = useTimeFilter ? format(startDate, 'yyyy-MM-dd') : null;
+            const lessThanTime = useTimeFilter ? format(endDate, 'yyyy-MM-dd') : null;
+
+            // Build base query
+            const query = {
+                bool: {
+                    must: [
+                        {
+                            exists: {
+                                field: 'llm_inflation'
+                            }
+                        }
+                    ]
+                }
+            };
+
+            // Only add date range filter if timeSlot is provided
+            if (useTimeFilter) {
+                query.bool.must.push({
+                    range: {
+                        created_at: {
+                            gte: greaterThanTime,
+                            lte: lessThanTime
+                        }
+                    }
+                });
+            }
+
+            // Add source filter if a specific source is selected
+            if (source !== 'All') {
+                query.bool.must.push({
+                    match_phrase: { source: source }
+                });
+            } else {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "Facebook" } },
+                            { match_phrase: { source: "Twitter" } },
+                            { match_phrase: { source: "Instagram" } },
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            }
+
+            // Add category filters
+            if (category === 'all') {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            ...Object.values(categoryData).flatMap(data =>
+                                (data.keywords || []).map(keyword => ({
+                                    multi_match: {
+                                        query: keyword,
+                                        fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                        type: 'phrase'
+                                    }
+                                }))
+                            ),
+                            ...Object.values(categoryData).flatMap(data =>
+                                (data.hashtags || []).map(hashtag => ({
+                                    multi_match: {
+                                        query: hashtag,
+                                        fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                        type: 'phrase'
+                                    }
+                                }))
+                            ),
+                            ...Object.values(categoryData).flatMap(data =>
+                                (data.urls || []).map(url => ({
+                                    multi_match: {
+                                        query: url,
+                                        fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                        type: 'phrase'
+                                    }
+                                }))
+                            )
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            } else if (categoryData[category]) {
+                const data = categoryData[category];
+
+                // Check if the category has any filtering criteria
+                const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
+                const hasHashtags = Array.isArray(data.hashtags) && data.hashtags.length > 0;
+                const hasUrls = Array.isArray(data.urls) && data.urls.length > 0;
+
+                // Only add the filter if there's at least one criteria
+                if (hasKeywords || hasHashtags || hasUrls) {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                ...(data.keywords || []).map(keyword => ({
+                                    multi_match: {
+                                        query: keyword,
+                                        fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                        type: 'phrase'
+                                    }
+                                })),
+                                ...(data.hashtags || []).map(hashtag => ({
+                                    multi_match: {
+                                        query: hashtag,
+                                        fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                        type: 'phrase'
+                                    }
+                                })),
+                                ...(data.urls || []).map(url => ({
+                                    multi_match: {
+                                        query: url,
+                                        fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                        type: 'phrase'
+                                    }
+                                }))
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                } else {
+                    // If the category has no filtering criteria, add a condition that will match nothing
+                    query.bool.must.push({
+                        bool: {
+                            must_not: {
+                                match_all: {}
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Set up the search parameters
+            const params = {
+                size: 500, // Limit to 500 posts
+                query: query,
+                _source: [
+                    "llm_inflation", 
+                    "p_message", 
+                    "p_message_text", 
+                    "created_at", 
+                    "source",
+                    "u_profile_photo",
+                    "u_followers",
+                    "u_following",
+                    "u_posts",
+                    "p_likes",
+                    "p_comments_text",
+                    "p_url",
+                    "p_comments",
+                    "p_shares",
+                    "p_engagement",
+                    "p_content",
+                    "p_picture_url",
+                    "predicted_sentiment_value",
+                    "u_fullname",
+                    "p_created_time",
+                    "video_embed_url",
+                    "p_picture",
+                    "p_id"
+                ]
+            };
+
+            // Execute the search
+            const response = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: params
+            });
+
+            // Initialize phrase counters and collections
+            const phraseCounts = {};
+            const phrasesByDirection = {
+                rising: [],
+                falling: [],
+                stabilizing: [],
+                volatile: []
+            };
+
+            let totalInflationPosts = 0;
+
+            // Process each post
+            if (response.hits && response.hits.hits) {
+                response.hits.hits.forEach(hit => {
+                    const source = hit._source;
+                    
+                    try {
+                        // Parse the llm_inflation field which is stored as a string
+                        let inflationData;
+                        if (typeof source.llm_inflation === 'string') {
+                            inflationData = JSON.parse(source.llm_inflation);
+                        } else {
+                            inflationData = source.llm_inflation;
+                        }
+
+                        // Only process posts where is_inflation_related is true
+                        if (inflationData && inflationData.is_inflation_related === true) {
+                            totalInflationPosts++;
+                            
+                            // Get the inflation trend direction, default to "unknown" if not present
+                            const direction = inflationData.inflation_trend_direction || "unknown";
+                            
+                            // Create post details object for this post
+                            const postDetails = {
+                                profilePicture: source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`,
+                                profilePicture2: source.p_picture || '',
+                                userFullname: source.u_fullname,
+                                followers: source.u_followers > 0 ? `${source.u_followers}` : '',
+                                following: source.u_following > 0 ? `${source.u_following}` : '',
+                                posts: source.u_posts > 0 ? `${source.u_posts}` : '',
+                                likes: source.p_likes > 0 ? `${source.p_likes}` : '',
+                                commentsUrl: source.p_comments_text ? source.p_url.trim().replace('https: // ', 'https://') : '',
+                                comments: `${source.p_comments}`,
+                                shares: source.p_shares > 0 ? `${source.p_shares}` : '',
+                                engagements: source.p_engagement > 0 ? `${source.p_engagement}` : '',
+                                content: source.p_content || '',
+                                image_url: source.p_picture_url || `${process.env.PUBLIC_IMAGES_PATH}grey.png`,
+                                predicted_sentiment: source.predicted_sentiment_value || '',
+                                youtube_video_url: source.video_embed_url || (source.source === 'Youtube' && source.p_id ? `https://www.youtube.com/embed/${source.p_id}` : ''),
+                                source_icon: `${source.p_url},${source.source}`,
+                                message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
+                                source: source.source,
+                                created_at: new Date(source.p_created_time).toLocaleString()
+                            };
+                            
+                            // Process each phrase in the inflation_trigger_phrases array
+                            if (Array.isArray(inflationData.inflation_trigger_phrases)) {
+                                inflationData.inflation_trigger_phrases.forEach(phrase => {
+                                    // Clean up the phrase
+                                    const cleanPhrase = phrase.trim();
+                                    
+                                    // Set color based on direction
+                                    let color;
+                                    switch(direction.toLowerCase()) {
+                                        case 'rising':
+                                            color = '#FF4D4F'; // Red
+                                            break;
+                                        case 'falling':
+                                            color = '#52C41A'; // Green
+                                            break;
+                                        case 'volatile':
+                                            color = '#FAAD14'; // Yellow
+                                            break;
+                                        case 'stabilizing':
+                                            color = '#1890FF'; // Blue
+                                            break;
+                                        default:
+                                            color = '#8C8C8C'; // Grey
+                                    }
+                                    
+                                    // Update phrase count
+                                    if (!phraseCounts[cleanPhrase]) {
+                                        phraseCounts[cleanPhrase] = {
+                                            text: cleanPhrase,
+                                            value: 1, // Initial count
+                                            direction: direction,
+                                            posts: [postDetails]
+                                        };
+                                    } else {
+                                        phraseCounts[cleanPhrase].value++;
+                                        // Add post to existing phrase if not already included
+                                        phraseCounts[cleanPhrase].posts.push(postDetails);
+                                    }
+                                    
+                                    // Add to direction-based collection if not already present
+                                    if (!phrasesByDirection[direction]) {
+                                        phrasesByDirection[direction] = [];
+                                    }
+                                    
+                                    const existingPhrase = phrasesByDirection[direction].find(p => p.text === cleanPhrase);
+                                    if (!existingPhrase) {
+                                        phrasesByDirection[direction].push({
+                                            text: cleanPhrase,
+                                            value: 1,
+                                            posts: [postDetails]
+                                        });
+                                    } else {
+                                        existingPhrase.value++;
+                                        existingPhrase.posts.push(postDetails);
+                                    }
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error processing inflation data:', error);
+                    }
+                });
+            }
+
+            // Convert phrase counts object to array for response
+            const inflationPhrases = Object.values(phraseCounts);
+
+            // Get direction totals
+            const directionTotals = {
+                rising: phrasesByDirection.rising ? phrasesByDirection.rising.length : 0,
+                falling: phrasesByDirection.falling ? phrasesByDirection.falling.length : 0,
+                stabilizing: phrasesByDirection.stabilizing ? phrasesByDirection.stabilizing.length : 0,
+                volatile: phrasesByDirection.volatile ? phrasesByDirection.volatile.length : 0
+            };
+
+            return res.json({
+                success: true,
+                inflationPhrases,
+                totalInflationPosts,
+                directionTotals,
+                dateRange: useTimeFilter ? {
+                    from: greaterThanTime,
+                    to: lessThanTime
+                } : null
+            });
+
+        } catch (error) {
+            console.error('Error fetching inflation analysis data:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    }
+};
+
+module.exports = inflationAnalysisController; 

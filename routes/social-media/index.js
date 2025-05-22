@@ -11,6 +11,8 @@ const leaderboardAnalysisRoute = require('./leaderboard-analysis.route');
 const poiSentimentDistributionRoute = require('./point-of-interest-sentiment-distribution.route');
 const emotionPolarityRoute = require('./emotion-polarity.route');
 const wordCloudRoute = require('./word-cloud.route');
+const inflationAnalysisRoute = require('./inflation-analysis.route');
+
 const engagementRoute = require('./engagement.route');
 const mentionsTrendRoute = require('./mentions-trend.route');
 const sentimentsRoute = require('./sentiments-analysis.route');
@@ -57,6 +59,8 @@ router.use("/urgency-mentions",urgencyMentions)
 router.use("/product-complaints",productComplaints)
 router.use("/language-summary",languageSummary);
 router.use("/audience-summary",audienceSummary);
+router.use('/inflation-analysis', inflationAnalysisRoute);
+
 
 
 

@@ -100,8 +100,11 @@ const inflationAnalysisController = {
                     query.bool.must.push({
                         bool: {
                             should: [
+                                { match: { predicted_sentiment_value: "Positive" } },
                                 { match: { predicted_sentiment_value: "positive" } },
+                                { match: { predicted_sentiment_value: "Negative" } },
                                 { match: { predicted_sentiment_value: "negative" } },
+                                { match: { predicted_sentiment_value: "Neutral" } },
                                 { match: { predicted_sentiment_value: "neutral" } }
                             ],
                             minimum_should_match: 1
@@ -109,8 +112,13 @@ const inflationAnalysisController = {
                     });
                 } else if (sentiment !== "All") {
                     query.bool.must.push({
-                        match: {
-                            predicted_sentiment_value: sentiment
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: sentiment } },
+                                { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                                { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                            ],
+                            minimum_should_match: 1
                         }
                     });
                 }
@@ -493,8 +501,11 @@ const inflationAnalysisController = {
                     query.bool.must.push({
                         bool: {
                             should: [
+                                { match: { predicted_sentiment_value: "Positive" } },
                                 { match: { predicted_sentiment_value: "positive" } },
+                                { match: { predicted_sentiment_value: "Negative" } },
                                 { match: { predicted_sentiment_value: "negative" } },
+                                { match: { predicted_sentiment_value: "Neutral" } },
                                 { match: { predicted_sentiment_value: "neutral" } }
                             ],
                             minimum_should_match: 1
@@ -502,8 +513,13 @@ const inflationAnalysisController = {
                     });
                 } else if (sentiment !== "All") {
                     query.bool.must.push({
-                        match: {
-                            predicted_sentiment_value: sentiment
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: sentiment } },
+                                { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                                { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                            ],
+                            minimum_should_match: 1
                         }
                     });
                 }
@@ -848,8 +864,11 @@ const inflationAnalysisController = {
                     query.bool.must.push({
                         bool: {
                             should: [
+                                { match: { predicted_sentiment_value: "Positive" } },
                                 { match: { predicted_sentiment_value: "positive" } },
+                                { match: { predicted_sentiment_value: "Negative" } },
                                 { match: { predicted_sentiment_value: "negative" } },
+                                { match: { predicted_sentiment_value: "Neutral" } },
                                 { match: { predicted_sentiment_value: "neutral" } }
                             ],
                             minimum_should_match: 1
@@ -857,8 +876,13 @@ const inflationAnalysisController = {
                     });
                 } else if (sentiment !== "All") {
                     query.bool.must.push({
-                        match: {
-                            predicted_sentiment_value: sentiment
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: sentiment } },
+                                { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                                { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                            ],
+                            minimum_should_match: 1
                         }
                     });
                 }

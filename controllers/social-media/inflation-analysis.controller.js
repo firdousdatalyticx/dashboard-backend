@@ -19,8 +19,10 @@ const inflationAnalysisController = {
                 category = 'all',
                 timeSlot,
                 fromDate,
-                toDate
+                toDate,
+                sentiment
             } = req.body;
+
 
 
             // Get category data from middleware
@@ -50,22 +52,22 @@ const inflationAnalysisController = {
             } else if (timeSlot) {
                 // Handle predefined time slots
                 switch (timeSlot) {
-                    case 'last24hours':
+                    case 'Last 24 hours':
                         startDate = subDays(now, 1);
                         break;
-                    case 'last7days':
+                    case 'Last 7 days':
                         startDate = subDays(now, 7);
                         break;
-                    case 'last30days':
+                    case 'Last 30 days':
                         startDate = subDays(now, 30);
                         break;
-                    case 'last60days':
+                    case 'Last 60 days':
                         startDate = subDays(now, 60);
                         break;
-                    case 'last120days':
+                    case 'Last 120 days':
                         startDate = subDays(now, 120);
                         break;
-                    case 'last90days':
+                    case 'Last 90 days':
                         startDate = subDays(now, 90);
                         break;
                     default:
@@ -91,6 +93,28 @@ const inflationAnalysisController = {
                     ]
                 }
             };
+
+            // Add sentiment filter if provided
+            if (sentiment) {
+                if (sentiment.toLowerCase() === "all") {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: "positive" } },
+                                { match: { predicted_sentiment_value: "negative" } },
+                                { match: { predicted_sentiment_value: "neutral" } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                } else if (sentiment !== "All") {
+                    query.bool.must.push({
+                        match: {
+                            predicted_sentiment_value: sentiment
+                        }
+                    });
+                }
+            }
 
             // Only add date range filter if timeSlot is provided
             if (useTimeFilter) {
@@ -391,7 +415,8 @@ const inflationAnalysisController = {
                 category = 'all',
                 timeSlot,
                 fromDate,
-                toDate
+                toDate,
+                sentiment
             } = req.body;
 
             // Get category data from middleware
@@ -421,22 +446,22 @@ const inflationAnalysisController = {
             } else if (timeSlot) {
                 // Handle predefined time slots
                 switch (timeSlot) {
-                    case 'last24hours':
+                    case 'Last 24 hours':
                         startDate = subDays(now, 1);
                         break;
-                    case 'last7days':
+                    case 'Last 7 days':
                         startDate = subDays(now, 7);
                         break;
-                    case 'last30days':
+                    case 'Last 30 days':
                         startDate = subDays(now, 30);
                         break;
-                    case 'last60days':
+                    case 'Last 60 days':
                         startDate = subDays(now, 60);
                         break;
-                    case 'last120days':
+                    case 'Last 120 days':
                         startDate = subDays(now, 120);
                         break;
-                    case 'last90days':
+                    case 'Last 90 days':
                         startDate = subDays(now, 90);
                         break;
                     default:
@@ -462,6 +487,27 @@ const inflationAnalysisController = {
                     ]
                 }
             };
+
+            if (sentiment) {
+                if (sentiment.toLowerCase() === "all") {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: "positive" } },
+                                { match: { predicted_sentiment_value: "negative" } },
+                                { match: { predicted_sentiment_value: "neutral" } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                } else if (sentiment !== "All") {
+                    query.bool.must.push({
+                        match: {
+                            predicted_sentiment_value: sentiment
+                        }
+                    });
+                }
+            }
 
             // Only add date range filter if timeSlot is provided
             if (useTimeFilter) {
@@ -723,7 +769,8 @@ const inflationAnalysisController = {
                 category = 'all',
                 timeSlot,
                 fromDate,
-                toDate
+                toDate,
+                sentiment
             } = req.body;
 
             // Get category data from middleware
@@ -753,22 +800,22 @@ const inflationAnalysisController = {
             } else if (timeSlot) {
                 // Handle predefined time slots
                 switch (timeSlot) {
-                    case 'last24hours':
+                    case 'Last 24 hours':
                         startDate = subDays(now, 1);
                         break;
-                    case 'last7days':
+                    case 'Last 7 days':
                         startDate = subDays(now, 7);
                         break;
-                    case 'last30days':
+                    case 'Last 30 days':
                         startDate = subDays(now, 30);
                         break;
-                    case 'last60days':
+                    case 'Last 60 days':
                         startDate = subDays(now, 60);
                         break;
-                    case 'last120days':
+                    case 'Last 120 days':
                         startDate = subDays(now, 120);
                         break;
-                    case 'last90days':
+                    case 'Last 90 days':
                         startDate = subDays(now, 90);
                         break;
                     default:
@@ -794,6 +841,28 @@ const inflationAnalysisController = {
                     ]
                 }
             };
+
+            // Add sentiment filter if provided
+            if (sentiment) {
+                if (sentiment.toLowerCase() === "all") {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: "positive" } },
+                                { match: { predicted_sentiment_value: "negative" } },
+                                { match: { predicted_sentiment_value: "neutral" } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                } else if (sentiment !== "All") {
+                    query.bool.must.push({
+                        match: {
+                            predicted_sentiment_value: sentiment
+                        }
+                    });
+                }
+            }
 
             // Only add date range filter if timeSlot is provided
             if (useTimeFilter) {

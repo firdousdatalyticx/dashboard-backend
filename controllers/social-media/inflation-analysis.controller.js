@@ -24,7 +24,6 @@ const inflationAnalysisController = {
             } = req.body;
 
 
-
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
             const rawCategories = req.rawCategories || [];
@@ -52,22 +51,22 @@ const inflationAnalysisController = {
             } else if (timeSlot) {
                 // Handle predefined time slots
                 switch (timeSlot) {
-                    case 'Last 24 hours':
+                    case 'last24hours':
                         startDate = subDays(now, 1);
                         break;
-                    case 'Last 7 days':
+                    case 'last7days':
                         startDate = subDays(now, 7);
                         break;
-                    case 'Last 30 days':
+                    case 'last30days':
                         startDate = subDays(now, 30);
                         break;
-                    case 'Last 60 days':
+                    case 'last60days':
                         startDate = subDays(now, 60);
                         break;
-                    case 'Last 120 days':
+                    case 'last120days':
                         startDate = subDays(now, 120);
                         break;
-                    case 'Last 90 days':
+                    case 'last90days':
                         startDate = subDays(now, 90);
                         break;
                     default:
@@ -454,22 +453,22 @@ const inflationAnalysisController = {
             } else if (timeSlot) {
                 // Handle predefined time slots
                 switch (timeSlot) {
-                    case 'Last 24 hours':
+                    case 'last24hours':
                         startDate = subDays(now, 1);
                         break;
-                    case 'Last 7 days':
+                    case 'last7days':
                         startDate = subDays(now, 7);
                         break;
-                    case 'Last 30 days':
+                    case 'last30days':
                         startDate = subDays(now, 30);
                         break;
-                    case 'Last 60 days':
+                    case 'last60days':
                         startDate = subDays(now, 60);
                         break;
-                    case 'Last 120 days':
+                    case 'last120days':
                         startDate = subDays(now, 120);
                         break;
-                    case 'Last 90 days':
+                    case 'last90days':
                         startDate = subDays(now, 90);
                         break;
                     default:
@@ -816,22 +815,22 @@ const inflationAnalysisController = {
             } else if (timeSlot) {
                 // Handle predefined time slots
                 switch (timeSlot) {
-                    case 'Last 24 hours':
+                    case 'last24hours':
                         startDate = subDays(now, 1);
                         break;
-                    case 'Last 7 days':
+                    case 'last7days':
                         startDate = subDays(now, 7);
                         break;
-                    case 'Last 30 days':
+                    case 'last30days':
                         startDate = subDays(now, 30);
                         break;
-                    case 'Last 60 days':
+                    case 'last60days':
                         startDate = subDays(now, 60);
                         break;
-                    case 'Last 120 days':
+                    case 'last120days':
                         startDate = subDays(now, 120);
                         break;
-                    case 'Last 90 days':
+                    case 'last90days':
                         startDate = subDays(now, 90);
                         break;
                     default:

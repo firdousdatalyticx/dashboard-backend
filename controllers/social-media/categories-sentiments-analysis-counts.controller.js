@@ -173,20 +173,51 @@ const sentimentsMultipleCategoriesController = {
    */
   getMultipleCategoriesSentimentCountsOptimized: async (req, res) => {
     try {
-      const {
+      let {
         categories = [], // Array of category names
         source = "All",
         fromDate,
         toDate,
         sentimentType,
+        topicId,
       } = req.body;
-
+      
       // Validate input
       if (!Array.isArray(categories) || categories.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: "Categories array is required and cannot be empty",
-        });
+        const userId = req.user.id;
+
+            // Verify that the topic belongs to the user
+            const topic = await prisma.customer_topics.findFirst({
+                where: {
+                    topic_id: parseInt(topicId),
+                    topic_user_id: userId,
+                    topic_is_deleted: {
+                        not: 'Y'
+                    }
+                }
+            });
+
+            if (!topic) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'You do not have access to this topic'
+                });
+            }
+      
+            // Use the transformed data from middleware if available
+            if (req.processedCategories) {
+            categories = Object.keys(req.processedCategories);
+            categories = categories.map(title => title.trim())
+            }else{
+
+            // Fallback to original implementation if middleware wasn't used
+             categories = await prisma.topic_categories.findMany({
+                where: {
+                    customer_topic_id: parseInt(topicId)
+                }
+            });
+             categories = categories.map(cat=>cat.category_title?.trim());
+          }
       }
 
       // Get category data from middleware
@@ -410,7 +441,6 @@ const sentimentsMultipleCategoriesController = {
       } = req.query;
 
       categories.push(type);
-      console.log(req.query);
       // Validate input
       if (!Array.isArray(categories) || categories.length === 0) {
         return res.status(400).json({

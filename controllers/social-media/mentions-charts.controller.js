@@ -634,6 +634,91 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+    entities: async (req, res) => {
+    try {
+      const {
+        fromDate,
+        toDate,
+        subtopicId,
+        topicId,
+        sentimentType,
+        sources = "All",
+      } = req.body;
+      const isScadUser = false;
+      const selectedTab = "Social";
+
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      if (sources == "All") {
+      topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:(${sources})`;
+      }
+      const params = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              {
+                query_string: {
+                  query: topicQueryString,
+                  analyze_wildcard: true,
+                },
+              },
+              {
+                range: {
+                  p_created_time: {
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
+                  },
+                },
+              },
+            ],
+            must_not: [
+              {
+                term: {
+                  source: "DM",
+                },
+              },
+            ],
+          },
+        },
+        aggs: {
+          llm_entities_organization: {
+            terms: {
+              field: "llm_entities.Organization.keyword",
+              size: 10,
+            },
+          },
+        },
+      };
+
+      if (sentimentType && sentimentType != "") {
+        params.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      const response = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: params,
+      });
+
+      const entitiesData =
+        response?.aggregations?.llm_entities_organization?.buckets || [];
+
+      return res.status(200).json({ entitiesData });
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
   recurrenceMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
@@ -923,7 +1008,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (source != "") {
+      if (source != "All") {
         topicQueryString = `${topicQueryString} AND source:('${source}')`;
       } else {
         topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;

@@ -127,9 +127,9 @@ const inflationAnalysisController = {
             if (useTimeFilter) {
                 query.bool.must.push({
                     range: {
-                        created_at: {
-                            gte: greaterThanTime,
-                            lte: lessThanTime
+                        p_created_time: {
+                            gte: `${greaterThanTime}T00:00:00.000Z`,
+                            lte: `${lessThanTime}T23:59:59.999Z`
                         }
                     }
                 });
@@ -528,9 +528,9 @@ const inflationAnalysisController = {
             if (useTimeFilter) {
                 query.bool.must.push({
                     range: {
-                        created_at: {
-                            gte: greaterThanTime,
-                            lte: lessThanTime
+                        p_created_time: {
+                            gte: `${greaterThanTime}T00:00:00.000Z`,
+                            lte: `${lessThanTime}T23:59:59.999Z`
                         }
                     }
                 });
@@ -891,9 +891,9 @@ const inflationAnalysisController = {
             if (useTimeFilter) {
                 query.bool.must.push({
                     range: {
-                        created_at: {
-                            gte: greaterThanTime,
-                            lte: lessThanTime
+                        p_created_time: {
+                            gte: `${greaterThanTime}T00:00:00.000Z`,
+                            lte: `${lessThanTime}T23:59:59.999Z`
                         }
                     }
                 });

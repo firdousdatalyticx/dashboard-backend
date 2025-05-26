@@ -258,6 +258,7 @@ const getPosts = async (
   sentimentType,
   field,
   type,
+  value,
   res
 ) => {
   const query = {
@@ -294,17 +295,38 @@ const getPosts = async (
     query.query.bool.must.push({
       term: { "llm_mention_urgency.keyword": type },
     });
-  }
- else if (field === "product_ref_ind") {
+  } else if (field === "product_ref_ind") {
     query.query.bool.must.push(
       { term: { "product_ref_ind.keyword": type } },
       { term: { "llm_mention_type.keyword": "Complaint" } }
     );
-  }else{
-      query.query.bool.must.push({
+  } else if (field === "llm_mention_audience && llm_mention_type") {
+    query.query.bool.must.push(
+      { term: { "llm_mention_audience.keyword": value } },
+      { term: { "llm_mention_type.keyword": type } }
+    );
+  } else if (field == "llm_highest_risk_type && customer_journey") {
+    query.query.bool.must.push(
+      { term: { "llm_highest_risk_type.keyword": value } },
+      { term: { "customer_journey.keyword": type } }
+    );
+  } else if (field === "customer_journey && llm_mention_audience") {
+query.query.bool.must.push({ term: { "customer_journey.keyword": value } });
+query.query.bool.must.push({ term: { "llm_mention_audience.keyword": type } });
+query.query.bool.must.push({
+  terms: {
+    "llm_mention_type.keyword": [
+      "Complaint",
+      "Customer Complaint",
+      "Criticism",
+    ],
+  },
+});
+
+  } else {
+    query.query.bool.must.push({
       term: { [`${field}.keyword`]: type },
     });
-
   }
 
   if (sentimentType && sentimentType != "" && sentimentType != "undefined") {
@@ -634,7 +656,7 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-    entities: async (req, res) => {
+  entities: async (req, res) => {
     try {
       const {
         fromDate,
@@ -654,7 +676,7 @@ const mentionsChartController = {
       );
 
       if (sources == "All") {
-      topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+        topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
       } else {
         topicQueryString = `${topicQueryString} AND source:(${sources})`;
       }
@@ -917,12 +939,328 @@ const mentionsChartController = {
         influencersCoverage[bucket.key] = bucket.doc_count;
       });
 
-      return res.status(200).json({ influencersCoverage,result });
+      return res.status(200).json({ influencersCoverage, result });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+  audienceMentionsAcrossMentionType: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      const isScadUser = false;
+      const selectedTab = "Social";
+
+      // Build the base query string for topic
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Add source filters
+      topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+
+      // Elasticsearch query
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
+                  },
+                },
+              },
+            ],
+            must_not: [{ term: { "llm_mention_audience.keyword": "" } }],
+          },
+        },
+        aggs: {
+          audience_group: {
+            terms: {
+              field: "llm_mention_audience.keyword",
+              size: 8,
+              order: { _count: "desc" },
+            },
+            aggs: {
+              mention_types: {
+                terms: {
+                  field: "llm_mention_type.keyword",
+                  size: 8,
+                  order: { _count: "desc" },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Optional sentiment filter
+      if (sentimentType && sentimentType.trim() !== "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      // Format data for frontend
+      const formattedData = result.aggregations.audience_group.buckets.map(
+        (audienceBucket) => ({
+          audience: audienceBucket.key,
+          total: audienceBucket.doc_count,
+          types: audienceBucket.mention_types.buckets.reduce(
+            (acc, typeBucket) => {
+              acc[typeBucket.key] = typeBucket.doc_count;
+              return acc;
+            },
+            {}
+          ),
+        })
+      );
+
+      return res.status(200).json({
+        data: formattedData,
+        totalAudiences: result.aggregations.audience_group.buckets.length,
+        query, // Remove this in production
+      });
+    } catch (error) {
+      console.error("Error fetching mention data:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        message: error.message,
+      });
+    }
+  },
+  riskTypeAcrossCustomerJourney: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      const isScadUser = false;
+      const selectedTab = "Social";
+
+      // Build the base query string for topic
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Add source filters
+      topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+
+      // Elasticsearch query
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
+                  },
+                },
+              },
+            ],
+            must_not: [
+              { term: { "llm_highest_risk_type.keyword": "" } },
+              { term: { "customer_journey.keyword": "" } },
+            ],
+          },
+        },
+        aggs: {
+          audience_group: {
+            terms: {
+              field: "llm_highest_risk_type.keyword",
+              size: 8,
+              order: { _count: "desc" },
+            },
+            aggs: {
+              mention_types: {
+                terms: {
+                  field: "customer_journey.keyword",
+                  size: 8,
+                  order: { _count: "desc" },
+                  min_doc_count: 1, // Ensures only journeys with at least 1 doc are included
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Optional sentiment filter
+      if (sentimentType && sentimentType.trim() !== "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      // Format data for frontend
+      const formattedData = result.aggregations.audience_group.buckets
+        .filter(
+          (audienceBucket) =>
+            Object.keys(audienceBucket.mention_types.buckets).length > 0
+        )
+        .map((audienceBucket) => ({
+          audience: audienceBucket.key,
+          total: audienceBucket.doc_count,
+          types: audienceBucket.mention_types.buckets.reduce(
+            (acc, typeBucket) => {
+              acc[typeBucket.key] = typeBucket.doc_count;
+              return acc;
+            },
+            {}
+          ),
+        }));
+
+      return res.status(200).json({
+        data: formattedData,
+        totalAudiences: result.aggregations.audience_group.buckets.length,
+        result: result.aggregations,
+      });
+    } catch (error) {
+      console.error("Error fetching mention data:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        message: error.message,
+      });
+    }
+  },
+  complaintsAcrossCustomerJourneyStagesbyAudience: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      const isScadUser = false;
+      const selectedTab = "Social";
+
+      // Build base query
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+      topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+
+      // Elasticsearch query
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
+                  },
+                },
+              },
+              {
+                terms: {
+                  "llm_mention_type.keyword": [
+                    "Complaint",
+                    "Customer Complaint",
+                    "Criticism",
+                  ],
+                },
+              },
+            ],
+            must_not: [
+              { term: { "llm_mention_audience.keyword": "" } },
+              { term: { "customer_journey.keyword": "" } },
+            ],
+          },
+        },
+        aggs: {
+          customer_journey: {
+            terms: {
+              field: "customer_journey.keyword",
+              size: 20,
+            },
+            aggs: {
+              mention_audience: {
+                terms: {
+                  field: "llm_mention_audience.keyword",
+                  size: 10,
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Optional sentiment filter
+      if (sentimentType && sentimentType.trim() !== "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Execute the ES query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      const journeyBuckets =
+        result?.aggregations?.customer_journey?.buckets || [];
+
+      const formattedData = journeyBuckets
+        .map((journeyBucket) => {
+          const audienceBuckets = journeyBucket.mention_audience?.buckets;
+
+          const types = Array.isArray(audienceBuckets)
+            ? audienceBuckets.reduce((acc, bucket) => {
+                acc[bucket.key] = bucket.doc_count;
+                return acc;
+              }, {})
+            : {};
+
+          return {
+            audience: journeyBucket.key,
+            total: journeyBucket.doc_count,
+            types,
+          };
+        })
+        .filter((item) => Object.keys(item.types).length > 0);
+
+      return res.status(200).json({
+        data: formattedData,
+        totalJourneys: journeyBuckets.length,
+      });
+    } catch (error) {
+      console.error("Error fetching complaint journey data:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        message: error.message,
+      });
+    }
+  },
+
   languageMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
@@ -982,7 +1320,7 @@ const mentionsChartController = {
         influencersCoverage[bucket.key] = bucket.doc_count;
       });
 
-      return res.status(200).json({ influencersCoverage,result });
+      return res.status(200).json({ influencersCoverage, result });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
@@ -999,6 +1337,7 @@ const mentionsChartController = {
         source,
         field,
         type,
+        value,
       } = req.query;
 
       const isScadUser = false;
@@ -1021,6 +1360,7 @@ const mentionsChartController = {
         sentiment,
         field,
         type,
+        value,
         res
       );
     } catch (error) {

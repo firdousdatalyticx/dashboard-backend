@@ -26,6 +26,9 @@ const urgencyMentions =require('./urgency-mentions.route');
 const productComplaints = require("./product-complaints.route")
 const languageSummary=require("./language-summary.route")
 const audienceSummary=require("./audience-summary.route")
+const mentionAudienceMentionType=require("./mention-audience-mention-type.route")
+const riskTypeAcrossCustomerJourney=require("./risk-type-across-customer-journey.route")
+const complaintsAcrossCustomerJourneyStagesbyAudience = require("./complaints-across-customer-journey-stages-by-audience.route")
 /**
  * @swagger
  * tags:
@@ -60,7 +63,9 @@ router.use("/product-complaints",productComplaints)
 router.use("/language-summary",languageSummary);
 router.use("/audience-summary",audienceSummary);
 router.use('/inflation-analysis', inflationAnalysisRoute);
-
+router.use('/mention-audience-mention-type',mentionAudienceMentionType)
+router.use('/risk-type-across-customer-journey',riskTypeAcrossCustomerJourney)
+router.use('/complaints-across-customer-journey-stages-by-audience',complaintsAcrossCustomerJourneyStagesbyAudience)
 
 
 

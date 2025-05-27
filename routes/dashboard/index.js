@@ -3,6 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../../middleware/auth.middleware');
 
 const keywordsRoute = require('./keywords.route');
+const dashboardIdRoute = require('./dashboardId.routes');
 
 /**
  * @swagger
@@ -17,5 +18,8 @@ router.use(authMiddleware);
 
 // Mount dashboard related routes
 router.use('/keywords', keywordsRoute);
+router.use('/dashboardId', dashboardIdRoute);
+
+
 
 module.exports = router;    

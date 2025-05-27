@@ -310,7 +310,7 @@ const getPosts = async (
       { term: { "llm_highest_risk_type.keyword": value } },
       { term: { "customer_journey.keyword": type } }
     );
-  } else if (field === "customer_journey && llm_mention_audience") {
+  } else if (field === "customer_journey && llm_mention_audience && llm_mention_type") {
 query.query.bool.must.push({ term: { "customer_journey.keyword": value } });
 query.query.bool.must.push({ term: { "llm_mention_audience.keyword": type } });
 query.query.bool.must.push({

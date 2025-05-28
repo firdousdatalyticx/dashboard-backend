@@ -155,7 +155,8 @@ const mentionsTrendController = {
             return res.status(200).json({
                 success: true,
                 mentionsGraphData: datesArray.join('|'),
-                maxMentionData: `${maxDate},${maxMentions}`
+                maxMentionData: `${maxDate},${maxMentions}`,
+                query
             });
 
         } catch (error) {

@@ -161,6 +161,22 @@ const buildQueryString = async (topicId, isScadUser, selectedTab) => {
   return strToSearch;
 };
 
+const elasticMentionQueryTemplate = (topicQueryString, gte, lte) => ({
+  query: {
+    bool: {
+      must: [
+        { query_string: { query: topicQueryString } },
+        {
+          range: {
+            p_created_time: { gte: gte, lte: lte }
+          }
+        }
+      ]
+    }
+  }
+})
+
+
 const getActionRequired = async (
   fromDate,
   toDate,
@@ -1469,5 +1485,851 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+  UNDP: async (req, res) => {
+    
+      const { greaterThanTime, lessThanTime, subtopicId, topicId, sentimentType } = req.body;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Expanded list of sources
+      // topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+
+    if (type === 'complaintTouchpoints') {
+      try {
+        const sourcesArray = [
+          'Physical Branches and ATMs',
+          'Digital Channels',
+          'Customer Service Centers',
+          'Financial Advisors',
+          'Marketing Channels',
+          'Community Initiatives',
+          'Partner Networks',
+          'Self-Service Portals',
+          'Other'
+        ]
+        // const sourcesArray = [
+        //   'Mobile Banking App',
+        //   'Mobile App',
+        //   'Website',
+        //   'ATM',
+        //   'Physical Branch',
+        //   'Social Media',
+        //   'Online Banking Platform',
+        //   'Customer Service (Phone, Email, or Live Chat)',
+        //   'IVR System',
+        //   'Call Center',
+        //   'Bill Payment Platform',
+        //   'Loan Application Process',
+        //   'Service Connection/Disconnection',
+        //   'Physical Office',
+        //   'Installation/Technical Support',
+        //   'Network Coverage',
+        //   'Billing System',
+        //   'Data Roaming',
+        //   'Plan Upgrades',
+        //   'Device Purchases/Repairs',
+        //   'Wi-Fi Services',
+        //   'Home Internet Services',
+        //   'Meter Reading',
+        //   'Outage Reporting System',
+        //   'Mortgage Services',
+        //   'Credit Card Services',
+        //   'Fraud Detection/Resolution',
+        //   'Wealth Management',
+        //   'Transaction Alerts',
+        //   'Airport Check-in Counter',
+        //   'Self-service Kiosk',
+        //   'In-flight Experience',
+        //   'Boarding Process',
+        //   'Baggage Handling',
+        //   'Loyalty Program',
+        //   'Government Website/Portal',
+        //   'Public Service Office',
+        //   'Document Submission Process',
+        //   'Permit/License Application',
+        //   'In-person Appointment',
+        //   'Physical Store',
+        //   'Digital Channels',
+        //   'Physical Channels',
+        //   'Customer Support',
+        //   'Social and Engagement Channels',
+        //   'Messaging and Alerts',
+        //   'Loyalty and Rewards',
+        //   'Other'
+        // ]
+
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        let responseOutput = {}
+
+        // const dat= await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat= await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let complaintContent= 0
+          let query= ''
+
+          query = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"')  AND llm_mention_type:("Customer Complaint") AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          complaintContent = await elasticSearchCount(elasticMentionQueryTemplate(query, greaterThanTime, lessThanTime))
+          // console.log(query, 'complaintContents here')
+          if (complaintContent?.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = complaintContent?.count
+          }
+        }
+
+      return res.status(200).json({responseOutput});
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+    } else if (type === 'UNDPtouchpoints') {
+      try {
+        const sourcesArray = [
+          'Infrastructure Rebuilding',
+          'Emergency Medical Aid',
+          'Humanitarian Aid',
+          'International Cooperation',
+          'Disaster Relief Coordination',
+          'Aid Effectiveness',
+          'Recovery Progress',
+          'Crisis Communications'
+        ]
+
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        let responseOutput = {}
+
+        // const dat= await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat= await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let content= 0
+          let query= ''
+          let greatertime = '2023-01-01'
+          let lesstime = '2023-04-30'
+
+          // query = `${topicQueryString} AND touchpoint_un:("${sourcesArray[i]}") AND 'IGO Entities':("United Nations Development Programme (UNDP)")`
+          // query = `${topicQueryString} AND Keywords:("Yes")  AND touchpoint_un:("${sourcesArray[i]}") AND keywords:("Yes") :("United Nations Development Programme (UNDP)")`
+
+          query = `${topicQueryString} AND Keywords:("Yes")  AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
+
+          if (content?.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = content?.count
+          }
+        }
+
+        //console.log('data', responseOutput)
+
+    return res.status(200).json({responseOutput});
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+    } else if (type === 'UNDPAnnoucement') {
+      try {
+        const sourcesArray = [
+          'Missing Persons',
+          'Humanitarian Aid Distribution',
+          'Emergency Response Coordination',
+          'Damage Reports',
+          'Relief Measures',
+          'Special Appeals',
+          'Safety Tips',
+          'Public Health Advisor',
+          'Emergency Response Coordination',
+          'International Cooperation',
+          'Impact Reports',
+          'Infrastructure Reports'
+        ]
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        let responseOutput = {}
+
+        // const dat= await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat= await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let content= 0
+          let query= ''
+
+          query = `${topicQueryString} AND un_keywords:("Yes") AND announcement:("${sourcesArray[i]}")`
+
+          content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
+
+          if (content?.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = content?.count
+          }
+        }
+
+        //console.log('data', responseOutput)
+
+    return res.status(200).json({responseOutput});
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+    } else if (type === 'touchpointsIdentification') {
+      try {
+        const sourcesArray = [
+          'Infrastructure Rebuilding',
+          'Emergency Medical Aid',
+          'Humanitarian Aid',
+          'International Cooperation',
+          'Disaster Relief Coordination',
+          'Aid Effectiveness',
+          'Recovery Progress',
+          'Crisis Communications'
+        ]
+        // const sourcesArray = [
+        //   'Physical Branches and ATMs',
+        //   'Digital Channels',
+        //   'Customer Service Centers',
+        //   'Financial Advisors',
+        //   'Marketing Channels',
+        //   'Community Initiatives',
+        //   'Partner Networks',
+        //   'Self-Service Portals',
+        //   'Other'
+        // ]
+
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        let responseOutput = {}
+
+        // const dat= await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat= await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let content= 0
+          let query= ''
+
+          query = `${topicQueryString} AND touchpoint_un:("${sourcesArray[i]}")`
+
+          content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
+
+          if (content?.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = content?.count
+          }
+        }
+
+        //console.log('data', responseOutput)
+
+
+      return res.status(200).json({responseOutput});
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+    } else if (type === 'touchpointSentimentsChartUNtopic') {
+      try {
+        const sourcesArray = [
+          'Infrastructure Rebuilding',
+          'Emergency Medical Aid',
+          'Humanitarian Aid',
+          'International Cooperation',
+          'Disaster Relief Coordination',
+          'Aid Effectiveness',
+          'Recovery Progress',
+          'Crisis Communications'
+        ]
+
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        let responseOutput = {}
+
+        // const dat= await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat= await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let positiveContent= 0,
+            negativeContent= 0,
+            neutralContent= 0,
+            webContent= 0
+          let positiveContentQuery, negativeContentQuery, neutralContentQuery, webContentQuery
+
+          // let count= unData.filter(data => data?.touchpoint_identification === sourcesArray[i])
+
+          positiveContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`
+          negativeContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
+          neutralContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
+
+          positiveContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(positiveContentQuery, '2023-02-05', '2023-02-21')
+          )
+          negativeContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(negativeContentQuery, '2023-02-05', '2023-02-21')
+          )
+          neutralContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(neutralContentQuery, '2023-02-05', '2023-02-21')
+          )
+
+          if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = {
+              positiveContent: positiveContent?.count,
+              negativeContent: negativeContent?.count,
+              neutralContent: neutralContent?.count
+            }
+          }
+        }
+
+        // console.log('data', responseOutput)
+
+          return res.status(200).json({responseOutput});
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+     
+    } else if (type === 'IGOEntities') {
+      try {
+        const sourcesArray = [
+          'United Nations Development Programme (UNDP)',
+          "United Nations Children's Fund (UNICEF)",
+          'World Health Organization (WHO)',
+          'United Nations High Commissioner for Refugees (UNHCR)',
+          'World Food Programme (WFP)',
+          'International Labour Organization (ILO)',
+          'United Nations Educational, Scientific and Cultural Organization (UNESCO)',
+          'United Nations Population Fund (UNFPA)',
+          'United Nations Office on Drugs and Crime (UNODC)',
+          'International Criminal Court (ICC)',
+          'International Maritime Organization (IMO)',
+          'International Telecommunication Union (ITU)',
+          'United Nations Environment Programme (UNEP)',
+          'United Nations Office for the Coordination of Humanitarian Affairs (OCHA)',
+          'United Nations Institute for Training and Research (UNITAR)',
+          'United Nations Conference on Trade and Development (UNCTAD)',
+          'United Nations Human Settlements Programme (UN-Habitat)',
+          'World Intellectual Property Organization (WIPO)',
+          'United Nations Framework Convention on Climate Change (UNFCCC)'
+        ]
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        let responseOutput = {}
+
+        // const dat= await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat= await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let content= 0
+          let query= ''
+
+          // query = `${topicQueryString} AND un_keywords:("Yes") AND 'IGO Entities':("${sourcesArray[i]}")`
+          query = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}")`
+          // console.log(query, 'IGO Entities')
+
+          content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2024-12-03'))
+
+          console.log(content, 'content')
+          if (content?.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = content?.count
+          }
+        }
+
+        //console.log('data', responseOutput)
+
+      return res.status(200).json({responseOutput});
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+    } else if (type === 'IGOSentimentsChartUNtopic') {
+      try {
+        const sourcesArray = [
+          'United Nations Development Programme (UNDP)',
+          "United Nations Children's Fund (UNICEF)",
+          'World Health Organization (WHO)',
+          'United Nations High Commissioner for Refugees (UNHCR)',
+          'World Food Programme (WFP)',
+          'International Labour Organization (ILO)',
+          'United Nations Educational, Scientific and Cultural Organization (UNESCO)',
+          'United Nations Population Fund (UNFPA)',
+          'United Nations Office on Drugs and Crime (UNODC)',
+          'International Criminal Court (ICC)',
+          'International Maritime Organization (IMO)',
+          'International Telecommunication Union (ITU)',
+          'United Nations Environment Programme (UNEP)',
+          'United Nations Office for the Coordination of Humanitarian Affairs (OCHA)',
+          'United Nations Institute for Training and Research (UNITAR)',
+          'United Nations Conference on Trade and Development (UNCTAD)',
+          'United Nations Human Settlements Programme (UN-Habitat)',
+          'World Intellectual Property Organization (WIPO)',
+          'United Nations Framework Convention on Climate Change (UNFCCC)'
+        ]
+        //const twitterContentQuery = `${topicQueryString} AND un_keywords:("Yes")`
+
+        let responseOutput = {}
+
+        // const dat= await testClientElasticQuery(
+        //   elasticMentionQueryTemplate(twitterContentQuery, '2023-02-05', '2023-02-20')
+        // )
+        // console.log('data', dat?.hits?.hits)
+
+        // const dat= await testClientElasticQuery()
+
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let positiveContent= 0,
+            negativeContent= 0,
+            neutralContent= 0,
+            webContent= 0
+          let positiveContentQuery, negativeContentQuery, neutralContentQuery, webContentQuery
+
+          // let count= unData.filter(data => data?.touchpoint_identification === sourcesArray[i])
+
+          // positiveContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`
+          // negativeContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
+          // neutralContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
+
+          positiveContentQuery = `${topicQueryString}   AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`
+          negativeContentQuery = `${topicQueryString}   AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
+          neutralContentQuery = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
+
+          positiveContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(positiveContentQuery, '2023-01-01', '2024-12-03')
+          )
+
+          negativeContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(negativeContentQuery, '2023-01-01', '2024-12-03')
+          )
+          neutralContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(neutralContentQuery, '2023-01-01', '2024-12-03')
+          )
+
+          if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = {
+              positiveContent: positiveContent?.count,
+              negativeContent: negativeContent?.count,
+              neutralContent: neutralContent?.count
+            }
+          }
+        }
+
+        //console.log('data', responseOutput)
+
+          return res.status(200).json({responseOutput});
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+      } else if (type === 'unAidsChart') {
+      //elasticQueryTemplateRange
+      try {
+        let dataArray= []
+        if (aidType === 'Aid Requested/Aid Recieved') {
+          const query1 = `${topicQueryString}  AND aid_requests_received:("receipt of aid")`
+          const query2 = `${topicQueryString} AND aid_requests_received:("request for aid")`
+
+          const aidRec= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
+          const aidReq= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
+
+          dataArray = [aidReq.count, aidRec.count]
+        } else if (aidType === 'Aid Type') {
+          const query1 = `${topicQueryString}  AND aid_type:("Local Aid")`
+          const query2 = `${topicQueryString}  AND aid_type:("International Aid")`
+
+          const local= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
+          const inter= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
+          dataArray = [local.count, inter.count]
+        } else if (aidType === 'Mental Health and Trauma') {
+          const query1 = `${topicQueryString}  AND Aid Type:("Local Aid")`
+          const query2 = `${topicQueryString}  AND Aid Type:("International Aid")`
+
+          const local= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
+          const inter= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
+          dataArray = [local.count, inter.count]
+        } else if (aidType === 'Political or Social Criticism') {
+          const query1 = `${topicQueryString} AND Aid Type:("Local Aid")`
+          const query2 = `${topicQueryString} AND Aid Type:("International Aid")`
+
+          const local= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
+          const inter= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
+          dataArray = [local.count, inter.count]
+        } else if (aidType === 'Environmental Hazards') {
+          const query1 = `${topicQueryString}  AND Aid Type:("Local Aid")`
+          const query2 = `${topicQueryString}  AND Aid Type:("International Aid")`
+
+          const local= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
+          const inter= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
+          dataArray = [local.count, inter.count]
+        }
+
+          return res.status(200).json({dataArray});
+          } catch (error) {
+            console.error("Error fetching data:", error);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+     
+    } else if (type === 'touchpointIndustry') {
+      try {
+        // const sourcesArray = [
+        //   'Mobile Banking App',
+        //   'Mobile App',
+        //   'Website',
+        //   'ATM',
+        //   'Physical Branch',
+        //   'Social Media',
+        //   'Online Banking Platform',
+        //   'Customer Service (Phone, Email, or Live Chat)',
+        //   'IVR System',
+        //   'Call Center',
+        //   'Bill Payment Platform',
+        //   'Loan Application Process',
+        //   'Service Connection/Disconnection',
+        //   'Physical Office',
+        //   'Installation/Technical Support',
+        //   'Network Coverage',
+        //   'Billing System',
+        //   'Data Roaming',
+        //   'Plan Upgrades',
+        //   'Device Purchases/Repairs',
+        //   'Wi-Fi Services',
+        //   'Home Internet Services',
+        //   'Meter Reading',
+        //   'Outage Reporting System',
+        //   'Mortgage Services',
+        //   'Credit Card Services',
+        //   'Fraud Detection/Resolution',
+        //   'Wealth Management',
+        //   'Transaction Alerts',
+        //   'Airport Check-in Counter',
+        //   'Self-service Kiosk',
+        //   'In-flight Experience',
+        //   'Boarding Process',
+        //   'Baggage Handling',
+        //   'Loyalty Program',
+        //   'Government Website/Portal',
+        //   'Public Service Office',
+        //   'Document Submission Process',
+        //   'Permit/License Application',
+        //   'In-person Appointment',
+        //   'Physical Store',
+        //   'Digital Channels',
+        //   'Customer Support',
+        //   'Physical Channels',
+        //   'Social and Engagement Channels',
+        //   'Messaging and Alerts',
+        //   'Loyalty and Rewards',
+        //   'Other'
+        // ]
+
+        //       const sourcesArray = [
+        //         "Infrastructure Rebuilding", "Emergency Medical Aid", "Humanitarian Aid",
+        // "International Cooperation", "Disaster Relief Coordination", "Aid Effectiveness",
+        // "Recovery Progress", "Crisis Communications"
+        //      ]
+
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        const sourcesArray = [
+          'Physical Branches and ATMs',
+          'Digital Channels',
+          'Customer Service Centers',
+          'Financial Advisors',
+          'Marketing Channels',
+          'Community Initiatives',
+          'Partner Networks',
+          'Self-Service Portals',
+          'Other'
+        ]
+
+        let responseOutput = {}
+
+        // const dat= await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat= await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let twitterContent= 0,
+            facebookContent= 0,
+            instagramContent= 0,
+            webContent= 0
+          let twitterContentQuery, facebookContentQuery, instagramContentQuery, webContentQuery
+
+          twitterContentQuery = `${topicQueryString} AND source:("Twitter") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          facebookContentQuery = `${topicQueryString} AND source:("Facebook") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          instagramContentQuery = `${topicQueryString} AND source:("Instagram") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          //webContentQuery = `${topicQueryString} AND source:('"FakeNews" OR "News" OR "Blogs" OR "Web"') AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          // console.log(twitterContentQuery, 'touchpointIndustry')
+          twitterContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+          )
+          facebookContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(facebookContentQuery, greaterThanTime, lessThanTime)
+          )
+          instagramContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(instagramContentQuery, greaterThanTime, lessThanTime)
+          )
+          // webContent = await elasticSearchCount(
+          //   elasticMentionQueryTemplate(webContentQuery, greaterThanTime, lessThanTime)
+          // )
+
+          if (twitterContent.count > 0 || facebookContent.count > 0 || instagramContent.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = {
+              twitterContent: twitterContent?.count,
+              facebookContent: facebookContent?.count,
+              instagramContent: instagramContent?.count
+              // webContent: webContent?.count
+            }
+          }
+        }
+
+        //console.log('data', responseOutput)
+
+          return res.status(200).json({responseOutput});
+          } catch (error) {
+            console.error("Error fetching data:", error);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+        
+    
+    } else if (type === 'touchpointSentimentsChart') {
+      try {
+        // const sourcesArray = [
+        //   'Mobile Banking App',
+        //   'Mobile App',
+        //   'Website',
+        //   'ATM',
+        //   'Physical Branch',
+        //   'Social Media',
+        //   'Online Banking Platform',
+        //   'Customer Service (Phone, Email, or Live Chat)',
+        //   'IVR System',
+        //   'Call Center',
+        //   'Bill Payment Platform',
+        //   'Loan Application Process',
+        //   'Service Connection/Disconnection',
+        //   'Physical Office',
+        //   'Installation/Technical Support',
+        //   'Network Coverage',
+        //   'Billing System',
+        //   'Data Roaming',
+        //   'Plan Upgrades',
+        //   'Device Purchases/Repairs',
+        //   'Wi-Fi Services',
+        //   'Home Internet Services',
+        //   'Meter Reading',
+        //   'Outage Reporting System',
+        //   'Mortgage Services',
+        //   'Credit Card Services',
+        //   'Fraud Detection/Resolution',
+        //   'Wealth Management',
+        //   'Transaction Alerts',
+        //   'Airport Check-in Counter',
+        //   'Self-service Kiosk',
+        //   'In-flight Experience',
+        //   'Boarding Process',
+        //   'Baggage Handling',
+        //   'Loyalty Program',
+        //   'Government Website/Portal',
+        //   'Public Service Office',
+        //   'Document Submission Process',
+        //   'Permit/License Application',
+        //   'In-person Appointment',
+        //   'Physical Store',
+        //   'Digital Channels',
+
+        //   'Customer Support',
+        //   'Physical Channels',
+        //   'Social and Engagement Channels',
+        //   'Messaging and Alerts',
+        //   'Loyalty and Rewards',
+        //   'Other'
+        // ]
+        const sourcesArray = [
+          'Physical Branches and ATMs',
+          'Digital Channels',
+          'Customer Service Centers',
+          'Financial Advisors',
+          'Marketing Channels',
+          'Community Initiatives',
+          'Partner Networks',
+          'Self-Service Portals',
+          'Other'
+        ]
+
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        let responseOutput = {}
+
+        // const dat= await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat= await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let positiveContent= 0,
+            negativeContent= 0,
+            neutralContent= 0,
+            webContent= 0
+          let positiveContentQuery, negativeContentQuery, neutralContentQuery, webContentQuery
+
+          positiveContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Positive") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          negativeContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Negative") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          neutralContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Neutral") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          // console.log('touchpointSentimentsChart', positiveContentQuery)
+          positiveContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(positiveContentQuery, greaterThanTime, lessThanTime)
+          )
+          negativeContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(negativeContentQuery, greaterThanTime, lessThanTime)
+          )
+          neutralContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(neutralContentQuery, greaterThanTime, lessThanTime)
+          )
+
+          if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
+            ;(responseOutput)[
+              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+            ] = {
+              positiveContent: positiveContent?.count,
+              negativeContent: negativeContent?.count,
+              neutralContent: neutralContent?.count
+            }
+          }
+        }
+
+        //console.log('data', responseOutput)
+          return res.status(200).json({responseOutput});
+          } catch (error) {
+            console.error("Error fetching data:", error);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+      
+    }
+  }
+  
 };
 module.exports = mentionsChartController;

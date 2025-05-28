@@ -30,6 +30,7 @@ const mentionAudienceMentionType=require("./mention-audience-mention-type.route"
 const riskTypeAcrossCustomerJourney=require("./risk-type-across-customer-journey.route")
 const complaintsAcrossCustomerJourneyStagesbyAudience = require("./complaints-across-customer-journey-stages-by-audience.route")
 const undpRoutes = require("./UNDP.route")
+const undpKeywordRoutes = require("./UNDP.keyword.route")
 /**
  * @swagger
  * tags:
@@ -67,7 +68,9 @@ router.use('/inflation-analysis', inflationAnalysisRoute);
 router.use('/mention-audience-mention-type',mentionAudienceMentionType)
 router.use('/risk-type-across-customer-journey',riskTypeAcrossCustomerJourney)
 router.use('/complaints-across-customer-journey-stages-by-audience',complaintsAcrossCustomerJourneyStagesbyAudience)
-router.use("undp",undpRoutes)
+router.use("/undp",undpRoutes)
+router.use("/undp-keyword",undpKeywordRoutes)
+
 
 
 module.exports = router; 

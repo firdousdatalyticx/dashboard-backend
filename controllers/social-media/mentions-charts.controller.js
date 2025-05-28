@@ -161,6 +161,20 @@ const buildQueryString = async (topicId, isScadUser, selectedTab) => {
   return strToSearch;
 };
 
+const elasticSearchCount = async (params) => {
+  try {
+    // Elasticsearch `_count` API call
+    const response = await elasticClient.count({
+      index: process.env.ELASTICSEARCH_DEFAULTINDEX, // Specify the default index here
+      body: params.body // Query body
+    })
+    return response
+  } catch (error) {
+    console.error('Elasticsearch count error:', error)
+    throw error
+  }
+}
+
 const elasticMentionQueryTemplate = (topicQueryString, gte, lte) => ({
   query: {
     bool: {
@@ -1487,7 +1501,7 @@ const mentionsChartController = {
   },
   UNDP: async (req, res) => {
     
-      const { greaterThanTime, lessThanTime, subtopicId, topicId, sentimentType } = req.body;
+      const { greaterThanTime, lessThanTime, subtopicId, topicId, sentimentType,type,aidType} = req.body;
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -1589,7 +1603,11 @@ const mentionsChartController = {
           let query= ''
 
           query = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"')  AND llm_mention_type:("Customer Complaint") AND llm_mention_touchpoint:("${sourcesArray[i]}")`
-          complaintContent = await elasticSearchCount(elasticMentionQueryTemplate(query, greaterThanTime, lessThanTime))
+            complaintContent = await elasticClient.count({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: elasticMentionQueryTemplate(query, greaterThanTime, lessThanTime),
+          });
+
           // console.log(query, 'complaintContents here')
           if (complaintContent?.count > 0) {
             ;(responseOutput)[
@@ -1646,8 +1664,14 @@ const mentionsChartController = {
           // query = `${topicQueryString} AND Keywords:("Yes")  AND touchpoint_un:("${sourcesArray[i]}") AND keywords:("Yes") :("United Nations Development Programme (UNDP)")`
 
           query = `${topicQueryString} AND Keywords:("Yes")  AND llm_mention_touchpoint:("${sourcesArray[i]}")`
-          content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
+          // content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
 
+          const data = elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30')
+        
+          content = await elasticClient.count({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'),
+          });
           if (content?.count > 0) {
             ;(responseOutput)[
               sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
@@ -1788,81 +1812,83 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
     } else if (type === 'touchpointSentimentsChartUNtopic') {
-      try {
-        const sourcesArray = [
-          'Infrastructure Rebuilding',
-          'Emergency Medical Aid',
-          'Humanitarian Aid',
-          'International Cooperation',
-          'Disaster Relief Coordination',
-          'Aid Effectiveness',
-          'Recovery Progress',
-          'Crisis Communications'
-        ]
-
-        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
-
-        let responseOutput = {}
-
-        // const dat= await elasticSearchCount(
-        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
-        // )
-        // console.log('data', dat)
-
-        // const dat= await testClientElasticQuery()
-        // console.log('dataasds', dat?.hits?.hits)
-        for (let i = 0; i < sourcesArray.length; i++) {
-          // let _sources
-          // if (sourcesArray[i] === 'Youtube') {
-          //   _sources = '"Youtube" OR "Vimeo"'
-          // } else if (sourcesArray[i] === 'Web') {
-          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
-          // } else {
-          //   _sources = sourcesArray[i]
-          // }
-
-          let positiveContent= 0,
-            negativeContent= 0,
-            neutralContent= 0,
-            webContent= 0
-          let positiveContentQuery, negativeContentQuery, neutralContentQuery, webContentQuery
-
-          // let count= unData.filter(data => data?.touchpoint_identification === sourcesArray[i])
-
-          positiveContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`
-          negativeContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
-          neutralContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
-
-          positiveContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(positiveContentQuery, '2023-02-05', '2023-02-21')
-          )
-          negativeContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(negativeContentQuery, '2023-02-05', '2023-02-21')
-          )
-          neutralContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(neutralContentQuery, '2023-02-05', '2023-02-21')
-          )
-
-          if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
-            ] = {
-              positiveContent: positiveContent?.count,
-              negativeContent: negativeContent?.count,
-              neutralContent: neutralContent?.count
+        try {
+          const sourcesArray = [
+            'Infrastructure Rebuilding',
+            'Emergency Medical Aid',
+            'Humanitarian Aid',
+            'International Cooperation',
+            'Disaster Relief Coordination',
+            'Aid Effectiveness',
+            'Recovery Progress',
+            'Crisis Communications'
+          ]
+    
+          // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+    
+          let responseOutput = {}
+    
+          // const dat: any = await elasticSearchCount(
+          //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+          // )
+          // console.log('data', dat)
+    
+          // const dat: any = await testClientElasticQuery()
+          // console.log('dataasds', dat?.hits?.hits)
+          for (let i = 0; i < sourcesArray.length; i++) {
+            // let _sources
+            // if (sourcesArray[i] === 'Youtube') {
+            //   _sources = '"Youtube" OR "Vimeo"'
+            // } else if (sourcesArray[i] === 'Web') {
+            //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+            // } else {
+            //   _sources = sourcesArray[i]
+            // }
+    
+            let positiveContent = 0,
+              negativeContent = 0,
+              neutralContent = 0,
+              webContent = 0
+            let positiveContentQuery, negativeContentQuery, neutralContentQuery, webContentQuery
+    
+            // let count: any = unData.filter(data => data?.touchpoint_identification === sourcesArray[i])
+    
+            positiveContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`
+            negativeContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
+            neutralContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
+            console.log()
+    
+            positiveContent = await elasticSearchCount(
+              elasticMentionQueryTemplate(positiveContentQuery, '2023-02-05', '2023-02-21')
+            )
+            negativeContent = await elasticSearchCount(
+              elasticMentionQueryTemplate(negativeContentQuery, '2023-02-05', '2023-02-21')
+            )
+            neutralContent = await elasticSearchCount(
+              elasticMentionQueryTemplate(neutralContentQuery, '2023-02-05', '2023-02-21')
+            )
+    
+            if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
+              ;(responseOutput)[
+                sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+              ] = {
+                positiveContent: positiveContent?.count,
+                negativeContent: negativeContent?.count,
+                neutralContent: neutralContent?.count
+              }
             }
           }
-        }
-
-        // console.log('data', responseOutput)
-
+    
+          // console.log('data', responseOutput)
+    
           return res.status(200).json({responseOutput});
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-     
-    } else if (type === 'IGOEntities') {
+          } catch (error) {
+            console.error("Error fetching data:", error);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+   
+      } 
+    else if (type === 'IGOEntities') {
       try {
         const sourcesArray = [
           'United Nations Development Programme (UNDP)',

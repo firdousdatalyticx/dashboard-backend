@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const mentionsChartController = require('../../controllers/social-media/undp/undp.controller')
+const mentionsChartController = require('../../controllers/social-media/undp/keyword')
 
 router.post('/:dynamicRoute', mentionsChartController.UNDP);
-// router.get('/posts', mentionsChartController.mentionsPost);
 
 module.exports = router;
 

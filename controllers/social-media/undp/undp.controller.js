@@ -3924,7 +3924,7 @@ const undpController = {
       let responseOutput = {}
 
      
-      for (let i = 0; i < sourcesArray.length; i++) {
+  
        
 
         let positiveContent = 0,
@@ -3935,40 +3935,170 @@ const undpController = {
 
        
 
-        positiveContentQuery = `${topicQueryString}   AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`
-        negativeContentQuery = `${topicQueryString}   AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
-        neutralContentQuery = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
+        let query = `${topicQueryString}   AND igo_entities:("${category}") AND predicted_sentiment_value:(${sentiment})`
 
-        positiveContent = await elasticSearchCount(
-          elasticMentionQueryTemplate(positiveContentQuery, '2023-01-01', '2024-12-03')
+        const results = await elasticSearch(
+          elasticMentionQueryTemplatess(query, '2023-01-01', '2024-12-03')
         )
+ const responseArray = [];
+  for (let l = 0; l < results?.hits?.hits?.length; l++) {
+    let esData = results?.hits?.hits[l];
+    let user_data_string = "";
+    let profilePic = esData._source.u_profile_photo
+      ? esData._source.u_profile_photo
+      : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
+    let followers =
+      esData._source.u_followers > 0 ? `${esData._source.u_followers}` : "";
+    let following =
+      esData._source.u_following > 0 ? `${esData._source.u_following}` : "";
+    let posts = esData._source.u_posts > 0 ? `${esData._source.u_posts}` : "";
+    let likes = esData._source.p_likes > 0 ? `${esData._source.p_likes}` : "";
+    let llm_emotion = esData._source.llm_emotion || "";
+    let commentsUrl =
+      esData._source.p_comments_text &&
+      esData._source.p_comments_text.trim() !== ""
+        ? `${esData._source.p_url.trim().replace("https: // ", "https://")}`
+        : "";
+    let comments = `${esData._source.p_comments}`;
+    let shares =
+      esData._source.p_shares > 0 ? `${esData._source.p_shares}` : "";
+    let engagements =
+      esData._source.p_engagement > 0 ? `${esData._source.p_engagement}` : "";
+    let content =
+      esData._source.p_content && esData._source.p_content.trim() !== ""
+        ? `${esData._source.p_content}`
+        : "";
+    let imageUrl =
+      esData._source.p_picture_url && esData._source.p_picture_url.trim() !== ""
+        ? `${esData._source.p_picture_url}`
+        : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
+    let predicted_sentiment = "";
+    let predicted_category = "";
 
-        negativeContent = await elasticSearchCount(
-          elasticMentionQueryTemplate(negativeContentQuery, '2023-01-01', '2024-12-03')
-        )
-        neutralContent = await elasticSearchCount(
-          elasticMentionQueryTemplate(neutralContentQuery, '2023-01-01', '2024-12-03')
-        )
+    // Check if the record was manually updated, if yes, use it
+    const chk_senti = await prisma.customers_label_data.findMany({
+      where: {
+        p_id: esData._id,
+      },
+      orderBy: {
+        label_id: "desc",
+      },
+      take: 1,
+    });
 
-        if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
-          ;(responseOutput )[
-            sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
-          ] = {
-            positiveContent: positiveContent?.count,
-            negativeContent: negativeContent?.count,
-            neutralContent: neutralContent?.count
-          }
-        }
+    if (chk_senti.length > 0) {
+      if (chk_senti[0]?.predicted_sentiment_value_requested)
+        predicted_sentiment = `${chk_senti[0]?.predicted_sentiment_value_requested}`;
+    } else if (
+      esData._source.predicted_sentiment_value &&
+      esData._source.predicted_sentiment_value !== ""
+    ) {
+      predicted_sentiment = `${esData._source.predicted_sentiment_value}`;
+    }
+
+    // Category prediction
+    if (esData._source.predicted_category) {
+      predicted_category = esData._source.predicted_category;
+    }
+    let youtubeVideoUrl = "";
+    let profilePicture2 = "";
+    //const token = await getCsrfToken()
+    if (esData._source.source === "Youtube") {
+      if (
+        esData._source.video_embed_url &&
+        esData._source.video_embed_url !== ""
+      )
+        youtubeVideoUrl = `${esData._source.video_embed_url}`;
+      else if (esData._source.p_id && esData._source.p_id !== "")
+        youtubeVideoUrl = `https://www.youtube.com/embed/${esData._source.p_id}`;
+    } else {
+      if (esData._source.p_picture) {
+        profilePicture2 = `${esData._source.p_picture}`;
+      } else {
+        profilePicture2 = "";
       }
+    }
+    // Handle other sources if needed
 
+    let sourceIcon = "";
+
+    const userSource = esData._source.source;
+    if (
+      userSource == "khaleej_times" ||
+      userSource == "Omanobserver" ||
+      userSource == "Time of oman" ||
+      userSource == "Blogs"
+    ) {
+      sourceIcon = "Blog";
+    } else if (userSource == "Reddit") {
+      sourceIcon = "Reddit";
+    } else if (userSource == "FakeNews" || userSource == "News") {
+      sourceIcon = "News";
+    } else if (userSource == "Tumblr") {
+      sourceIcon = "Tumblr";
+    } else if (userSource == "Vimeo") {
+      sourceIcon = "Vimeo";
+    } else if (userSource == "Web" || userSource == "DeepWeb") {
+      sourceIcon = "Web";
+    } else {
+      sourceIcon = userSource;
+    }
+
+    let message_text = "";
+
+    if (
+      esData._source.source === "GoogleMaps" ||
+      esData._source.source === "Tripadvisor"
+    ) {
+      let m_text = esData._source.p_message_text.split("***|||###");
+      message_text = m_text[0].replace(/\n/g, "<br>");
+    } else {
+      message_text = esData._source.p_message_text
+        ? esData._source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
+        : "";
+    }
+
+    let cardData = {
+      profilePicture: profilePic,
+      profilePicture2: profilePicture2,
+      userFullname: esData._source.u_fullname,
+      user_data_string: user_data_string,
+      followers: followers,
+      following: following,
+      posts: posts,
+      likes: likes,
+      llm_emotion: llm_emotion,
+      commentsUrl: commentsUrl,
+      comments: comments,
+      shares: shares,
+      engagements: engagements,
+      content: content,
+      image_url: imageUrl,
+      predicted_sentiment: predicted_sentiment,
+      predicted_category: predicted_category,
+      youtube_video_url: youtubeVideoUrl,
+      source_icon: `${esData._source.p_url},${sourceIcon}`,
+      message_text: message_text,
+      source: esData._source.source,
+      rating: esData._source.rating,
+      comment: esData._source.comment,
+      businessResponse: esData._source.business_response,
+      uSource: esData._source.u_source,
+      googleName: esData._source.name,
+      created_at: new Date(esData._source.p_created_time).toLocaleString(),
+    };
+
+    responseArray.push(cardData);
+  }
+
+  return res.status(200).json({
+    success: true,
+    responseArray,
+    total: responseArray.length || 0,
+  });
+      
 
       
-        return res.status(200).json(
-        {
-          responseOutput
-        }
-        
-      )
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });

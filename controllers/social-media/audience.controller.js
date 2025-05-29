@@ -170,12 +170,12 @@ const audienceController = {
                             lte: filters.lessThanTime
                         };
             
-                        // if (unTopic === 'true') {
-                        //     queryTimeRange = {
-                        //         gte: '2023-01-01',
-                        //         lte: '2023-04-30'
-                        //     };
-                        // }
+                     if (Number(req.body.topicId)==2473) {
+                            queryTimeRange = {
+                                gte: '2023-01-01',
+                                lte: '2023-04-30'
+                            };
+                        }
             
                         // Build base query
                         const query = buildBaseQuery({

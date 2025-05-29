@@ -22,4 +22,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  */
 router.post('/', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrend);
 
+router.get('/posts', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendPost);
+
 module.exports = router; 

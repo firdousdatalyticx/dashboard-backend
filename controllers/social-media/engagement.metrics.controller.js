@@ -245,7 +245,7 @@ const engagementController = {
             let incDecFromDate = comparisonStartDate || 'now-180d/d';
             let incDecToDate = comparisonEndDate || 'now-90d/d';
             
-            if (unTopic === 'true') {
+            if (Number(req.body.topicId)==2473) {
                 greaterThanTime = '2023-01-01';
                 lessThanTime = '2023-04-30';
             }

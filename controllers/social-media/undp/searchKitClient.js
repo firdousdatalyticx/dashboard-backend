@@ -310,6 +310,22 @@ elasticMentionQueryTemplate : (topicQueryString, gte, lte) => ({
     }
   }
 }),
+
+elasticMentionQueryTemplatess : (topicQueryString, gte, lte) => ({
+  query: {
+    bool: {
+      must: [
+        { query_string: { query: topicQueryString } },
+        {
+          range: {
+            p_created_time: { gte: gte, lte: lte }
+          }
+        }
+      ]
+    }
+  },
+  size:30
+}),
  elasticGoogleReviewsTemplate :(topicQueryString, gte, lte) => ({
   size: 1000,
   query: {

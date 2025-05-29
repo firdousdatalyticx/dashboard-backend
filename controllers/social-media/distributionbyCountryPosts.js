@@ -62,7 +62,12 @@ const distributionbyCountryPostsController = {
                             lte: filters.lessThanTime
                         };
             
-                     
+                      if (Number(topicId)==2473) {
+                            queryTimeRange = {
+                                gte: '2023-01-01',
+                                lte: '2023-04-30'
+                            };
+                        }
             
                         // Build base query
                         const query = buildBaseQuery({

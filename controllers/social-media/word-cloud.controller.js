@@ -13,10 +13,16 @@ const buildWordCloudParams = (options) => {
         from = 0,
         size = 5000,
         sort = 'p_created_time:desc',
-        timeRange = { gte: 'now-90d', lte: 'now' }
+        timeRange = { gte: 'now-90d', lte: 'now' },
+        isSpecialTopic = false
     } = options;
 
     const [sortField, sortOrder] = sort.split(':');
+    
+    // Build source filter based on special topic
+    const sourceFilter = isSpecialTopic ? 
+        'source:("Twitter" OR "Facebook")' :
+        'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")';
     
     // Base query structure
     const baseQuery = {
@@ -24,7 +30,7 @@ const buildWordCloudParams = (options) => {
             must: [
                 {
                     query_string: {
-                        query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`
+                        query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND ${sourceFilter}`
                     }
                 },
                 {
@@ -84,7 +90,8 @@ const buildPostsByPhraseParams = (options) => {
         from = 0,
         size = 100,
         sort = 'p_created_time:desc',
-        timeRange = { gte: 'now-90d', lte: 'now' }
+        timeRange = { gte: 'now-90d', lte: 'now' },
+        isSpecialTopic = false
     } = options;
 
     const [sortField, sortOrder] = sort.split(':');
@@ -93,13 +100,18 @@ const buildPostsByPhraseParams = (options) => {
         ? 'llm_positive_points.keyword' 
         : 'llm_negative_points.keyword';
     
+    // Build source filter based on special topic
+    const sourceFilter = isSpecialTopic ? 
+        'source:("Twitter" OR "Facebook")' :
+        'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")';
+    
     // Base query structure
     const baseQuery = {
         bool: {
             must: [
                 {
                     query_string: {
-                        query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`
+                        query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND ${sourceFilter}`
                     }
                 },
                 {
@@ -139,7 +151,11 @@ const wordCloudController = {
      */
     getWordPhrases: async (req, res) => {
         try {
-            const { sentimentType = 'positive' } = req.body;
+            const { sentimentType = 'positive', topicId } = req.body;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+            
             const categoryData = req.processedCategories || {};
             
             if (Object.keys(categoryData).length === 0) {
@@ -176,10 +192,17 @@ const wordCloudController = {
             // Create query string from search terms
             const queryString = searchTerms.map(term => `"${term}"`).join(' OR ');
             
+            // Set time range based on special topic
+            const timeRange = isSpecialTopic ? 
+                { gte: '2020-01-01', lte: 'now' } :
+                { gte: 'now-90d', lte: 'now' };
+            
             // Build and execute Elasticsearch query
             const params = buildWordCloudParams({
                 queryString,
-                sentimentType
+                sentimentType,
+                timeRange,
+                isSpecialTopic
             });
             
             const response = await elasticClient.search({
@@ -231,8 +254,12 @@ const wordCloudController = {
                 sentimentType = 'positive',
                 page = 1,
                 size = 100,
-                sort = 'p_created_time:desc'
+                sort = 'p_created_time:desc',
+                topicId
             } = req.body;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             const categoryData = req.processedCategories || {};
 
@@ -278,6 +305,11 @@ const wordCloudController = {
             // Calculate from based on page and size
             const from = (parseInt(page) - 1) * parseInt(size);
             
+            // Set time range based on special topic
+            const timeRange = isSpecialTopic ? 
+                { gte: '2020-01-01', lte: 'now' } :
+                { gte: 'now-90d', lte: 'now' };
+            
             // Build and execute Elasticsearch query
             const params = buildPostsByPhraseParams({
                 phrase,
@@ -285,7 +317,9 @@ const wordCloudController = {
                 sentimentType,
                 from,
                 size: parseInt(size),
-                sort
+                sort,
+                timeRange,
+                isSpecialTopic
             });
             
             const response = await elasticClient.search({

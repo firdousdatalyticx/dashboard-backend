@@ -23,16 +23,45 @@ function mergeArraysByDate(arr1, arr2) {
 const leaderboardAnalysisController = {
     getLeaderboardAnalysis: async (req, res) => {
         try {
+            const { topicId } = req.body || {};
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+            
             const categoryData = req.processedCategories || {};
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ leaderboard: [] });
             }
 
-            // Calculate date 90 days ago
-            const ninetyDaysAgo = new Date();
-            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-            const dateFilter = ninetyDaysAgo.toISOString();
+            // Calculate date filter - for special topic, use wider range
+            let dateFilter;
+            if (isSpecialTopic) {
+                // For special topic, use a wider range instead of 90 days
+                const twoYearsAgo = new Date();
+                twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+                dateFilter = twoYearsAgo.toISOString();
+            } else {
+                // Calculate date 90 days ago
+                const ninetyDaysAgo = new Date();
+                ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+                dateFilter = ninetyDaysAgo.toISOString();
+            }
+
+            // Define source filter based on special topic
+            const sourceFilter = isSpecialTopic ? [
+                { match_phrase: { source: 'Facebook' } },
+                { match_phrase: { source: 'Twitter' } }
+            ] : [
+                { match_phrase: { source: 'Facebook' } },
+                { match_phrase: { source: 'Twitter' } },
+                { match_phrase: { source: 'Instagram' } },
+                { match_phrase: { source: 'Youtube' } },
+                { match_phrase: { source: 'Pinterest' } },
+                { match_phrase: { source: 'Reddit' } },
+                { match_phrase: { source: 'LinkedIn' } },
+                { match_phrase: { source: 'Web' } }
+            ];
 
             // Split categories into valid and empty ones
             const allCategories = Object.entries(categoryData);
@@ -142,16 +171,7 @@ const leaderboardAnalysisController = {
                                         },
                                         {
                                             bool: {
-                                                should: [
-                                                    { match_phrase: { source: 'Facebook' } },
-                                                    { match_phrase: { source: 'Twitter' } },
-                                                    { match_phrase: { source: 'Instagram' } },
-                                                    { match_phrase: { source: 'Youtube' } },
-                                                    { match_phrase: { source: 'Pinterest' } },
-                                                    { match_phrase: { source: 'Reddit' } },
-                                                    { match_phrase: { source: 'LinkedIn' } },
-                                                    { match_phrase: { source: 'Web' } }
-                                                ],
+                                                should: sourceFilter,
                                                 minimum_should_match: 1
                                             }
                                         }

@@ -13,8 +13,12 @@ const emotionsController = {
             const {
                 interval = 'monthly',
                 source = 'All',
-                category = 'all'
+                category = 'all',
+                topicId
             } = req.body;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
@@ -57,11 +61,11 @@ const emotionsController = {
             const formattedMinDate = format(minDate, formatPattern);
             const formattedMaxDate = format(maxDate, formatPattern);
 
-            // Build base query
+            // Build base query with special topic source filtering
             const query = buildBaseQuery({
                 greaterThanTime,
                 lessThanTime
-            }, source);
+            }, source, isSpecialTopic);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -393,9 +397,10 @@ const formatPostData = (hit) => {
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
  * @param {string} source - Source to filter by
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
     const query = {
         bool: {
             must: [
@@ -411,27 +416,41 @@ function buildBaseQuery(dateRange, source) {
         }
     };
 
-    // Add source filter if a specific source is selected
-    if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else {
+    // Handle special topic source filtering
+    if (isSpecialTopic) {
+        // For special topic, only allow Facebook and Twitter
         query.bool.must.push({
             bool: {
                 should: [
                     { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } }
+                    { match_phrase: { source: "Twitter" } }
                 ],
                 minimum_should_match: 1
             }
         });
+    } else {
+        // Original source filtering logic
+        if (source !== 'All') {
+            query.bool.must.push({
+                match_phrase: { source: source }
+            });
+        } else {
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } }
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        }
     }
 
     return query;

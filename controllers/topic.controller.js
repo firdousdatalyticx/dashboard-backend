@@ -963,6 +963,9 @@ const topicController = {
             const numericUserId = Number(userId);
             const numericTopicId = topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
             
+            // Check if this is the special topicId
+            const isSpecialTopic = numericTopicId === 2600;
+            
             // Helper function for Elasticsearch count queries
             const countClient = async (query) => {
                 try {
@@ -1028,21 +1031,28 @@ const topicController = {
                 ]),
             ].filter(Boolean);
             
+            // Determine date range based on special topic
+            const dateRange = isSpecialTopic ? 
+                { gte: '2020-01-01', lte: 'now' } :
+                { gte: 'now-90d', lte: 'now' };
+            
+            // Determine social media sources based on special topic
+            const socialSources = isSpecialTopic ? 
+                ["Facebook", "Twitter"] :
+                ["Facebook", "Twitter", "Instagram", "Youtube", "Pinterest", "Reddit", "LinkedIn", "Web"];
+            
             // Build query for social media
             const buildQuery = () => ({
                 bool: {
                     must: [
                         {
                             terms: {
-                                "source.keyword": ["Facebook", "Twitter", "Instagram", "Youtube", "Pinterest", "Reddit", "LinkedIn", "Web"]
+                                "source.keyword": socialSources
                             }
                         },
                         {
                             range: {
-                                created_at: {
-                                    gte: 'now-90d',
-                                    lte: 'now',
-                                },
+                                created_at: dateRange,
                             },
                         },
                     ],
@@ -1090,10 +1100,7 @@ const topicController = {
                         },
                         {
                             range: {
-                                created_at: {
-                                    gte: 'now-90d',
-                                    lte: 'now',
-                                },
+                                created_at: dateRange,
                             },
                         }
                     ]

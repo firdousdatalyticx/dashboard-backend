@@ -13,10 +13,39 @@ const emotionPolarityController = {
             const { 
                 maxPostsPerEmotion = 30,
                 topEmotionsCount = 10, // Default to top 10 emotions
-                skipEmptyEmotions = true // Whether to skip emotions with zero posts
+                skipEmptyEmotions = true, // Whether to skip emotions with zero posts
+                topicId
             } = params;
             
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+            
             const topicQueryString = buildTopicQueryString(categoryData);
+
+            // Update source filter based on special topic
+            const sourceFilter = isSpecialTopic ? {
+                bool: {
+                    should: [
+                        { match_phrase: { source: 'Facebook' } },
+                        { match_phrase: { source: 'Twitter' } }
+                    ],
+                    minimum_should_match: 1
+                }
+            } : {
+                bool: {
+                    should: [
+                        { match_phrase: { source: 'Facebook' } },
+                        { match_phrase: { source: 'Twitter' } },
+                        { match_phrase: { source: 'Instagram' } },
+                        { match_phrase: { source: 'Youtube' } },
+                        { match_phrase: { source: 'Pinterest' } },
+                        { match_phrase: { source: 'Reddit' } },
+                        { match_phrase: { source: 'LinkedIn' } },
+                        { match_phrase: { source: 'Web' } }
+                    ],
+                    minimum_should_match: 1
+                }
+            };
 
             const elasticParams = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -37,21 +66,7 @@ const emotionPolarityController = {
                                     }
                                 }
                             ],
-                            filter: {
-                                bool: {
-                                    should: [
-                                        { match_phrase: { source: 'Facebook' } },
-                                        { match_phrase: { source: 'Twitter' } },
-                                        { match_phrase: { source: 'Instagram' } },
-                                        { match_phrase: { source: 'Youtube' } },
-                                        { match_phrase: { source: 'Pinterest' } },
-                                        { match_phrase: { source: 'Reddit' } },
-                                        { match_phrase: { source: 'LinkedIn' } },
-                                        { match_phrase: { source: 'Web' } }
-                                    ],
-                                    minimum_should_match: 1
-                                }
-                            }
+                            filter: sourceFilter
                         }
                     },
                     aggs: {

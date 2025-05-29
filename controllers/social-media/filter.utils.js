@@ -95,18 +95,38 @@ const processFilters = (filters) => {
         timeSlot,
         fromDate,
         toDate,
-        queryString = ''
+        queryString = '',
+        isSpecialTopic = false
     } = filters;    
 
     // Process date range using timeSlot or fromDate/toDate
-    const dateRange = processTimeSlot(timeSlot, fromDate, toDate);
+    let dateRange;
+    
+    if (isSpecialTopic) {
+        // For special topic (2600), use wider date range if no specific dates provided
+        if (fromDate || toDate) {
+            // Use provided dates
+            dateRange = processTimeSlot(timeSlot, fromDate, toDate);
+        } else {
+            // Use wider range instead of default 90 days
+            const now = new Date();
+            dateRange = {
+                greaterThanTime: '2020-01-01',
+                lessThanTime: format(now, 'yyyy-MM-dd')
+            };
+        }
+    } else {
+        // Original logic for regular topics
+        dateRange = processTimeSlot(timeSlot, fromDate, toDate);
+    }
 
     // Process sentiment filter
     const updatedQueryString = processSentimentType(sentimentType, queryString);
 
     return {
         ...dateRange,
-        queryString: updatedQueryString
+        queryString: updatedQueryString,
+        isSpecialTopic
     };
 };
 

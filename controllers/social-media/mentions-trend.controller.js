@@ -15,8 +15,12 @@ const mentionsTrendController = {
                 sentimentType,
                 source = 'All',
                 category = 'all',
-                unTopic = 'false'
+                unTopic = 'false',
+                topicId
             } = req.body;
+
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
@@ -59,7 +63,7 @@ const mentionsTrendController = {
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source);
+            }, source, isSpecialTopic);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -220,7 +224,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
     const query = {
         bool: {
             must: [
@@ -251,27 +255,40 @@ function buildBaseQuery(dateRange, source) {
         }
     };
 
-    // Add source filter if a specific source is selected
-    if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else {
+    // Handle special topic source filtering
+    if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
                 should: [
                     { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } }
+                    { match_phrase: { source: "Twitter" } }
                 ],
                 minimum_should_match: 1
             }
         });
+    } else {
+        // Add source filter if a specific source is selected
+        if (source !== 'All') {
+            query.bool.must.push({
+                match_phrase: { source: source }
+            });
+        } else {
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } }
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        }
     }
 
     return query;

@@ -93,8 +93,12 @@ const influencersController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                isScadUser = 'false' 
+                isScadUser = 'false',
+                topicId
             } = req.body;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             const categoryData = req.processedCategories || {};
 
@@ -112,13 +116,44 @@ const influencersController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                queryString: topicQueryString
+                queryString: topicQueryString,
+                isSpecialTopic // Pass special topic flag
             });
             
             const finalDataArray = [];
 
             for (const followerType of INFLUENCER_TYPES) {
                 const { type, from, to } = followerType;
+
+                // Build source filter based on special topic
+                let sourceFilterBool;
+                if (isSpecialTopic) {
+                    sourceFilterBool = {
+                        bool: {
+                            should: [
+                                { match_phrase: { source: "Facebook" } },
+                                { match_phrase: { source: "Twitter" } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    };
+                } else {
+                    sourceFilterBool = {
+                        bool: {
+                            should: [
+                                { match_phrase: { source: "Facebook" } },
+                                { match_phrase: { source: "Twitter" } },
+                                { match_phrase: { source: "Instagram" } },
+                                { match_phrase: { source: "Youtube" } },
+                                { match_phrase: { source: "Pinterest" } },
+                                { match_phrase: { source: "Reddit" } },
+                                { match_phrase: { source: "LinkedIn" } },
+                                { match_phrase: { source: "Web" } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    };
+                }
 
                 const params = {
                     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -129,7 +164,8 @@ const influencersController = {
                                     { query_string: { query: filters.queryString } },
                                     { exists: { field: 'u_profile_photo' } },
                                     { range: { p_created_time: { gte: filters.greaterThanTime, lte: filters.lessThanTime } } },
-                                    { range: { u_followers: { gte: from, lte: to } } }
+                                    { range: { u_followers: { gte: from, lte: to } } },
+                                    sourceFilterBool
                                 ],
                                 must_not: [{ term: { 'u_profile_photo.keyword': '' } }]
                             }
@@ -215,8 +251,12 @@ const influencersController = {
                 toDate,
                 sentimentType,
                 isScadUser = 'false', 
-                selectedTab = '' 
+                selectedTab = '',
+                topicId
             } = req.body;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             const categoryData = req.processedCategories || {};
 
@@ -236,12 +276,16 @@ const influencersController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                queryString: topicQueryString
+                queryString: topicQueryString,
+                isSpecialTopic // Pass special topic flag
             });
 
             // Handle source filtering based on user type and selected tab
             let finalQueryString = filters.queryString;
-            if (isScadUser === 'true') {
+            if (isSpecialTopic) {
+                // For special topic, only use Facebook and Twitter
+                finalQueryString = `${finalQueryString} AND source:('"Facebook" OR "Twitter"')`;
+            } else if (isScadUser === 'true') {
                 if (selectedTab === 'GOOGLE') {
                     finalQueryString = finalQueryString ? 
                         `${finalQueryString} AND source:('"GoogleMyBusiness"')` :
@@ -287,8 +331,13 @@ const influencersController = {
                 sentiment,
                 isScadUser = 'false', 
                 selectedTab = '',
-                type 
+                type,
+                topicId
             } = req.query;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+            
             console.log(req.query)
             
             const categoryData = req.processedCategories || {};
@@ -309,12 +358,16 @@ const influencersController = {
                 fromDate:greaterThanTime,
                 toDate:lessThanTime,
                 sentimentType:sentiment,
-                queryString: topicQueryString
+                queryString: topicQueryString,
+                isSpecialTopic // Pass special topic flag
             });
 
             // Handle source filtering based on user type and selected tab
             let finalQueryString = filters.queryString;
-            if (isScadUser === 'true') {
+            if (isSpecialTopic) {
+                // For special topic, only use Facebook and Twitter
+                finalQueryString = `${finalQueryString} AND source:('"Facebook" OR "Twitter"')`;
+            } else if (isScadUser === 'true') {
                 if (selectedTab === 'GOOGLE') {
                     finalQueryString = finalQueryString ? 
                         `${finalQueryString} AND source:('"GoogleMyBusiness"')` :

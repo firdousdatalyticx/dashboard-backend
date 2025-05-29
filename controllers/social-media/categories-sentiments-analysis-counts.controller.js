@@ -182,6 +182,9 @@ const sentimentsMultipleCategoriesController = {
         topicId,
       } = req.body;
       
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       // Validate input
       if (!Array.isArray(categories) || categories.length === 0) {
         const userId = req.user.id;
@@ -230,13 +233,20 @@ const sentimentsMultipleCategoriesController = {
         });
       }
 
-      // Set default date range - last 90 days
+      // Set date range - for special topic, don't use default 90 days restriction
       const now = new Date();
-      const ninetyDaysAgo = subDays(now, 90);
-
-      const greaterThanTime =
-        fromDate && fromDate != null ? fromDate : "now-90d";
-      const lessThanTime = toDate && toDate != null ? toDate : "now";
+      let greaterThanTime, lessThanTime;
+      
+      if (isSpecialTopic) {
+        // For special topic, use wider range if no dates provided
+        greaterThanTime = fromDate && fromDate != null ? fromDate : "2020-01-01";
+        lessThanTime = toDate && toDate != null ? toDate : "now";
+      } else {
+        // Original logic with 90 days default
+        const ninetyDaysAgo = subDays(now, 90);
+        greaterThanTime = fromDate && fromDate != null ? fromDate : "now-90d";
+        lessThanTime = toDate && toDate != null ? toDate : "now";
+      }
 
       // Build base query (without category filters)
       const baseQuery = buildBaseQuery(
@@ -244,7 +254,8 @@ const sentimentsMultipleCategoriesController = {
           greaterThanTime,
           lessThanTime,
         },
-        source
+        source,
+        isSpecialTopic
       );
 
       // Create aggregations for each category
@@ -762,7 +773,7 @@ const sentimentsMultipleCategoriesController = {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
   const query = {
     bool: {
       must: [
@@ -778,27 +789,40 @@ function buildBaseQuery(dateRange, source) {
     },
   };
 
-  // Add source filter if a specific source is selected
-  if (source !== "All") {
-    query.bool.must.push({
-      match_phrase: { source: source },
-    });
-  } else {
+  // Handle special topic source filtering
+  if (isSpecialTopic) {
     query.bool.must.push({
       bool: {
         should: [
           { match_phrase: { source: "Facebook" } },
-          { match_phrase: { source: "Twitter" } },
-          { match_phrase: { source: "Instagram" } },
-          { match_phrase: { source: "Youtube" } },
-          { match_phrase: { source: "LinkedIn" } },
-          { match_phrase: { source: "Pinterest" } },
-          { match_phrase: { source: "Web" } },
-          { match_phrase: { source: "Reddit" } },
+          { match_phrase: { source: "Twitter" } }
         ],
-        minimum_should_match: 1,
-      },
+        minimum_should_match: 1
+      }
     });
+  } else {
+    // Add source filter if a specific source is selected
+    if (source !== "All") {
+      query.bool.must.push({
+        match_phrase: { source: source },
+      });
+    } else {
+      query.bool.must.push({
+        bool: {
+          should: [
+            { match_phrase: { source: "Facebook" } },
+            { match_phrase: { source: "Twitter" } },
+            { match_phrase: { source: "Instagram" } },
+            { match_phrase: { source: "Youtube" } },
+            { match_phrase: { source: "LinkedIn" } },
+            { match_phrase: { source: "Pinterest" } },
+            { match_phrase: { source: "Web" } },
+            { match_phrase: { source: "Reddit" } },
+          ],
+          minimum_should_match: 1,
+        },
+      });
+    }
   }
 
   return query;

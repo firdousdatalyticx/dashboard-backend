@@ -304,6 +304,9 @@ const topicCategoriesController = {
 
             const numericUserId = Number(userId);
             const numericTopicId = topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = numericTopicId === 2600;
 
             // Fetch customer topics
             const customerTopics = await prisma.customer_topics.findMany({
@@ -350,33 +353,31 @@ const topicCategoriesController = {
 
             // Extract terms from all categories for the query
             const socialMediaTerms = extractTermsFromCategoryData('all', categoryData);
+            
+            // Determine date range based on special topic
+            const dateRange = isSpecialTopic ? 
+                { gte: '2020-01-01', lte: 'now' } :
+                { gte: 'now-90d', lte: 'now' };
+            
+            // Determine social media sources based on special topic
+            const socialSources = isSpecialTopic ? 
+                ["Facebook", "Twitter"] :
+                ["Facebook", "Twitter", "Instagram", "Youtube", "Pinterest", "Reddit", "LinkedIn", "Web"];
 
             // Query builder for social media data
             const buildSocialMediaQuery = () => ({
                 bool: {
-                    // must: [
-                    //     {
-                    //         range: {
-                    //             created_at: {
-                    //                 gte: 'now-90d',
-                    //                 lte: 'now',
-                    //             }
-                    //         }
-                    //     }
-                    // ],
+                    must: [
+                        {
+                            range: {
+                                created_at: dateRange
+                            }
+                        }
+                    ],
                     filter: [
                         {
                             terms: {
-                                "source.keyword": [
-                                    "Facebook",
-                                    "Twitter",
-                                    "Instagram", 
-                                    "Youtube",
-                                    "Pinterest",
-                                    "Reddit",
-                                    "LinkedIn",
-                                    "Web"
-                                ]
+                                "source.keyword": socialSources
                             }
                         },
                         {
@@ -433,6 +434,11 @@ const topicCategoriesController = {
                         {
                             terms: {
                                 "u_source.keyword": googleUrls
+                            }
+                        },
+                        {
+                            range: {
+                                created_at: dateRange
                             }
                         }
                     ]

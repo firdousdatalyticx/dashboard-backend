@@ -21,8 +21,12 @@ const entitiesController = {
                 lessThanTime: inputLessThanTime,
                 unTopic = 'false',
                 limit = 10,
-                maxPostsPerEntity = 200 // Safety limit for max posts to fetch per entity
+                maxPostsPerEntity = 200, // Safety limit for max posts to fetch per entity
+                topicId
             } = params;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
@@ -42,7 +46,8 @@ const entitiesController = {
                 timeSlot,
                 fromDate,
                 toDate,
-                queryString: baseQueryString
+                queryString: baseQueryString,
+                isSpecialTopic // Pass special topic flag
             });
             
             // Set date range based on filters or special case
@@ -53,6 +58,12 @@ const entitiesController = {
             if (unTopic === 'true') {
                 effectiveGreaterThanTime = '2023-01-01';
                 effectiveLessThanTime = '2023-04-30';
+            }
+            
+            // For special topic, use wider range if no dates provided
+            if (isSpecialTopic && !fromDate && !toDate) {
+                effectiveGreaterThanTime = '2020-01-01';
+                effectiveLessThanTime = 'now';
             }
             
             // If input dates were provided, they take precedence
@@ -82,7 +93,7 @@ const entitiesController = {
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source);
+            }, source, isSpecialTopic);
             
             // Add p_created_time range filter
             query.bool.must.push({
@@ -411,7 +422,7 @@ const formatPostData = async (hit) => {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
     const query = {
         bool: {
             must: [
@@ -434,27 +445,40 @@ function buildBaseQuery(dateRange, source) {
         }
     };
 
-    // Add source filter if a specific source is selected
-    if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else {
+    // Handle special topic source filtering
+    if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
                 should: [
                     { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } }
+                    { match_phrase: { source: "Twitter" } }
                 ],
                 minimum_should_match: 1
             }
         });
+    } else {
+        // Add source filter if a specific source is selected
+        if (source !== 'All') {
+            query.bool.must.push({
+                match_phrase: { source: source }
+            });
+        } else {
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } }
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        }
     }
 
     return query;

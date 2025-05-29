@@ -3,16 +3,28 @@ const { elasticClient } = require('../../config/elasticsearch');
 const poiSentimentDistributionController = {
     getDistribution: async (req, res) => {
         try {
+            const { topicId } = req.body || {};
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+            
             const categoryData = req.processedCategories || {};
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ distribution: [] });
             }
 
-            // Calculate date 90 days ago
-            const ninetyDaysAgo = new Date();
-            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-            const dateFilter = ninetyDaysAgo.toISOString();
+            // Calculate date filter based on special topic
+            let dateFilter;
+            if (isSpecialTopic) {
+                // For special topic, use wider range instead of 90 days
+                dateFilter = '2020-01-01';
+            } else {
+                // Calculate date 90 days ago
+                const ninetyDaysAgo = new Date();
+                ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+                dateFilter = ninetyDaysAgo.toISOString();
+            }
 
             // Filter out categories with empty criteria
             const validCategories = Object.entries(categoryData).filter(([_, data]) => {
@@ -26,6 +38,21 @@ const poiSentimentDistributionController = {
             if (validCategories.length === 0) {
                 return res.json({ distribution: [] });
             }
+
+            // Build source filter based on special topic
+            const sourceFilter = isSpecialTopic ? [
+                { match_phrase: { source: 'Facebook' } },
+                { match_phrase: { source: 'Twitter' } }
+            ] : [
+                { match_phrase: { source: 'Facebook' } },
+                { match_phrase: { source: 'Twitter' } },
+                { match_phrase: { source: 'Instagram' } },
+                { match_phrase: { source: 'Youtube' } },
+                { match_phrase: { source: 'Pinterest' } },
+                { match_phrase: { source: 'Reddit' } },
+                { match_phrase: { source: 'LinkedIn' } },
+                { match_phrase: { source: 'Web' } }
+            ];
 
             // Build ElasticSearch query with only valid categories
             const params = {
@@ -108,16 +135,7 @@ const poiSentimentDistributionController = {
                                         },
                                         {
                                             bool: {
-                                                should: [
-                                                    { match_phrase: { source: 'Facebook' } },
-                                                    { match_phrase: { source: 'Twitter' } },
-                                                    { match_phrase: { source: 'Instagram' } },
-                                                    { match_phrase: { source: 'Youtube' } },
-                                                    { match_phrase: { source: 'Pinterest' } },
-                                                    { match_phrase: { source: 'Reddit' } },
-                                                    { match_phrase: { source: 'LinkedIn' } },
-                                                    { match_phrase: { source: 'Web' } }
-                                                ],
+                                                should: sourceFilter,
                                                 minimum_should_match: 1
                                             }
                                         }

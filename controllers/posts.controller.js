@@ -40,45 +40,52 @@ const buildElasticsearchQuery = (params) => {
     rating,
     googleUrls = [],
     emotion,
-    click
+    click,
+    isSpecialTopic = false
   } = params;
 
   // Build query_string parts in an array
   const qsParts = [];
   if (topicQueryString) qsParts.push(topicQueryString);
 
-  // Source filtering – use a switch to consolidate the conditions
-  const allSocialSources = '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")';
-  switch (postTypeSource) {
-    case 'News':
-      qsParts.push('source:("FakeNews" OR "News")');
-      break;
-    case 'YouTube':
-    case 'Videos':
-      qsParts.push('source:("Youtube" OR "Vimeo")');
-      break;
-    case 'Web':
-      qsParts.push('source:("FakeNews" OR "News" OR "Blogs" OR "Web")');
-      break;
-    case 'GoogleMyBusiness':
-      qsParts.push('source:("GoogleMyBusiness")');
-      break;
-    case 'All':
-      if (isScadUser === 'true') {
-        qsParts.push(selectedTab === 'GOOGLE'
-          ? 'source:("GoogleMyBusiness")'
-          : `source:${allSocialSources}`);
-      }
-      break;
-    default:
-      if (postTypeSource && postTypeSource !== 'undefined')
-        qsParts.push(`source:("${postTypeSource}")`);
-  }
+  // Source filtering – handle special topic case first
+  if (isSpecialTopic) {
+    // For special topic, only allow Facebook and Twitter
+    qsParts.push('source:("Facebook" OR "Twitter")');
+  } else {
+    // Original source filtering logic
+    const allSocialSources = '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")';
+    switch (postTypeSource) {
+      case 'News':
+        qsParts.push('source:("FakeNews" OR "News")');
+        break;
+      case 'YouTube':
+      case 'Videos':
+        qsParts.push('source:("Youtube" OR "Vimeo")');
+        break;
+      case 'Web':
+        qsParts.push('source:("FakeNews" OR "News" OR "Blogs" OR "Web")');
+        break;
+      case 'GoogleMyBusiness':
+        qsParts.push('source:("GoogleMyBusiness")');
+        break;
+      case 'All':
+        if (isScadUser === 'true') {
+          qsParts.push(selectedTab === 'GOOGLE'
+            ? 'source:("GoogleMyBusiness")'
+            : `source:${allSocialSources}`);
+        }
+        break;
+      default:
+        if (postTypeSource && postTypeSource !== 'undefined')
+          qsParts.push(`source:("${postTypeSource}")`);
+    }
 
-  // For non-GoogleMyBusiness sources, ensure all social sources are covered if needed
-  if (postTypeSource !== 'GoogleMyBusiness' && 
-      !['News', 'YouTube', 'Videos', 'Web'].includes(postTypeSource)) {
-    qsParts.push(`source:${allSocialSources}`);
+    // For non-GoogleMyBusiness sources, ensure all social sources are covered if needed
+    if (postTypeSource !== 'GoogleMyBusiness' && 
+        !['News', 'YouTube', 'Videos', 'Web'].includes(postTypeSource)) {
+      qsParts.push(`source:${allSocialSources}`);
+    }
   }
 
   // Post type filtering – use a mapping for common cases.
@@ -258,21 +265,35 @@ const buildElasticsearchQuery = (params) => {
   } else if (postTypeSource === 'topTenEntities') {
     must.push({ range: { p_created_time: { gte: greaterThanTime, lte: lessThanTime } } });
     must.push({ match_phrase: { 'llm_entities.Organization': postType } });
-    must.push({
-      bool: {
-        should: [
-          { match_phrase: { source: 'Facebook' } },
-          { match_phrase: { source: 'Twitter' } },
-          { match_phrase: { source: 'Instagram' } },
-          { match_phrase: { source: 'Youtube' } },
-          { match_phrase: { source: 'Pinterest' } },
-          { match_phrase: { source: 'Reddit' } },
-          { match_phrase: { source: 'LinkedIn' } },
-          { match_phrase: { source: 'Web' } }
-        ],
-        minimum_should_match: 1
-      }
-    });
+    
+    // Handle special topic source filtering for entities
+    if (isSpecialTopic) {
+      must.push({
+        bool: {
+          should: [
+            { match_phrase: { source: 'Facebook' } },
+            { match_phrase: { source: 'Twitter' } }
+          ],
+          minimum_should_match: 1
+        }
+      });
+    } else {
+      must.push({
+        bool: {
+          should: [
+            { match_phrase: { source: 'Facebook' } },
+            { match_phrase: { source: 'Twitter' } },
+            { match_phrase: { source: 'Instagram' } },
+            { match_phrase: { source: 'Youtube' } },
+            { match_phrase: { source: 'Pinterest' } },
+            { match_phrase: { source: 'Reddit' } },
+            { match_phrase: { source: 'LinkedIn' } },
+            { match_phrase: { source: 'Web' } }
+          ],
+          minimum_should_match: 1
+        }
+      });
+    }
   } else if (postType === 'socialMediaSourcesPosts') {
     // For social sources, force the source filter and a date range.
     qsParts.push(`source:("${postTypeSource}")`);
@@ -519,6 +540,9 @@ const postsController = {
         click = 'false' 
       } = req.query;
       
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       // Get googleUrls from middleware
       const googleUrls = req.googleUrls || [];
 
@@ -539,8 +563,25 @@ const postsController = {
       // }
 
       // Determine date range - preserve full timestamp format for GoogleMyBusiness
-      let greaterThanTime = inputGreaterThanTime || process.env.DATA_FETCH_FROM_TIME;
-      let lessThanTime = inputLessThanTime || process.env.DATA_FETCH_TO_TIME;
+      let greaterThanTime = inputGreaterThanTime;
+      let lessThanTime = inputLessThanTime;
+      
+      // Handle special topic date range logic
+      if (isSpecialTopic) {
+        // For special topic, use wider range if no dates provided
+        if (!greaterThanTime && !lessThanTime) {
+          greaterThanTime = '2020-01-01';
+          lessThanTime = 'now';
+        } else {
+          // Use provided dates or fall back to environment defaults
+          greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
+          lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
+        }
+      } else {
+        // Original logic for regular topics
+        greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
+        lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
+      }
 
       // For GoogleMyBusiness, make sure time is properly formatted for consistency with review-trends
       if (postTypeSource === 'GoogleMyBusiness') {
@@ -572,7 +613,8 @@ const postsController = {
         limit: parseInt(limit, 10) || 50,
         rating,
         googleUrls,
-        click
+        click,
+        isSpecialTopic
       };
 
       const esQuery = buildElasticsearchQuery(queryParams);

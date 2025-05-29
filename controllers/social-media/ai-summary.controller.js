@@ -19,6 +19,9 @@ const aiSummaryController = {
                 chartType = 'emotionAnalysis'
             } = req.body;
 
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
 
@@ -29,27 +32,34 @@ const aiSummaryController = {
                 });
             }
 
-            // Set date range based on interval
+            // Set date range based on interval - for special topic, use wider range
             const now = new Date();
             let startDate;
             let calendarInterval;
             let formatPattern;
 
-            switch (interval) {
-                case 'daily':
-                    startDate = subDays(now, 7);
-                    calendarInterval = 'day';
-                    formatPattern = 'yyyy-MM-dd';
-                    break;
-                case 'weekly':
-                    startDate = subWeeks(now, 4);
-                    calendarInterval = 'week';
-                    formatPattern = 'yyyy-w';
-                    break;
-                default: // monthly
-                    startDate = subMonths(now, 3);
-                    calendarInterval = 'month';
-                    formatPattern = 'yyyy-MM';
+            if (isSpecialTopic) {
+                // For special topic, use a wider range instead of default restrictions
+                startDate = new Date('2020-01-01');
+                calendarInterval = 'month';
+                formatPattern = 'yyyy-MM';
+            } else {
+                switch (interval) {
+                    case 'daily':
+                        startDate = subDays(now, 7);
+                        calendarInterval = 'day';
+                        formatPattern = 'yyyy-MM-dd';
+                        break;
+                    case 'weekly':
+                        startDate = subWeeks(now, 4);
+                        calendarInterval = 'week';
+                        formatPattern = 'yyyy-w';
+                        break;
+                    default: // monthly
+                        startDate = subMonths(now, 3);
+                        calendarInterval = 'month';
+                        formatPattern = 'yyyy-MM';
+                }
             }
 
             // Format dates for Elasticsearch query
@@ -60,7 +70,7 @@ const aiSummaryController = {
             const query = buildBaseQuery({
                 greaterThanTime,
                 lessThanTime
-            }, source);
+            }, source, isSpecialTopic);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -205,7 +215,7 @@ const aiSummaryController = {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
     const query = {
         bool: {
             must: [
@@ -221,27 +231,40 @@ function buildBaseQuery(dateRange, source) {
         }
     };
 
-    // Add source filter if a specific source is selected
-    if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else {
+    // Handle special topic source filtering
+    if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
                 should: [
                     { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } }
+                    { match_phrase: { source: "Twitter" } }
                 ],
                 minimum_should_match: 1
             }
         });
+    } else {
+        // Add source filter if a specific source is selected
+        if (source !== 'All') {
+            query.bool.must.push({
+                match_phrase: { source: source }
+            });
+        } else {
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } }
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        }
     }
 
     return query;

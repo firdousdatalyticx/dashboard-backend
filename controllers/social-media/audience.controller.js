@@ -138,11 +138,15 @@ const audienceController = {
             const { 
                 timeSlot,
                 fromDate,
-                toDate ,
+                toDate,
                 sentimentType,
                 category="all",
-                source="All"
+                source="All",
+                topicId
             } = req.body;
+            
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             const categoryData = req.processedCategories || {};
 
@@ -152,63 +156,60 @@ const audienceController = {
                 });
             }
 
-             // Build base query for filters processing
-                        const baseQueryString = buildBaseQueryString(category, categoryData);
-                        
-                        // Process filters (time slot, date range, sentiment)
-                        const filters = processFilters({
-                            sentimentType,
-                            timeSlot,
-                            fromDate,
-                            toDate,
-                            queryString: baseQueryString
-                        });
+            // Build base query for filters processing
+            const baseQueryString = buildBaseQueryString(category, categoryData);
             
-                        // Handle special case for unTopic
-                        let queryTimeRange = {
-                            gte: filters.greaterThanTime,
-                            lte: filters.lessThanTime
-                        };
-            
-                        // if (unTopic === 'true') {
-                        //     queryTimeRange = {
-                        //         gte: '2023-01-01',
-                        //         lte: '2023-04-30'
-                        //     };
-                        // }
-            
-                        // Build base query
-                        const query = buildBaseQuery({
-                            greaterThanTime: queryTimeRange.gte,
-                            lessThanTime: queryTimeRange.lte
-                        }, source);
-            
-                        // Add category filters
-                        addCategoryFilters(query, category, categoryData);
-                        
-                        // Apply sentiment filter if provided
-                        if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
-                            if (sentimentType.includes(',')) {
-                                // Handle multiple sentiment types
-                                const sentimentArray = sentimentType.split(',');
-                                const sentimentFilter = {
-                                    bool: {
-                                        should: sentimentArray.map(sentiment => ({
-                                            match: { predicted_sentiment_value: sentiment.trim() }
-                                        })),
-                                        minimum_should_match: 1
-                                    }
-                                };
-                                query.bool.must.push(sentimentFilter);
-                            } else {
-                                // Handle single sentiment type
-                                query.bool.must.push({
-                                    match: { predicted_sentiment_value: sentimentType.trim() }
-                                });
-                            }
-                        }
-            
+            // Process filters (time slot, date range, sentiment)
+            const filters = processFilters({
+                sentimentType,
+                timeSlot,
+                fromDate,
+                toDate,
+                queryString: baseQueryString
+            });
 
+            // Handle special case for unTopic
+            let queryTimeRange = {
+                gte: filters.greaterThanTime,
+                lte: filters.lessThanTime
+            };
+
+            // For special topic, modify date range behavior
+            if (isSpecialTopic && !timeSlot && !fromDate && !toDate) {
+                queryTimeRange = {
+                    gte: '1970-01-01',
+                    lte: 'now'
+                };
+            }
+
+            // Build base query with special source handling
+            const query = buildBaseQuery(queryTimeRange, source, isSpecialTopic);
+
+            // Add category filters
+            addCategoryFilters(query, category, categoryData);
+            
+            // Apply sentiment filter if provided
+            if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+                if (sentimentType.includes(',')) {
+                    // Handle multiple sentiment types
+                    const sentimentArray = sentimentType.split(',');
+                    const sentimentFilter = {
+                        bool: {
+                            should: sentimentArray.map(sentiment => ({
+                                match: { predicted_sentiment_value: sentiment.trim() }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    };
+                    query.bool.must.push(sentimentFilter);
+                } else {
+                    // Handle single sentiment type
+                    query.bool.must.push({
+                        match: { predicted_sentiment_value: sentimentType.trim() }
+                    });
+                }
+            }
+            
             query.bool.must.push({ exists: { field: 'u_country' } });
             const params = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -221,7 +222,6 @@ const audienceController = {
                       },
                 }
             };
-
 
             const results = await elasticClient.search(params);
 
@@ -246,7 +246,6 @@ const audienceController = {
                 country_name: countryName
             }));
 
-
             return res.json({ results,responseArray });
         } catch (error) {
             console.error('Error fetching audience distribution data:', error);
@@ -257,7 +256,6 @@ const audienceController = {
         }
     }
 };
-
 
 /**
  * Build a base query string from category data for filters processing
@@ -310,11 +308,10 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
     const query = {
         bool: {
             must: [
-           
                 {
                     range: {
                         p_created_time: {
@@ -334,27 +331,40 @@ function buildBaseQuery(dateRange, source) {
         }
     };
 
-    // Add source filter if a specific source is selected
-    if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else {
+    // Handle special topic source filtering
+    if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
                 should: [
                     { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } }
+                    { match_phrase: { source: "Twitter" } }
                 ],
                 minimum_should_match: 1
             }
         });
+    } else {
+        // Add source filter if a specific source is selected
+        if (source !== 'All') {
+            query.bool.must.push({
+                match_phrase: { source: source }
+            });
+        } else {
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } }
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        }
     }
 
     return query;
@@ -452,6 +462,5 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
         }
     }
 }
-
 
 module.exports = audienceController; 

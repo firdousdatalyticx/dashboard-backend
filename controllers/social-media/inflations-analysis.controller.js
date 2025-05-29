@@ -13,8 +13,12 @@ const inflationController = {
             const {
                 interval = 'monthly',
                 source = 'All',
-                category = 'all'
+                category = 'all',
+                topicId
             } = req.body;
+
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
@@ -26,12 +30,20 @@ const inflationController = {
                 });
             }
 
-            // Set default date range - last 90 days
+            // Set date range - for special topic, don't use default 90 days restriction
             const now = new Date();
-            const ninetyDaysAgo = subDays(now, 90);
+            let greaterThanTime, lessThanTime;
             
-            const greaterThanTime = format(ninetyDaysAgo, 'yyyy-MM-dd');
-            const lessThanTime = format(now, 'yyyy-MM-dd');
+            if (isSpecialTopic) {
+                // For special topic, use wider range
+                greaterThanTime = '2020-01-01';
+                lessThanTime = format(now, 'yyyy-MM-dd');
+            } else {
+                // Original logic with 90 days default
+                const ninetyDaysAgo = subDays(now, 90);
+                greaterThanTime = format(ninetyDaysAgo, 'yyyy-MM-dd');
+                lessThanTime = format(now, 'yyyy-MM-dd');
+            }
 
             // Set calendar interval based on requested interval
             let calendarInterval = 'month';
@@ -61,7 +73,7 @@ const inflationController = {
             const query = buildBaseQuery({
                 greaterThanTime,
                 lessThanTime
-            }, source);
+            }, source, isSpecialTopic);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -385,9 +397,10 @@ const formatPostData = (hit) => {
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
  * @param {string} source - Source to filter by
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
     const query = {
         bool: {
             must: [
@@ -403,27 +416,40 @@ function buildBaseQuery(dateRange, source) {
         }
     };
 
-    // Add source filter if a specific source is selected
-    if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else {
+    // Handle special topic source filtering
+    if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
                 should: [
                     { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } }
+                    { match_phrase: { source: "Twitter" } }
                 ],
                 minimum_should_match: 1
             }
         });
+    } else {
+        // Add source filter if a specific source is selected
+        if (source !== 'All') {
+            query.bool.must.push({
+                match_phrase: { source: source }
+            });
+        } else {
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } }
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        }
     }
 
     return query;

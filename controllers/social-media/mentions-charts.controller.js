@@ -556,6 +556,9 @@ const mentionsChartController = {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
 
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -563,11 +566,22 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+      
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+      
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+      
       // Fetch mention actions in **one** query
       const response = await getActionRequired(
-        fromDate,
-        toDate,
+        effectiveFromDate,
+        effectiveToDate,
         topicQueryString,
         sentimentType
       );
@@ -583,6 +597,9 @@ const mentionsChartController = {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
 
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -591,8 +608,16 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Expanded list of sources (now fully dynamic)
-      topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
       const query = {
@@ -604,8 +629,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -686,6 +711,7 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+  
   entities: async (req, res) => {
     try {
       const {
@@ -696,6 +722,10 @@ const mentionsChartController = {
         sentimentType,
         sources = "All",
       } = req.body;
+      
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       const isScadUser = false;
       const selectedTab = "Social";
 
@@ -705,11 +735,21 @@ const mentionsChartController = {
         selectedTab
       );
 
-      if (sources == "All") {
-        topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString} AND source:(${sources})`;
+        if (sources == "All") {
+          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        } else {
+          topicQueryString = `${topicQueryString} AND source:(${sources})`;
+        }
       }
+      
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+      
       const params = {
         size: 0,
         query: {
@@ -724,8 +764,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -771,9 +811,13 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+  
   recurrenceMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -783,8 +827,16 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Expanded list of sources
-      topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
       const query = {
@@ -796,8 +848,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -842,6 +894,10 @@ const mentionsChartController = {
   urgencyMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -850,8 +906,16 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Expanded sources dynamically
-      topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
       const query = {
@@ -863,8 +927,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -913,6 +977,10 @@ const mentionsChartController = {
   audienceMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -921,8 +989,16 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Expanded sources dynamically
-      topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
       const query = {
@@ -934,8 +1010,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -978,6 +1054,10 @@ const mentionsChartController = {
   audienceMentionsAcrossMentionType: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       const isScadUser = false;
       const selectedTab = "Social";
 
@@ -988,8 +1068,16 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Add source filters
-      topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // Elasticsearch query
       const query = {
@@ -1001,8 +1089,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -1073,9 +1161,14 @@ const mentionsChartController = {
       });
     }
   },
+  
   riskTypeAcrossCustomerJourney: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       const isScadUser = false;
       const selectedTab = "Social";
 
@@ -1086,8 +1179,16 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Add source filters
-      topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // Elasticsearch query
       const query = {
@@ -1099,8 +1200,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -1178,9 +1279,14 @@ const mentionsChartController = {
       });
     }
   },
+  
   complaintsAcrossCustomerJourneyStagesbyAudience: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       const isScadUser = false;
       const selectedTab = "Social";
 
@@ -1190,7 +1296,17 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // Elasticsearch query
       const query = {
@@ -1202,8 +1318,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -1294,6 +1410,10 @@ const mentionsChartController = {
   languageMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1302,8 +1422,16 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Expanded sources dynamically
-      topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
       const query = {
@@ -1315,8 +1443,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -1356,12 +1484,12 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+  
   mentionsPost: async (req, res) => {
     try {
       const {
         greaterThanTime,
         lessThanTime,
-        subtopicId,
         topicId,
         sentiment,
         source,
@@ -1370,6 +1498,9 @@ const mentionsChartController = {
         value,
       } = req.query;
 
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1377,15 +1508,36 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (source != "All") {
-        topicQueryString = `${topicQueryString} AND source:('${source}')`;
+      
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        if (source != "All") {
+          // Only allow Facebook or Twitter for special topic
+          if (source === "Facebook" || source === "Twitter") {
+            topicQueryString = `${topicQueryString} AND source:("${source}")`;
+          } else {
+            // If source is not Facebook or Twitter, use Facebook and Twitter
+            topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+          }
+        } else {
+          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+        }
       } else {
-        topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+        if (source != "All") {
+          topicQueryString = `${topicQueryString} AND source:("${source}")`;
+        } else {
+          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        }
       }
+      
+      // Apply special topic date range
+      const effectiveGreaterThanTime = isSpecialTopic && !greaterThanTime ? "2020-01-01" : greaterThanTime;
+      const effectiveLessThanTime = isSpecialTopic && !lessThanTime ? "now" : lessThanTime;
+      
       // Fetch mention actions in **one** query
       await getPosts(
-        greaterThanTime,
-        lessThanTime,
+        effectiveGreaterThanTime,
+        effectiveLessThanTime,
         topicQueryString,
         sentiment,
         field,
@@ -1403,6 +1555,9 @@ const mentionsChartController = {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
 
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1411,8 +1566,16 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Expanded list of sources
-      topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
       const query = {
@@ -1424,8 +1587,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
                   },
                 },
               },
@@ -1443,8 +1606,8 @@ const mentionsChartController = {
                   fixed_interval: "1d",
                   min_doc_count: 0,
                   extended_bounds: {
-                    min: fromDate || "now-90d",
-                    max: toDate || "now",
+                    min: effectiveFromDate || "now-90d",
+                    max: effectiveToDate || "now",
                   },
                 },
                 aggs: {
@@ -1452,8 +1615,8 @@ const mentionsChartController = {
                     filter: {
                       range: {
                         p_created_time: {
-                          gte: fromDate || "now-90d",
-                          lte: toDate || "now",
+                          gte: effectiveFromDate || "now-90d",
+                          lte: effectiveToDate || "now",
                         },
                       },
                     },
@@ -1491,7 +1654,7 @@ const mentionsChartController = {
       const max = Math.max(
         ...series.flatMap((s) => s.data.map((point) => point.y))
       );
-      const frequency = getFrequency(fromDate, toDate);
+      const frequency = getFrequency(effectiveFromDate, effectiveToDate);
 
       return res.status(200).json({ series, frequency, max });
     } catch (error) {
@@ -2202,9 +2365,9 @@ const mentionsChartController = {
           facebookContent = await elasticSearchCount(
             elasticMentionQueryTemplate(facebookContentQuery, greaterThanTime, lessThanTime)
           )
-          instagramContent = await elasticSearchCount(
+            instagramContent = await elasticSearchCount(
             elasticMentionQueryTemplate(instagramContentQuery, greaterThanTime, lessThanTime)
-          )
+            )
           // webContent = await elasticSearchCount(
           //   elasticMentionQueryTemplate(webContentQuery, greaterThanTime, lessThanTime)
           // )

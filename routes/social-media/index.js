@@ -12,6 +12,9 @@ const poiSentimentDistributionRoute = require('./point-of-interest-sentiment-dis
 const emotionPolarityRoute = require('./emotion-polarity.route');
 const wordCloudRoute = require('./word-cloud.route');
 const inflationAnalysisRoute = require('./inflation-analysis.route');
+const trustDimensionsRoute = require('./trust-dimensions.route');
+const themesOverTimeRoute = require('./themes-over-time.route');
+const sectorDistributionRoute = require('./sector-distribution.route');
 
 const engagementRoute = require('./engagement.route');
 const mentionsTrendRoute = require('./mentions-trend.route');
@@ -57,6 +60,10 @@ router.use('/sentiments-analysis', sentimentsRoute);
 router.use('/emotions-analysis', emotionsRoute);
 router.use('/ai-summary', aiSummaryRoute);
 router.use('/inflations-analysis', inflationsRoute);
+router.use('/inflation-analysis', inflationAnalysisRoute);
+router.use('/trust-dimensions', trustDimensionsRoute);
+router.use('/themes-over-time', themesOverTimeRoute);
+router.use('/sector-distribution', sectorDistributionRoute);
 router.use("/actions-required",actionRequiredRoute)
 router.use("/type-of-mentions",typeOfMentions)
 router.use("/recurrence-mentions",recurrenceMentions)
@@ -64,13 +71,10 @@ router.use("/urgency-mentions",urgencyMentions)
 router.use("/product-complaints",productComplaints)
 router.use("/language-summary",languageSummary);
 router.use("/audience-summary",audienceSummary);
-router.use('/inflation-analysis', inflationAnalysisRoute);
 router.use('/mention-audience-mention-type',mentionAudienceMentionType)
 router.use('/risk-type-across-customer-journey',riskTypeAcrossCustomerJourney)
 router.use('/complaints-across-customer-journey-stages-by-audience',complaintsAcrossCustomerJourneyStagesbyAudience)
 router.use("/undp",undpRoutes)
 router.use("/undp-keyword",undpKeywordRoutes)
-
-
 
 module.exports = router; 

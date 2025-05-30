@@ -21,6 +21,9 @@ const wordCloudSwagger = require('./word-cloud.swagger');
 const engagementSwagger = require('./engagement.metrics.swagger');
 const mentionsTrendSwagger = require('./mentions-trend.swagger');
 const actionRequiredMentionsSwagger = require('./actions-required.swagger');
+const trustDimensionsSwagger = require('./trust-dimensions.swagger');
+const themesOverTimeSwagger = require('./themes-over-time.swagger');
+const sectorDistributionSwagger = require('./sector-distribution.swagger');
 
 
 // Export collection of social media swagger files
@@ -39,5 +42,8 @@ module.exports = {
     engagementSwagger,
     mentionsTrendSwagger,
     inflationsSwagger,
-    actionRequiredMentionsSwagger
+    actionRequiredMentionsSwagger,
+    trustDimensionsSwagger,
+    themesOverTimeSwagger,
+    sectorDistributionSwagger
 }; 

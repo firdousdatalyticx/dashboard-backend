@@ -1662,6 +1662,7 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+
   UNDP: async (req, res) => {
     
       const { greaterThanTime, lessThanTime, subtopicId, topicId, sentimentType,type,aidType} = req.body;
@@ -2518,7 +2519,373 @@ const mentionsChartController = {
           }
       
     }
+  },
+
+
+  migrationTopicsSummary: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType,source } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // **Single Aggregation Query**
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
+                  },
+                },
+              },
+            ],
+
+              must_not: [
+              { term: { "migration_topics.keyword": "" } },
+              { term: { "migration_topics.keyword": "{}" } },
+            ],
+          },
+        },
+        aggs: {
+          mention_types: {
+            terms: { field: "migration_topics.keyword", size: 7 },
+            aggs: {
+              sources: {
+                terms: { field: "source.keyword", size: 15 },
+              },
+            },
+          },
+        },
+      };
+
+      if (sentimentType && sentimentType != "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      return res.status(200).json({ result });
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+  trustDimensionsEducationSystem:async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType,source } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // **Single Aggregation Query**
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
+                  },
+                },
+              },
+            ],
+
+              must_not: [
+              { term: { "trust_dimensions.keyword": "" } },
+              { term: { "trust_dimensions.keyword": "{}" } },
+            ],
+          },
+        },
+        aggs: {
+          mention_types: {
+            terms: { field: "trust_dimensions.keyword", size: 7 },
+            aggs: {
+              sources: {
+                terms: { field: "source.keyword", size: 15 },
+              },
+            },
+          },
+        },
+      };
+
+      if (sentimentType && sentimentType != "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      return res.status(200).json({ result });
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+    trustDimensionsEducationSystem:async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType,source } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // **Single Aggregation Query**
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
+                  },
+                },
+              },
+            ],
+
+              must_not: [
+              { term: { "trust_dimensions.keyword": "" } },
+              { term: { "trust_dimensions.keyword": "{}" } },
+            ],
+          },
+        },
+        aggs: {
+          mention_types: {
+            terms: { field: "trust_dimensions.keyword", size: 7 },
+            aggs: {
+              sources: {
+                terms: { field: "source.keyword", size: 15 },
+              },
+            },
+          },
+        },
+      };
+
+      if (sentimentType && sentimentType != "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      return res.status(200).json({ result });
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+benchMarkingPresenceSentiment: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // **Single Aggregation Query**
+    const query = {
+  size: 10000,
+  query: {
+    bool: {
+      must: [
+        { query_string: { query: topicQueryString } },
+        {
+          range: {
+            p_created_time: {
+              gte: effectiveFromDate || "now-90d",
+              lte: effectiveToDate || "now",
+            },
+          },
+        },
+        {
+          terms: {
+            "entity_mentions.entity_type.keyword": ["NGO", "IGO"]
+          }
+        },
+      ],
+      must_not: [
+        { term: { "trust_dimensions.keyword": "" } },
+        { term: { "trust_dimensions.keyword": "{}" } },
+      ],
+    },
   }
+};
+
+
+      // Add sentiment filter if provided
+      if (sentimentType && sentimentType != "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      const data =result.hits.hits;
+
+// Example function to extract country (modify as per your real data structure)
+function getCountry(hit) {
+  // Try to find country in entity mentions or user location metadata
+  // For now, return dummy or inferred country (you must adapt this)
+  return hit._source.customer_country || "Unknown";
+}
+
+const countrySentimentMap = {};
+
+data.forEach(hit => {
+  const country = getCountry(hit);
+  const sentiment = hit._source.predicted_sentiment_value || "Neutral";
+
+  if (!countrySentimentMap[country]) {
+    countrySentimentMap[country] = { Positive: 0, Neutral: 0, Negative: 0, entries: [] };
+  }
+
+  // Count sentiment
+  if (sentiment === "Positive") {
+    countrySentimentMap[country].Positive++;
+  } else if (sentiment === "Negative") {
+    countrySentimentMap[country].Negative++;
+  } else {
+    countrySentimentMap[country].Neutral++;
+  }
+
+  countrySentimentMap[country].entries.push({
+    org: hit._source.u_fullname,
+    message: hit._source.p_message_text,
+    date: hit._source.p_created_at,
+    sentiment,
+  });
+});
+
+console.log(countrySentimentMap);
+
+      return res.status(200).json({ result });
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+
+
+
+    
+
   
 };
 module.exports = mentionsChartController;

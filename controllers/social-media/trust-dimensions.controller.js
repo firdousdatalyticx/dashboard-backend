@@ -335,10 +335,13 @@ const trustDimensionsController = {
                             field: 'trust_dimensions'
                         }
                     }
-                ]
+                ],
+                 must_not: [
+              { term: { "trust_dimensions.keyword": "" } },
+              { term: { "trust_dimensions.keyword": "{}" } },
+                 ]
             }
         };
-
         // Add sentiment filter if provided
         if (sentiment) {
             if (sentiment.toLowerCase() === "all") {
@@ -630,6 +633,7 @@ const trustDimensionsController = {
         };
 
         return res.json({
+                        response,
             success: true,
             trustDimensions,
             totalTrustPosts,

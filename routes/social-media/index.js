@@ -16,6 +16,7 @@ const trustDimensionsRoute = require('./trust-dimensions.route');
 const trustDimensionsAnalysisRoute = require('./trust-dimensions-analysis.route');
 const trustDimensionsOverTimeRoute = require('./trust-dimensions-over-time.route');
 const themesOverTimeRoute = require('./themes-over-time.route');
+const themesSentimentAnalysisRoute = require('./themes-sentiment-analysis.route');
 const sectorDistributionRoute = require('./sector-distribution.route');
 const touchpointsAnalysisRoute = require('./touchpoints-analysis.route');
 
@@ -68,6 +69,7 @@ router.use('/trust-dimensions', trustDimensionsRoute);
 router.use('/trust-dimensions-analysis', trustDimensionsAnalysisRoute);
 router.use('/trust-dimensions-over-time', trustDimensionsOverTimeRoute);
 router.use('/themes-over-time', themesOverTimeRoute);
+router.use('/themes-sentiment-analysis', themesSentimentAnalysisRoute);
 router.use('/sector-distribution', sectorDistributionRoute);
 router.use('/touchpoints-analysis', touchpointsAnalysisRoute);
 router.use("/actions-required",actionRequiredRoute)

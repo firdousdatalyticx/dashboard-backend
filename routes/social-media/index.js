@@ -14,8 +14,10 @@ const wordCloudRoute = require('./word-cloud.route');
 const inflationAnalysisRoute = require('./inflation-analysis.route');
 const trustDimensionsRoute = require('./trust-dimensions.route');
 const trustDimensionsAnalysisRoute = require('./trust-dimensions-analysis.route');
+const trustDimensionsOverTimeRoute = require('./trust-dimensions-over-time.route');
 const themesOverTimeRoute = require('./themes-over-time.route');
 const sectorDistributionRoute = require('./sector-distribution.route');
+const touchpointsAnalysisRoute = require('./touchpoints-analysis.route');
 
 const engagementRoute = require('./engagement.route');
 const mentionsTrendRoute = require('./mentions-trend.route');
@@ -64,8 +66,10 @@ router.use('/inflations-analysis', inflationsRoute);
 router.use('/inflation-analysis', inflationAnalysisRoute);
 router.use('/trust-dimensions', trustDimensionsRoute);
 router.use('/trust-dimensions-analysis', trustDimensionsAnalysisRoute);
+router.use('/trust-dimensions-over-time', trustDimensionsOverTimeRoute);
 router.use('/themes-over-time', themesOverTimeRoute);
 router.use('/sector-distribution', sectorDistributionRoute);
+router.use('/touchpoints-analysis', touchpointsAnalysisRoute);
 router.use("/actions-required",actionRequiredRoute)
 router.use("/type-of-mentions",typeOfMentions)
 router.use("/recurrence-mentions",recurrenceMentions)

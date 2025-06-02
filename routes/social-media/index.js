@@ -13,6 +13,7 @@ const emotionPolarityRoute = require('./emotion-polarity.route');
 const wordCloudRoute = require('./word-cloud.route');
 const inflationAnalysisRoute = require('./inflation-analysis.route');
 const trustDimensionsRoute = require('./trust-dimensions.route');
+const trustDimensionsAnalysisRoute = require('./trust-dimensions-analysis.route');
 const themesOverTimeRoute = require('./themes-over-time.route');
 const sectorDistributionRoute = require('./sector-distribution.route');
 
@@ -62,6 +63,7 @@ router.use('/ai-summary', aiSummaryRoute);
 router.use('/inflations-analysis', inflationsRoute);
 router.use('/inflation-analysis', inflationAnalysisRoute);
 router.use('/trust-dimensions', trustDimensionsRoute);
+router.use('/trust-dimensions-analysis', trustDimensionsAnalysisRoute);
 router.use('/themes-over-time', themesOverTimeRoute);
 router.use('/sector-distribution', sectorDistributionRoute);
 router.use("/actions-required",actionRequiredRoute)

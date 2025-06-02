@@ -355,7 +355,7 @@ const topicCategoriesController = {
             const socialMediaTerms = extractTermsFromCategoryData('all', categoryData);
             
             // Determine date range based on special topic
-            const dateRange = isSpecialTopic ? 
+            let dateRange = isSpecialTopic ? 
                 { gte: '2020-01-01', lte: 'now' } :
                 { gte: 'now-90d', lte: 'now' };
             
@@ -364,6 +364,10 @@ const topicCategoriesController = {
                 ["Facebook", "Twitter"] :
                 ["Facebook", "Twitter", "Instagram", "Youtube", "Pinterest", "Reddit", "LinkedIn", "Web"];
 
+                if(numericTopicId === 2473){
+                    dateRange.gte="2023-01-01";
+                    dateRange.lte="2023-04-30";
+                }
             // Query builder for social media data
             const buildSocialMediaQuery = () => ({
                 bool: {
@@ -472,7 +476,8 @@ const topicCategoriesController = {
                     googlePOIs: googleUrls.length,
                     socialMediaPOIs: req.rawCategories ? req.rawCategories.length : 0,
                     termCount: socialMediaTerms.length,
-                    id: topicIds
+                    id: topicIds,
+                    query:buildSocialMediaQuery()
                 }
             });
         } catch (error) {

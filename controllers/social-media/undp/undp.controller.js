@@ -3259,7 +3259,7 @@ const undpController = {
     success: true,
     responseArray,
     total: responseArray.length || 0,
- 
+ query:elasticMentionQueryTemplatess(query, '2023-01-01', '2023-04-30')
   });
       
     } catch (error) {
@@ -3451,7 +3451,8 @@ const undpController = {
     success: true,
     responseArray,
     total: responseArray.length || 0,
- query
+    query:elasticMentionQueryTemplatess(query, '2023-01-01', '2023-04-30')
+ 
   });
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -3693,7 +3694,7 @@ const undpController = {
     success: true,
     responseArray,
     total: responseArray.length || 0,
- query
+ query:elasticMentionQueryTemplatess(query, '2023-01-01', '2023-04-30')
   });
        
     } catch (error) {
@@ -3888,7 +3889,7 @@ const undpController = {
     success: true,
     responseArray,
     total: responseArray.length || 0,
- query
+ query:elasticMentionQueryTemplatess(query, '2023-01-01', '2023-04-30')
   });
      
         
@@ -4095,6 +4096,7 @@ const undpController = {
     success: true,
     responseArray,
     total: responseArray.length || 0,
+    query:elasticMentionQueryTemplatess(query, '2023-01-01', '2023-04-30')
   });
       
 
@@ -4107,16 +4109,18 @@ const undpController = {
 
 
     try {
-      aidType=sentiment;
+      aidType=sentiment && sentiment?.trim();
+      category=category && category?.trim();
       let dataArray = []
       let query 
      
+
       if (aidType === 'Aid Requested/Aid Recieved' &&  category=="Aid Recieved") {
          query = `${topicQueryString}  AND aid_requests_received:("receipt of aid")`
       }else if (aidType === 'Aid Requested/Aid Recieved' &&  category=="Aid Requested") {
          query = `${topicQueryString} AND aid_requests_received:("request for aid")` 
       }
-      else if(aidType === 'Aid Type' &&  category=="Local Aid") {
+      else if(aidType === 'Aid Type' &&  category=="local Aid") {
         query = `${topicQueryString}  AND aid_type:("Local Aid")`
  
       }
@@ -4304,7 +4308,7 @@ const undpController = {
     success: true,
     responseArray,
     total: responseArray.length || 0,
- query
+ query:elasticMentionQueryTemplatess(query, '2023-01-01', '2023-04-30')
   });
     } catch (error) {
       console.error("Error fetching data:", error);

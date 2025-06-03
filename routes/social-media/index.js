@@ -38,6 +38,11 @@ const riskTypeAcrossCustomerJourney=require("./risk-type-across-customer-journey
 const complaintsAcrossCustomerJourneyStagesbyAudience = require("./complaints-across-customer-journey-stages-by-audience.route")
 const undpRoutes = require("./UNDP.route")
 const undpKeywordRoutes = require("./UNDP.keyword.route")
+const migrationTopicsRoutes = require("./migration-topics.routes")
+
+const trustDimensionsEducationSystemRoutes = require("./trust-dimensions-education-system.routes");
+const  benchMarkingPresenceSentimentRoutes  = require('./bench-marking-presence-sentiment.route');
+// migration-topics.routes.js
 /**
  * @swagger
  * tags:
@@ -84,5 +89,9 @@ router.use('/risk-type-across-customer-journey',riskTypeAcrossCustomerJourney)
 router.use('/complaints-across-customer-journey-stages-by-audience',complaintsAcrossCustomerJourneyStagesbyAudience)
 router.use("/undp",undpRoutes)
 router.use("/undp-keyword",undpKeywordRoutes)
+router.use("/migration-topics",migrationTopicsRoutes)
+router.use("/trust-dimensions-education-system",trustDimensionsEducationSystemRoutes)
+router.use('/bench-marking-presence-sentiment',benchMarkingPresenceSentimentRoutes)
+
 
 module.exports = router; 

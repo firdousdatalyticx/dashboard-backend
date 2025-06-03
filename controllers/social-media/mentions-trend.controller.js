@@ -161,6 +161,7 @@ const mentionsTrendController = {
                 success: true,
                 mentionsGraphData: datesArray.join('|'),
                 maxMentionData: `${maxDate},${maxMentions}`,
+                query:queryTemplate.query
                 
             });
 

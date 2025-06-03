@@ -1,3 +1,4 @@
+const prisma = require('../../config/database');
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
 
@@ -339,6 +340,8 @@ const trustDimensionsController = {
                  must_not: [
               { term: { "trust_dimensions.keyword": "" } },
               { term: { "trust_dimensions.keyword": "{}" } },
+               { term: { "theme_evidences.keyword": "" } },
+               { term: { "theme_evidences.keyword": "{}" } },
                  ]
             }
         };
@@ -476,6 +479,7 @@ const trustDimensionsController = {
             query: query,
             _source: [
                 "trust_dimensions", 
+                "theme_evidences",
                 "p_message", 
                 "p_message_text", 
                 "created_at", 
@@ -507,146 +511,164 @@ const trustDimensionsController = {
             body: params
         });
 
-        // Initialize trust dimensions map and collections
-        const trustDimensionsMap = new Map();
-        const dimensionsByTone = {
-            Supportive: [],
-            Distrustful: [],
-            Neutral: [],
-            Mixed: []
+
+const hits = response?.hits?.hits || [];
+const trustDimensionsMap = {};
+const dimensionsByTone = {
+  Supportive: [],
+  Distrustful: [],
+  Neutral: [],
+  Mixed: [],
+  "Not Applicable": []
+};
+
+const toneColors = {
+  Supportive: "#52C41A",
+  Distrustful: "#FF4D4F",
+  Neutral: "#1890FF",
+  Mixed: "#FAAD14",
+  "Not Applicable": "#8C8C8C"
+};
+
+let totalTrustPosts = 0;
+
+for (const esData of hits) {
+  const source = esData._source;
+
+  let trustDimensionsData = {};
+  try {
+    trustDimensionsData = typeof source.trust_dimensions === "string"
+      ? JSON.parse(source.trust_dimensions)
+      : source.trust_dimensions || {};
+  } catch (err) {
+    console.error("Invalid trust_dimensions:", err);
+  }
+
+  const themes = source.theme_evidences || [];
+
+  if (Object.keys(trustDimensionsData).length > 0) {
+    totalTrustPosts++;
+
+    const tone = Object.values(trustDimensionsData)[0]?.trim() || "Not Applicable";
+    const color = toneColors[tone] || "#8C8C8C";
+
+    const profilePic = source.u_profile_photo || `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
+    const imageUrl = source.p_picture_url?.trim() !== ""
+      ? source.p_picture_url
+      : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
+
+    const commentsUrl = source.p_comments_text
+      ? source.p_url?.trim().replace("https: // ", "https://")
+      : "";
+
+    let predicted_sentiment = "";
+    const chk_senti = await prisma.customers_label_data.findMany({
+      where: { p_id: esData._id },
+      orderBy: { label_id: "desc" },
+      take: 1,
+    });
+    if (chk_senti.length > 0 && chk_senti[0]?.predicted_sentiment_value_requested) {
+      predicted_sentiment = chk_senti[0].predicted_sentiment_value_requested;
+    } else {
+      predicted_sentiment = source.predicted_sentiment_value || "";
+    }
+
+    const youtubeVideoUrl = source.source === "Youtube"
+      ? (source.video_embed_url || (source.p_id ? `https://www.youtube.com/embed/${source.p_id}` : ""))
+      : "";
+
+    const sourceIcon = (() => {
+      const s = source.source;
+      if (["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(s)) return "Blog";
+      if (s === "Reddit") return "Reddit";
+      if (["FakeNews", "News"].includes(s)) return "News";
+      if (s === "Tumblr") return "Tumblr";
+      if (["Web", "DeepWeb"].includes(s)) return "Web";
+      return s;
+    })();
+
+    const message_text = ["GoogleMaps", "Tripadvisor"].includes(source.source)
+      ? (source.p_message_text?.split("***|||###")[0] || "").replace(/\n/g, "<br>")
+      : (source.p_message_text || "").replace(/<\/?[^>]+(>|$)/g, "");
+
+    const cardData = {
+      profilePicture: profilePic,
+      profilePicture2: source.p_picture || "",
+      userFullname: source.u_fullname,
+      user_data_string: "",
+      followers: source.u_followers > 0 ? `${source.u_followers}` : "",
+      following: source.u_following > 0 ? `${source.u_following}` : "",
+      posts: source.u_posts > 0 ? `${source.u_posts}` : "",
+      likes: source.p_likes > 0 ? `${source.p_likes}` : "",
+      llm_emotion: source.llm_emotion || "",
+      commentsUrl,
+      comments: `${source.p_comments}`,
+      shares: source.p_shares > 0 ? `${source.p_shares}` : "",
+      engagements: source.p_engagement > 0 ? `${source.p_engagement}` : "",
+      content: source.p_content || "",
+      image_url: imageUrl,
+      predicted_sentiment,
+      predicted_category: source.predicted_category || "",
+      youtube_video_url: youtubeVideoUrl,
+      source_icon: `${source.p_url},${sourceIcon}`,
+      message_text,
+      source: source.source,
+      rating: source.rating,
+      comment: source.comment,
+      businessResponse: source.business_response,
+      uSource: source.u_source,
+      googleName: source.name,
+      created_at: new Date(source.p_created_time).toLocaleString(),
+    };
+
+    for (const theme of themes) {
+      const themeText = theme.split(" ").slice(0, 5).join(" ");
+
+      if (!trustDimensionsMap[themeText]) {
+        trustDimensionsMap[themeText] = {
+          text: themeText,
+          value: 1,
+          tone,
+          color,
+          posts: [cardData],
         };
+      } else {
+        trustDimensionsMap[themeText].value++;
+        trustDimensionsMap[themeText].posts.push(cardData);
+      }
 
-        let totalTrustPosts = 0;
+      if (!dimensionsByTone[tone]) dimensionsByTone[tone] = [];
+      const toneArr = dimensionsByTone[tone];
 
-        // Process each post
-        if (response.hits && response.hits.hits) {
-            response.hits.hits.forEach(hit => {
-                const source = hit._source;
-                
-                try {
-                    // Parse the trust_dimensions field which is stored as a string
-                    let trustDimensionsData;
-                    if (typeof source.trust_dimensions === 'string') {
-                        trustDimensionsData = JSON.parse(source.trust_dimensions);
-                    } else {
-                        trustDimensionsData = source.trust_dimensions;
-                    }
+      const found = toneArr.find((d) => d.text === themeText);
+      if (!found) {
+        toneArr.push({ text: themeText, value: 1, posts: [cardData] });
+      } else {
+        found.value++;
+        found.posts.push(cardData);
+      }
+    }
+  }
+}
 
-                    // Only process posts with valid trust_dimensions data
-                    if (trustDimensionsData && Object.keys(trustDimensionsData).length > 0) {
-                        totalTrustPosts++;
-                        
-                        // Create post details object for this post
-                        const postDetails = {
-                            profilePicture: source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`,
-                            profilePicture2: source.p_picture || '',
-                            userFullname: source.u_fullname,
-                            followers: source.u_followers > 0 ? `${source.u_followers}` : '',
-                            following: source.u_following > 0 ? `${source.u_following}` : '',
-                            posts: source.u_posts > 0 ? `${source.u_posts}` : '',
-                            likes: source.p_likes > 0 ? `${source.p_likes}` : '',
-                            commentsUrl: source.p_comments_text ? source.p_url.trim().replace('https: // ', 'https://') : '',
-                            comments: `${source.p_comments}`,
-                            shares: source.p_shares > 0 ? `${source.p_shares}` : '',
-                            engagements: source.p_engagement > 0 ? `${source.p_engagement}` : '',
-                            content: source.p_content || '',
-                            image_url: source.p_picture_url || `${process.env.PUBLIC_IMAGES_PATH}grey.png`,
-                            predicted_sentiment: source.predicted_sentiment_value || '',
-                            youtube_video_url: source.video_embed_url || (source.source === 'Youtube' && source.p_id ? `https://www.youtube.com/embed/${source.p_id}` : ''),
-                            source_icon: `${source.p_url},${source.source}`,
-                            message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
-                            source: source.source,
-                            created_at: new Date(source.p_created_time).toLocaleString()
-                        };
-                        
-                        // Process each trust dimension
-                        Object.entries(trustDimensionsData).forEach(([dimension, tone]) => {
-                            const cleanDimension = dimension.trim();
-                            const normalizedTone = tone.trim();
-                            
-                            // Set color based on tone
-                            let color;
-                            switch(normalizedTone.toLowerCase()) {
-                                case 'supportive':
-                                    color = '#52C41A'; // Green
-                                    break;
-                                case 'distrustful':
-                                    color = '#FF4D4F'; // Red
-                                    break;
-                                case 'neutral':
-                                    color = '#1890FF'; // Blue
-                                    break;
-                                case 'mixed':
-                                    color = '#FAAD14'; // Yellow
-                                    break;
-                                default:
-                                    color = '#8C8C8C'; // Grey
-                            }
-                            
-                            // Update dimension count in map
-                            const mapKey = `${cleanDimension}_${normalizedTone}`;
-                            if (!trustDimensionsMap.has(mapKey)) {
-                                trustDimensionsMap.set(mapKey, {
-                                    text: cleanDimension,
-                                    value: 1,
-                                    tone: normalizedTone,
-                                    color: color,
-                                    posts: [postDetails]
-                                });
-                            } else {
-                                const existing = trustDimensionsMap.get(mapKey);
-                                existing.value++;
-                                existing.posts.push(postDetails);
-                            }
-                            
-                            // Add to tone-based collection
-                            if (dimensionsByTone[normalizedTone]) {
-                                const existingInTone = dimensionsByTone[normalizedTone].find(d => d.text === cleanDimension);
-                                if (!existingInTone) {
-                                    dimensionsByTone[normalizedTone].push({
-                                        text: cleanDimension,
-                                        value: 1,
-                                        posts: [postDetails]
-                                    });
-                                } else {
-                                    existingInTone.value++;
-                                    existingInTone.posts.push(postDetails);
-                                }
-                            }
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error processing trust dimensions data:', error);
-                }
-            });
-        }
+const toneTotals = {};
+Object.entries(dimensionsByTone).forEach(([tone, dimensions]) => {
+  toneTotals[tone] = dimensions.reduce((acc, d) => acc + d.value, 0);
+});
 
-        // Convert trust dimensions map to array for response
-        const trustDimensions = Array.from(trustDimensionsMap.values());
+return res.json({
+  response,
+  success: true,
+  trustDimensions: Object.values(trustDimensionsMap),
+  totalTrustPosts,
+  toneTotals,
+  dimensionsByTone,
+  dateRange: useTimeFilter
+    ? { from: greaterThanTime, to: lessThanTime }
+    : null
+});
 
-        // Get tone totals
-        const toneTotals = {
-            Supportive: dimensionsByTone.Supportive ? dimensionsByTone.Supportive.reduce((sum, d) => sum + d.value, 0) : 0,
-            Distrustful: dimensionsByTone.Distrustful ? dimensionsByTone.Distrustful.reduce((sum, d) => sum + d.value, 0) : 0,
-            Neutral: dimensionsByTone.Neutral ? dimensionsByTone.Neutral.reduce((sum, d) => sum + d.value, 0) : 0,
-            Mixed: dimensionsByTone.Mixed ? dimensionsByTone.Mixed.reduce((sum, d) => sum + d.value, 0) : 0
-        };
-
-        return res.json({
-                        response,
-            success: true,
-            trustDimensions,
-            totalTrustPosts,
-            toneTotals,
-            dimensionsByTone,
-            dateRange: useTimeFilter ? {
-                from: greaterThanTime,
-                to: lessThanTime
-            } : null
-        });
-        
-
-    } catch (error) {
+} catch (error) {
         console.error('Error fetching trust dimensions analysis data:', error);
         return res.status(500).json({
             success: false,
@@ -654,6 +676,7 @@ const trustDimensionsController = {
         });
     }
 },
+
 };
 
 /**

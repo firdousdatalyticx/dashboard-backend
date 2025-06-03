@@ -289,7 +289,8 @@ const getPosts = async (
   field,
   type,
   value,
-  res
+  res,
+  source
 ) => {
   const query = {
     size: 30,
@@ -353,7 +354,22 @@ query.query.bool.must.push({
   },
 });
 
-  } else {
+  } else if (field === "migration_topics") {
+  query.query.bool.must.push({
+    match_phrase: {
+      "migration_topics": `${type}: "${sentimentType}"`
+    }
+  });
+  sentimentType=null;
+}else if(field==="trust_dimensions"){
+    query.query.bool.must.push({
+    match_phrase: {
+      "trust_dimensions": `${type}: "${sentimentType}"`
+    }
+  });
+  sentimentType=null;
+}
+ else {
     query.query.bool.must.push({
       term: { [`${field}.keyword`]: type },
     });
@@ -372,7 +388,7 @@ query.query.bool.must.push({
     body: query,
   });
 
-  const responseArray = [];
+  let responseArray = [];
   for (let l = 0; l < results?.hits?.hits?.length; l++) {
     let esData = results?.hits?.hits[l];
     let user_data_string = "";
@@ -523,11 +539,15 @@ query.query.bool.must.push({
     responseArray.push(cardData);
   }
 
+  if(value && value>0 && results?.hits?.hits?.length>parseInt(value) ){
+   responseArray = responseArray.slice(0, parseInt(value));
+  }
   return res.status(200).json({
     success: true,
     responseArray,
     total: responseArray.length || 0,
     results,
+    query
   });
 };
 
@@ -1496,6 +1516,7 @@ const mentionsChartController = {
         field,
         type,
         value,
+        
       } = req.query;
 
       // Check if this is the special topicId
@@ -2836,44 +2857,7 @@ benchMarkingPresenceSentiment: async (req, res) => {
         body: query,
       });
 
-      const data =result.hits.hits;
-
-// Example function to extract country (modify as per your real data structure)
-function getCountry(hit) {
-  // Try to find country in entity mentions or user location metadata
-  // For now, return dummy or inferred country (you must adapt this)
-  return hit._source.customer_country || "Unknown";
-}
-
-const countrySentimentMap = {};
-
-data.forEach(hit => {
-  const country = getCountry(hit);
-  const sentiment = hit._source.predicted_sentiment_value || "Neutral";
-
-  if (!countrySentimentMap[country]) {
-    countrySentimentMap[country] = { Positive: 0, Neutral: 0, Negative: 0, entries: [] };
-  }
-
-  // Count sentiment
-  if (sentiment === "Positive") {
-    countrySentimentMap[country].Positive++;
-  } else if (sentiment === "Negative") {
-    countrySentimentMap[country].Negative++;
-  } else {
-    countrySentimentMap[country].Neutral++;
-  }
-
-  countrySentimentMap[country].entries.push({
-    org: hit._source.u_fullname,
-    message: hit._source.p_message_text,
-    date: hit._source.p_created_at,
-    sentiment,
-  });
-});
-
-console.log(countrySentimentMap);
-
+      
       return res.status(200).json({ result });
     } catch (error) {
       console.error("Error fetching data:", error);

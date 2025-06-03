@@ -2675,12 +2675,7 @@ const mentionsChartController = {
         },
         aggs: {
           mention_types: {
-            terms: { field: "trust_dimensions.keyword", size: 7 },
-            aggs: {
-              sources: {
-                terms: { field: "source.keyword", size: 15 },
-              },
-            },
+            terms: { field: "trust_dimensions.keyword", size: 20 },
           },
         },
       };

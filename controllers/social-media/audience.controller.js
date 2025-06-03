@@ -177,8 +177,15 @@ const audienceController = {
             // For special topic, modify date range behavior
             if (isSpecialTopic && !timeSlot && !fromDate && !toDate) {
                 queryTimeRange = {
-                    gte: '1970-01-01',
-                    lte: 'now'
+                    greaterThanTime: '1970-01-01',
+                    lessThanTime: 'now'
+                };
+            }
+
+            if(parseInt(topicId)==2473){
+                    queryTimeRange = {
+                    greaterThanTime: '2023-01-01',
+                    lessThanTime: '2023-04-30'
                 };
             }
 
@@ -211,42 +218,100 @@ const audienceController = {
             }
             
             query.bool.must.push({ exists: { field: 'u_country' } });
+
+
             const params = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: {
                     query: query,
                     aggs: {
                         group_by_country: {
-                          terms: { field: 'u_country.keyword', size: 15 }
+                          terms: { field: 'u_country.keyword', size: 15 },
+                        ...(isSpecialTopic && {
+                            aggs: {
+                                sentiments: {
+                                terms: { field: 'predicted_sentiment_value.keyword' }
+                                }
+                            }
+                            })
+
                         }
+
                       },
                 }
             };
 
             const results = await elasticClient.search(params);
 
-            let newCountryArray = {};
+let responseArray = [];
 
-            results?.aggregations?.group_by_country?.buckets?.forEach(bucket => {
-                if (bucket.key) {
-                    newCountryArray[bucket.key] = bucket.doc_count;
-                }
-            });
+if (isSpecialTopic) {
+  // Include sentiment breakdown for special topic
+responseArray = results?.aggregations?.group_by_country?.buckets?.map(bucket => {
+  const sentimentMap = {};
+  let sentimentCountTotal = 0;
 
-            // Sort countries by count in descending order
-            newCountryArray = Object.entries(newCountryArray)
-                .sort(([, a], [, b]) => b - a)
-                .reduce((obj, [key, value]) => {
-                    obj[key] = value;
-                    return obj;
-                }, {});
+  bucket.sentiments?.buckets?.forEach(sentimentBucket => {
+    sentimentMap[sentimentBucket.key] = sentimentBucket.doc_count;
+    sentimentCountTotal += sentimentBucket.doc_count;
+  });
 
-            const responseArray = Object.keys(newCountryArray).map(countryName => ({
-                key_count: newCountryArray[countryName],
-                country_name: countryName
-            }));
+  return {
+    country_name: bucket.key || 'Unknown',
+    key_count: sentimentCountTotal,  // ✅ use only sentiment-based doc count
+    sentiments: sentimentMap
+  };
+}) || [];
+} else {
+  // Default handling for non-special topics
+  let newCountryArray = {};
 
-            return res.json({ results,responseArray });
+  results?.aggregations?.group_by_country?.buckets?.forEach(bucket => {
+    if (bucket.key) {
+      newCountryArray[bucket.key] = bucket.doc_count;
+    }
+  });
+
+  // Sort countries by count in descending order
+  newCountryArray = Object.entries(newCountryArray)
+    .sort(([, a], [, b]) => b - a)
+    .reduce((obj, [key, value]) => {
+      obj[key] = value;
+      return obj;
+    }, {});
+
+  responseArray = Object.keys(newCountryArray).map(countryName => ({
+    key_count: newCountryArray[countryName],
+    country_name: countryName
+  }));
+}
+
+return res.json({results, responseArray });
+
+            // const results = await elasticClient.search(params);
+
+            // let newCountryArray = {};
+
+            // results?.aggregations?.group_by_country?.buckets?.forEach(bucket => {
+            //     if (bucket.key) {
+            //         newCountryArray[bucket.key] = bucket.doc_count;
+            //     }
+            // });
+
+            // // Sort countries by count in descending order
+            // newCountryArray = Object.entries(newCountryArray)
+            //     .sort(([, a], [, b]) => b - a)
+            //     .reduce((obj, [key, value]) => {
+            //         obj[key] = value;
+            //         return obj;
+            //     }, {});
+
+            // const responseArray = Object.keys(newCountryArray).map(countryName => ({
+            //     key_count: newCountryArray[countryName],
+            //     country_name: countryName
+            // }));
+
+            // return res.json({ results,responseArray });
         } catch (error) {
             console.error('Error fetching audience distribution data:', error);
             return res.status(500).json({ 
@@ -315,6 +380,14 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                 {
                     range: {
                         p_created_time: {
+                            gte: dateRange.greaterThanTime,
+                            lte: dateRange.lessThanTime
+                        }
+                    }
+                },
+                  {
+                    range: {
+                        created_at: {
                             gte: dateRange.greaterThanTime,
                             lte: dateRange.lessThanTime
                         }

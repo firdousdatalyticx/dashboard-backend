@@ -3,7 +3,7 @@ const { elasticClient } = require("../../config/elasticsearch");
 const { buildTopicQueryString } = require("../../utils/queryBuilder");
 const { processFilters } = require("./filter.utils");
 
-
+//Benchmarking presence & sentiment - IGOs / NGOs / Countries
 const distributionbyCountryPostsController = {
     /**
      * Get posts based on filtering criteria.
@@ -62,7 +62,8 @@ const distributionbyCountryPostsController = {
                             lte: filters.lessThanTime
                         };
             
-                      if (Number(topicId)==2473) {
+                      if (parseInt(topicId)==2473) {
+                       
                             queryTimeRange = {
                                 gte: '2023-01-01',
                                 lte: '2023-04-30'
@@ -261,6 +262,7 @@ const distributionbyCountryPostsController = {
           success: true,
           responseArray,
           total: responseArray.length || 0,  
+          query
         });
       } catch (error) {
         console.error('Error fetching posts:', error);
@@ -337,7 +339,15 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                           lte: dateRange.lessThanTime
                       }
                   }
-              }
+              },
+              {
+                    range: {
+                        created_at: {
+                            gte: dateRange.greaterThanTime,
+                            lte: dateRange.lessThanTime
+                        }
+                    }
+                }
           ],
           must_not: [
               {

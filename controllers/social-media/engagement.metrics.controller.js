@@ -29,6 +29,15 @@ const elasticQueryTemplate = (queryString, gte, lte, aggs) => ({
                             format: "yyyy-MM-dd" // Specify format for better performance
                         }
                     }
+                },
+                                {
+                    range: {
+                        created_at: {
+                            gte: gte,
+                            lte: lte,
+                            format: "yyyy-MM-dd" // Specify format for better performance
+                        }
+                    }
                 }
             ]
         }

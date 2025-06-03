@@ -305,6 +305,11 @@ elasticMentionQueryTemplate : (topicQueryString, gte, lte) => ({
           range: {
             p_created_time: { gte: gte, lte: lte }
           }
+        },
+       {
+        range: {
+            created_at: { gte: gte, lte: lte }
+              }
         }
       ]
     }
@@ -321,6 +326,12 @@ elasticMentionQueryTemplatess : (topicQueryString, gte, lte) => ({
             p_created_time: { gte: gte, lte: lte }
           }
         }
+        ,
+       {
+        range: {
+            created_at: { gte: gte, lte: lte }
+              }
+        }
       ]
     }
   },
@@ -336,6 +347,12 @@ elasticMentionQueryTemplatess : (topicQueryString, gte, lte) => ({
           range: {
             p_created_time: { gte: gte, lte: lte }
           }
+        },
+        
+       {
+        range: {
+            created_at: { gte: gte, lte: lte }
+              }
         }
       ]
     }
@@ -370,6 +387,12 @@ elasticEmotionsTemplate : (topicQueryString, gte, lte) => ({
             p_created_time: { gte: gte, lte: lte }
           }
         }
+        ,
+       {
+        range: {
+            created_at: { gte: gte, lte: lte }
+              }
+        }
       ]
     }
   }
@@ -385,6 +408,11 @@ elasticMentionQueryTemplates: (topicQueryString, gte, lte) => ({
           range: {
             p_created_time: { gte: gte, lte: lte }
           }
+        },
+       {
+        range: {
+            created_at: { gte: gte, lte: lte }
+              }
         }
       ]
     }
@@ -400,6 +428,12 @@ elasticMentionScoreQuery: (topicQueryString, gte, lte, gs, ls) => ({
           range: {
             p_created_time: { gte: gte, lte: lte }
           }
+        },
+        
+       {
+        range: {
+            created_at: { gte: gte, lte: lte }
+              }
         },
         {
           range: {
@@ -420,6 +454,12 @@ elasticMentionChurnProbQuery :(topicQueryString, gte, lte, gs, ls) => ({
           range: {
             p_created_time: { gte: gte, lte: lte }
           }
+        },
+        ,
+       {
+        range: {
+            created_at: { gte: gte, lte: lte }
+              }
         },
         {
           range: {
@@ -442,6 +482,12 @@ elasticQueryTemplateRange : (topicQueryString, gte, lte, range) => ({
               p_created_time: { gte: gte, lte: lte }
             }
           },
+          ,
+       {
+        range: {
+            created_at: { gte: gte, lte: lte }
+              }
+        },
           { range: range }
         ]
       }

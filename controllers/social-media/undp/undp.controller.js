@@ -770,7 +770,7 @@ const undpController = {
 
         query = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}")`
 
-        content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2024-12-03'))
+        content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
 
         if (content?.count > 0) {
           ;(responseOutput )[
@@ -835,14 +835,14 @@ const undpController = {
         neutralContentQuery = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
 
         positiveContent = await elasticSearchCount(
-          elasticMentionQueryTemplate(positiveContentQuery, '2023-01-01', '2024-12-03')
+          elasticMentionQueryTemplate(positiveContentQuery, '2023-01-01', '2023-04-30')
         )
 
         negativeContent = await elasticSearchCount(
-          elasticMentionQueryTemplate(negativeContentQuery, '2023-01-01', '2024-12-03')
+          elasticMentionQueryTemplate(negativeContentQuery, '2023-01-01', '2023-04-30')
         )
         neutralContent = await elasticSearchCount(
-          elasticMentionQueryTemplate(neutralContentQuery, '2023-01-01', '2024-12-03')
+          elasticMentionQueryTemplate(neutralContentQuery, '2023-01-01', '2023-04-30')
         )
 
         if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
@@ -3733,7 +3733,7 @@ const undpController = {
 
         const query = `${topicQueryString}  AND igo_entities:("${category}")`
 
-        const results = await elasticSearch(elasticMentionQueryTemplatess(query, '2023-01-01', '2024-12-03'))
+        const results = await elasticSearch(elasticMentionQueryTemplatess(query, '2023-01-01', '2023-04-30'))
         const responseArray = [];
   for (let l = 0; l < results?.hits?.hits?.length; l++) {
     let esData = results?.hits?.hits[l];
@@ -3939,7 +3939,7 @@ const undpController = {
         let query = `${topicQueryString}   AND igo_entities:("${category}") AND predicted_sentiment_value:(${sentiment})`
 
         const results = await elasticSearch(
-          elasticMentionQueryTemplatess(query, '2023-01-01', '2024-12-03')
+          elasticMentionQueryTemplatess(query, '2023-01-01', '2023-04-30')
         )
  const responseArray = [];
   for (let l = 0; l < results?.hits?.hits?.length; l++) {

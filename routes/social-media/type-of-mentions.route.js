@@ -4,6 +4,7 @@ const mentionsChartController = require('../../controllers/social-media/mentions
 
 router.post("/",mentionsChartController.typeofMentions)
 router.get('/posts', mentionsChartController.mentionsPost);
+router.post('/top10', mentionsChartController.typeofMentionsTo10);
 
 
 

@@ -17,7 +17,8 @@ const mentionsTrendController = {
                 source = 'All',
                 category = 'all',
                 unTopic = 'false',
-                topicId
+                topicId,
+                llm_mention_type
             } = req.body;
 
             // Check if this is the special topicId
@@ -91,6 +92,41 @@ const mentionsTrendController = {
                 }
                 console.log("Applied sentiment filter for:", sentimentType);
             }
+
+                              // Apply LLM Mention Type filter if provided
+      if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+          const mentionTypeFilter = {
+              bool: {
+                  should: llm_mention_type.map(type => ({
+                      match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+              }
+          };
+          query.bool.must.push(mentionTypeFilter);
+      }
+
+    //   // Normalize the input
+    //   const mentionTypesArray = typeof llm_mention_type === 'string' 
+    //     ? llm_mention_type.split(',').map(s => s.trim()) 
+    //     : llm_mention_type;
+
+    //   // Apply LLM Mention Type filter if provided
+    //   if (llm_mention_type!="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
+    //     const mentionTypeFilter = {
+    //       bool: {
+    //         should: mentionTypesArray.map(type => ({
+    //           match: { llm_mention_type: type }
+    //           // If it's keyword type:
+    //           // term: { "llm_mention_type.keyword": type }
+    //         })),
+    //         minimum_should_match: 1
+    //       }
+    //     };
+
+    //     query.bool.must.push(mentionTypeFilter);
+
+    //   }
 
             // Define aggregation for mention graph with date range filter
             const aggsMentionGraph = {
@@ -182,7 +218,8 @@ const mentionsTrendController = {
                 sentimentType,
                 source = 'All',
                 category = 'all',
-                unTopic = 'false'
+                unTopic = 'false',
+                llm_mention_type,
             } = req.query;
 
             // Get category data from middleware
@@ -253,6 +290,41 @@ const mentionsTrendController = {
                 }
                 console.log("Applied sentiment filter for:", sentimentType);
             }
+
+                    // Apply LLM Mention Type filter if provided
+      if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+          const mentionTypeFilter = {
+              bool: {
+                  should: llm_mention_type.map(type => ({
+                      match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+              }
+          };
+          query.bool.must.push(mentionTypeFilter);
+      }
+
+      // Normalize the input
+      const mentionTypesArray = typeof llm_mention_type === 'string' 
+        ? llm_mention_type.split(',').map(s => s.trim()) 
+        : llm_mention_type;
+
+      // Apply LLM Mention Type filter if provided
+      if (llm_mention_type!="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
+        const mentionTypeFilter = {
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+              // If it's keyword type:
+              // term: { "llm_mention_type.keyword": type }
+            })),
+            minimum_should_match: 1
+          }
+        };
+
+        query.bool.must.push(mentionTypeFilter);
+
+      }
 
             // Define aggregation for mention graph with date range filter
        

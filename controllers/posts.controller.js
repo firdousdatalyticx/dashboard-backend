@@ -199,6 +199,23 @@ const buildElasticsearchQuery = (params) => {
     });
   }
 
+
+
+        const mentionTypesArray = typeof llm_mention_type === 'string' 
+          ? llm_mention_type.split(',').map(s => s.trim()) 
+          : llm_mention_type;
+
+        // Apply LLM Mention Type filter if provided
+        if (llm_mention_type!=="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0 && postTypeSource !== 'GoogleMyBusiness') {
+          const mentionTypeFilter = {
+            terms: {
+              "llm_mention_type.keyword": mentionTypesArray
+            }
+          };
+
+          must.push(mentionTypeFilter);
+        }
+
   // Add Google URLs filter for GoogleMyBusiness source
   if (postTypeSource === 'GoogleMyBusiness' && googleUrls && googleUrls.length > 0) {
     const urlTerms = googleUrls.map(url => `"${url}"`).join(' OR ');
@@ -537,7 +554,8 @@ const postsController = {
         limit,
         rating,
         category,
-        click = 'false' 
+        click = 'false',
+        llm_mention_type 
       } = req.query;
       
       // Check if this is the special topicId
@@ -614,7 +632,8 @@ const postsController = {
         rating,
         googleUrls,
         click,
-        isSpecialTopic
+        isSpecialTopic,
+        llm_mention_type
       };
 
       const esQuery = buildElasticsearchQuery(queryParams);

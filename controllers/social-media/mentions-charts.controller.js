@@ -383,6 +383,41 @@ query.query.bool.must.push({
     });
   }
 
+          // Apply LLM Mention Type filter if provided
+      if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+          const mentionTypeFilter = {
+              bool: {
+                  should: llm_mention_type.map(type => ({
+                      match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+              }
+          };
+          query.query.bool.must.push(mentionTypeFilter);
+      }
+
+      // Normalize the input
+      const mentionTypesArray = typeof llm_mention_type === 'string' 
+        ? llm_mention_type.split(',').map(s => s.trim()) 
+        : llm_mention_type;
+
+      // Apply LLM Mention Type filter if provided
+      if (llm_mention_type!="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
+        const mentionTypeFilter = {
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+              // If it's keyword type:
+              // term: { "llm_mention_type.keyword": type }
+            })),
+            minimum_should_match: 1
+          }
+        };
+
+        query.query.bool.must.push(mentionTypeFilter);
+
+      }
+
   const results = await elasticClient.search({
     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
     body: query,
@@ -1566,6 +1601,112 @@ const mentionsChartController = {
         value,
         res
       );
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+  typeofMentionsTo10: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Expanded list of sources (now fully dynamic)
+      topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram")`;
+
+      // **Single Aggregation Query**
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+         
+            ],
+
+            must_not: [{ term: { "llm_mention_type.keyword": "" } }],
+          },
+        },
+        aggs: {
+          mention_types: {
+            terms: { 
+              field: "llm_mention_type.keyword", 
+              size: 8,  // 🔥 Changed from 7 to 5 to get only top 5
+              order: { _count: "desc" }  // 🔥 Added explicit ordering by count (descending)
+            },
+            aggs: {
+              sources: {
+                terms: { field: "source.keyword", size: 15 },
+              },
+            },
+          },
+        },
+      };
+
+      // if (sentimentType && sentimentType != "") {
+      //   query.query.bool.must.push({
+      //     match: {
+      //       predicted_sentiment_value: sentimentType.trim(),
+      //     },
+      //   });
+      // }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      // Define all possible sources (ensures consistency)
+      const allSources = [
+        "twitterContent",
+        "facebookContent",
+        "instagramContent",
+        "youtubeContent",
+        "pinterestContent",
+        "redditContent",
+        "linkedinContent",
+        "webContent",
+      ];
+
+      let responseOutput = {};
+      
+      // 🔥 Now only processes top 5 mention types (automatically limited by Elasticsearch)
+      result.aggregations.mention_types.buckets.forEach((mention) => {
+        let mentionData = {};
+
+        // ✅ Set all sources to `0` initially to ensure all are present
+        allSources.forEach((source) => {
+          mentionData[source] = 0;
+        });
+
+        mention.sources.buckets.forEach((source) => {
+          let keyName = `${source.key.toLowerCase()}Content`;
+
+          // ✅ If source is "FakeNews", "News", "Blogs", "Web", map it to "webContent"
+          if (
+            ["fakenews", "news", "blogs", "web"].includes(
+              source.key.toLowerCase()
+            )
+          ) {
+            keyName = "webContent";
+          }
+
+          // ✅ Assign actual count from Elasticsearch
+          mentionData[keyName] = source.doc_count;
+        });
+
+        responseOutput[mention.key] = mentionData;
+      });
+
+      return res.status(200).json({ responseOutput, result });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });

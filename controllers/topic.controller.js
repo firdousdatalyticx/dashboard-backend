@@ -1164,9 +1164,10 @@ const topicController = {
             
             return res.json({
                 success: true,
+                query:buildQuery(),
                 data: {
                     googleCount,
-                    socialMediaCount: nonGoogleCount,
+                    socialMediaCount: socialMediaData.length>0?nonGoogleCount:0,
                     googlePOIs: validPOIs,
                     googlePOIsCount: googleUrls.length,
                     socialMediaPOIs: topicCategories.length,

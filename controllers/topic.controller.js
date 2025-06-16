@@ -1031,10 +1031,22 @@ const topicController = {
                 ]),
             ].filter(Boolean);
             
-            // Determine date range based on special topic
-            const dateRange = isSpecialTopic ? 
-                { gte: '2020-01-01', lte: 'now' } :
-                { gte: 'now-90d', lte: 'now' };
+
+
+                    const today = new Date();
+                    const pastDate = new Date();
+                    pastDate.setDate(today.getDate() - 90);
+
+                    const formatDate = (date) => date.toISOString().split("T")[0];
+
+                    // Determine date range based on special topic
+                    let dateRange = isSpecialTopic
+                        ? { gte: "2020-01-01", lte: "now" }
+                        : { gte: formatDate(pastDate), lte: formatDate(today) };
+
+
+
+   
             
             // Determine social media sources based on special topic
             const socialSources = isSpecialTopic ? 
@@ -1055,6 +1067,11 @@ const topicController = {
                                 created_at: dateRange,
                             },
                         },
+                        {
+                        range: {
+                                p_created_time: dateRange
+                            }
+                        }
                     ],
                     should: [
                         // Match all text fields with keywords/hashtags

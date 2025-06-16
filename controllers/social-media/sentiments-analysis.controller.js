@@ -14,7 +14,10 @@ const sentimentsController = {
                 interval = 'monthly',
                 source = 'All',
                 category = 'all',
-                topicId
+                topicId,
+                 fromDate,
+                toDate,
+                sentiment
             } = req.body;
             
             // Check if this is the special topicId
@@ -34,8 +37,22 @@ const sentimentsController = {
             const now = new Date();
             const ninetyDaysAgo = subDays(now, 90);
             
-            const greaterThanTime = format(ninetyDaysAgo, 'yyyy-MM-dd');
-            const lessThanTime = format(now, 'yyyy-MM-dd');
+            let startDate;
+            let endDate = now;
+            
+
+            // Determine date range based on timeSlot
+            if (fromDate && toDate) {
+                startDate = parseISO(fromDate);
+                endDate = parseISO(toDate);
+            }else{
+             startDate = format(ninetyDaysAgo, 'yyyy-MM-dd');
+             endDate = format(now, 'yyyy-MM-dd');
+            } 
+
+
+            const greaterThanTime = format(startDate, 'yyyy-MM-dd');
+            const lessThanTime = format(endDate, 'yyyy-MM-dd');
 
             // Set calendar interval based on requested interval
             let calendarInterval = 'month';
@@ -48,7 +65,7 @@ const sentimentsController = {
                     break;
                 case 'weekly':
                     calendarInterval = 'week';
-                    formatPattern = 'yyyy-w';
+                    formatPattern = 'yyyy-MM-dd';
                     break;
                 default:
                     calendarInterval = 'month';
@@ -70,6 +87,13 @@ const sentimentsController = {
             // Add category filters
             addCategoryFilters(query, category, categoryData);
 
+            if (sentiment && sentiment!="" && sentiment !== 'All') {
+                query.bool.must.push({
+                    match_phrase: {
+                        "predicted_sentiment_value": sentiment
+                    }
+                });
+            }
             // Create aggregations for both simple counts and interval-based data
             const params = {
                 size: 0,
@@ -151,10 +175,21 @@ const sentimentsController = {
                     // For weekly, we need to calculate the start/end of the week
                     const [year, week] = intervalDate.split('-');
                     const date = new Date(parseInt(year), 0, 1 + (parseInt(week) - 1) * 7);
-                    startDate = format(date, 'yyyy-MM-dd');
+
+                     startDate = intervalDate;
                     const endOfWeek = new Date(date);
                     endOfWeek.setDate(date.getDate() + 6);
-                    endDate = format(endOfWeek, 'yyyy-MM-dd');
+                            // Create a Date object from the string
+                             startDate = new Date(intervalDate);
+
+                            // Add 6 days to get a 7-day interval
+                             endDate = new Date(startDate);
+                            endDate.setDate(startDate.getDate() + 6);
+
+                            // Format the dates
+                             startDate = startDate.toISOString().split('T')[0];
+                             endDate = endDate.toISOString().split('T')[0];
+
                 } else {
                     // For daily, the interval date is already in yyyy-MM-dd format
                     startDate = intervalDate;
@@ -252,7 +287,8 @@ const sentimentsController = {
                 success: true,
                 sentiments,
                 totalCount,
-                timeIntervals: timeIntervalsWithPosts
+                timeIntervals: timeIntervalsWithPosts,
+                query:params.query
             });
 
         } catch (error) {

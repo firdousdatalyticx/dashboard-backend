@@ -566,7 +566,11 @@ const sentimentsMultipleCategoriesController = {
             };
 
             baseQuery.bool.must.push(categoryFilter);
-
+            baseQuery.bool.must.push({
+              exists: {
+                field: "predicted_sentiment_value.keyword"
+              }
+            });
             // Add aggregation for this category
             categoryAggregations[categoryName.replace(/[^a-zA-Z0-9]/g, "_")] = {
               filter: categoryFilter,

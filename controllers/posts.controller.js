@@ -41,7 +41,8 @@ const buildElasticsearchQuery = (params) => {
     googleUrls = [],
     emotion,
     click,
-    isSpecialTopic = false
+    isSpecialTopic = false,
+    llm_mention_type
   } = params;
 
   // Build query_string parts in an array
@@ -201,12 +202,12 @@ const buildElasticsearchQuery = (params) => {
 
 
 
-        const mentionTypesArray = typeof llm_mention_type === 'string' 
+        const mentionTypesArray = llm_mention_type && typeof llm_mention_type === 'string' 
           ? llm_mention_type.split(',').map(s => s.trim()) 
           : llm_mention_type;
 
         // Apply LLM Mention Type filter if provided
-        if (llm_mention_type!=="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0 && postTypeSource !== 'GoogleMyBusiness') {
+        if (llm_mention_type &&  llm_mention_type!=="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0 && postTypeSource !== 'GoogleMyBusiness') {
           const mentionTypeFilter = {
             terms: {
               "llm_mention_type.keyword": mentionTypesArray

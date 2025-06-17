@@ -339,6 +339,7 @@ const topicController = {
             const {
                 title,
                 keywords,
+                hashTags,
                 urls,
                 excludeWords:excludeKeywords,
                 excludeAccounts:accounts,
@@ -350,6 +351,7 @@ const topicController = {
                 selectIndustry,
                 region
             } = req.body;
+
 
         
             
@@ -373,60 +375,86 @@ const topicController = {
                 });
             }
 
-            // Process hashtags and keywords
+            // Process hashtags and keywords separately
             let hashtag_str = '';
             let keywords_str = '';
             
+            // Process hashtags
+            if (hashTags) {
+                if (typeof hashTags === 'string') {
+                    const hashtag_array = hashTags.split(',');
+                    hashtag_array.forEach((tag) => {
+                        if (tag.trim()) {
+                            hashtag_str += tag.trim() + '|';
+                        }
+                    });
+                    hashtag_str = hashtag_str.slice(0, -1); // Remove trailing '|'
+                } else {
+                    hashtag_str = hashTags;
+                }
+            }
+            
+            // Process keywords
             if (keywords) {
-                const hash_key_str = keywords.split(',');
-                
-                hash_key_str.forEach((str) => {
-                    if (str?.trim()?.startsWith('#')) {
-                        hashtag_str += str + '|';
-                    } else {
-                        keywords_str += str.trim() + ',';
-                    }
-                });
-                
-                // Remove trailing delimiters
-                hashtag_str = hashtag_str.slice(0, -1);
-                keywords_str = keywords_str.slice(0, -1);
+                if (typeof keywords === 'string') {
+                    const keywords_array = keywords.split(',');
+                    keywords_array.forEach((keyword) => {
+                        if (keyword.trim()) {
+                            keywords_str += keyword.trim() + ',';
+                        }
+                    });
+                    keywords_str = keywords_str.slice(0, -1); // Remove trailing ','
+                } else {
+                    keywords_str = keywords;
+                }
             }
 
             // Process URLs
             let urls_str = '';
             if (urls) {
-                const url_str = urls.split(',');
-                url_str.forEach((url) => {
-                    if (url.trim()) {
-                        urls_str += url.trim() + '|';
-                    }
-                });
-                urls_str = urls_str.slice(0, -1);
+                if (typeof urls === 'string') {
+                    const url_str = urls.split(',');
+                    url_str.forEach((url) => {
+                        if (url.trim()) {
+                            urls_str += url.trim() + '|';
+                        }
+                    });
+                    urls_str = urls_str.slice(0, -1); // Remove trailing '|'
+                } else {
+                    urls_str = urls;
+                }
             }
 
             // Process exclude keywords
             let exclude_words_str = '';
             if (excludeKeywords) {
-                const exclude_words = excludeKeywords.split(',');
-                exclude_words.forEach((word) => {
-                    if (word.trim()) {
-                        exclude_words_str += word.trim() + ',';
-                    }
-                });
-                exclude_words_str = exclude_words_str.slice(0, -1);
+                if (typeof excludeKeywords === 'string') {
+                    const exclude_words = excludeKeywords.split(',');
+                    exclude_words.forEach((word) => {
+                        if (word.trim()) {
+                            exclude_words_str += word.trim() + ',';
+                        }
+                    });
+                    exclude_words_str = exclude_words_str.slice(0, -1); // Remove trailing ','
+                } else {
+                    exclude_words_str = excludeKeywords;
+                }
             }
 
             // Process exclude accounts
             let exclude_accounts_str = '';
             if (accounts) {
-                const exclude_accounts_list = accounts.split(',');
-                exclude_accounts_list.forEach((account) => {
-                    if (account.trim()) {
-                        exclude_accounts_str += account.trim() + ',';
-                    }
-                });
-                exclude_accounts_str = exclude_accounts_str.slice(0, -1);
+                if (typeof accounts === 'string') {
+                    const exclude_accounts_list = accounts.split(',');
+                    exclude_accounts_list.forEach((account) => {
+                        if (account.trim()) {
+                            exclude_accounts_str += account.trim() + ',';
+                        }
+                    });
+                    exclude_accounts_str = exclude_accounts_str.slice(0, -1); // Remove trailing ','
+                } else {
+                    exclude_accounts_str = accounts;
+                }
             }
 
             // Process data sources

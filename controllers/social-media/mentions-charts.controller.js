@@ -623,6 +623,9 @@ const mentionsChartController = {
         selectedTab
       );
       
+      if(topicQueryString==""){
+        return res.status(200).json({responseOutput:{}});
+      }
       // Apply special topic source filtering
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
@@ -664,6 +667,10 @@ const mentionsChartController = {
         selectedTab
       );
 
+      console.log(topicQueryString)
+      if(topicQueryString==""){
+          return res.status(200).json({ responseOutput:{} });
+      }
       // Apply special topic source filtering
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
@@ -962,6 +969,12 @@ const mentionsChartController = {
         selectedTab
       );
 
+      if(topicQueryString==""){
+         return res
+        .status(200)
+        .json({ responseOutput: {} });
+        
+      }
       // Apply special topic source filtering
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
@@ -1123,6 +1136,16 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
+      if(topicQueryString==""){
+          return res.status(200).json({
+    data: [
+      
+    ],
+    totalAudiences: 0,
+    query: {}
+
+      });
+      }
 
       // Apply special topic source filtering
       if (isSpecialTopic) {
@@ -1619,6 +1642,10 @@ const mentionsChartController = {
         selectedTab
       );
 
+      if(topicQueryString==""){
+        return res.status(200).json({ responseOutput:{} });
+      }
+
       // Expanded list of sources (now fully dynamic)
       topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram")`;
 
@@ -1707,7 +1734,7 @@ const mentionsChartController = {
         responseOutput[mention.key] = mentionData;
       });
 
-      return res.status(200).json({ responseOutput, result });
+      return res.status(200).json({ responseOutput });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
@@ -1729,6 +1756,9 @@ const mentionsChartController = {
         selectedTab
       );
 
+      //  if(topicQueryString==""){
+      //   return res.status(200).json({ responseOutput:{} });
+      // }
       // Apply special topic source filtering
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;

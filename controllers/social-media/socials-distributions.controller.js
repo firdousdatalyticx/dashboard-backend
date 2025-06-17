@@ -24,17 +24,7 @@ const socialsDistributionsController = {
 
             // If there's nothing to search for, return zero counts
             if (Object.keys(categoryData).length === 0) {
-                return res.json({
-                    Facebook: 0,
-                    Twitter: 0,
-                    Instagram: 0,
-                    Youtube: 0,
-                    Pinterest: 0,
-                    Reddit: 0,
-                    LinkedIn: 0,
-                    Web: 0,
-                    totalCount: 0
-                });
+                return res.json({});
             }
 
               // Build base query for filters processing

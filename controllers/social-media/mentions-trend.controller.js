@@ -29,10 +29,10 @@ const mentionsTrendController = {
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
-                    success: false,
+                    success: true,
                     error: 'No category data available',
                     mentionsGraphData: '',
-                    maxMentionData: ',0'
+                    maxMentionData: '0'
                 });
             }
 

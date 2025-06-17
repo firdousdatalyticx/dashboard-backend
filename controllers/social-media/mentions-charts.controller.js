@@ -290,7 +290,8 @@ const getPosts = async (
   type,
   value,
   res,
-  source
+  source,
+  llm_mention_type
 ) => {
   const query = {
     size: 30,

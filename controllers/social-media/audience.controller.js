@@ -168,10 +168,11 @@ const audienceController = {
                 queryString: baseQueryString
             });
 
+          
             // Handle special case for unTopic
             let queryTimeRange = {
-                gte: filters.greaterThanTime,
-                lte: filters.lessThanTime
+                greaterThanTime: filters.greaterThanTime,
+                lessThanTime: filters.lessThanTime
             };
 
             // For special topic, modify date range behavior
@@ -196,7 +197,7 @@ const audienceController = {
             addCategoryFilters(query, category, categoryData);
             
             // Apply sentiment filter if provided
-            if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+            if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null' && sentimentType!="") {
                 if (sentimentType.includes(',')) {
                     // Handle multiple sentiment types
                     const sentimentArray = sentimentType.split(',');
@@ -286,7 +287,7 @@ responseArray = results?.aggregations?.group_by_country?.buckets?.map(bucket => 
   }));
 }
 
-return res.json({results, responseArray });
+return res.json({query,results, responseArray });
 
             // const results = await elasticClient.search(params);
 
@@ -374,6 +375,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @returns {Object} Elasticsearch query object
  */
 function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+
     const query = {
         bool: {
             must: [

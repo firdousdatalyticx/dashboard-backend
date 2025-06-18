@@ -148,7 +148,8 @@ const influencersController = {
                                 { match_phrase: { source: "Pinterest" } },
                                 { match_phrase: { source: "Reddit" } },
                                 { match_phrase: { source: "LinkedIn" } },
-                                { match_phrase: { source: "Web" } }
+                                { match_phrase: { source: "Web" } },
+                                { match_phrase: { source: "TikTok" } }
                             ],
                             minimum_should_match: 1
                         }
@@ -207,7 +208,7 @@ const influencersController = {
                     if (!bucket.key) continue;
 
                     const userSource = bucket.grouped_results.hits.hits[0]._source.source;
-                    const validSources = ['Twitter', 'Instagram', 'Facebook', 'GoogleMyBusiness', 'Youtube', 'Pinterest', 'Reddit', 'LinkedIn', 'Web'];
+                    const validSources = ['Twitter', 'Instagram', 'Facebook', 'GoogleMyBusiness', 'Youtube', 'Pinterest', 'Reddit', 'LinkedIn', 'Web', 'TikTok'];
                     
                     if (isScadUser === 'true' && !validSources.includes(userSource)) {
                         continue;
@@ -291,7 +292,7 @@ const influencersController = {
                         `${finalQueryString} AND source:('"GoogleMyBusiness"')` :
                         `source:('"GoogleMyBusiness"')`;
                 } else {
-                    finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+                    finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")`;
                 }
             }
 
@@ -373,7 +374,7 @@ const influencersController = {
                         `${finalQueryString} AND source:('"GoogleMyBusiness"')` :
                         `source:('"GoogleMyBusiness"')`;
                 } else {
-                    finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+                    finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")`;
                 }
             }
 

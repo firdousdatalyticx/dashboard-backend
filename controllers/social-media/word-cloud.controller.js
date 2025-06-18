@@ -22,7 +22,7 @@ const buildWordCloudParams = (options) => {
     // Build source filter based on special topic
     const sourceFilter = isSpecialTopic ? 
         'source:("Twitter" OR "Facebook")' :
-        'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")';
+        'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")';
     
     // Base query structure
     const baseQuery = {
@@ -103,7 +103,7 @@ const buildPostsByPhraseParams = (options) => {
     // Build source filter based on special topic
     const sourceFilter = isSpecialTopic ? 
         'source:("Twitter" OR "Facebook")' :
-        'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")';
+        'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")';
     
     // Base query structure
     const baseQuery = {

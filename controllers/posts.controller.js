@@ -56,7 +56,7 @@ const buildElasticsearchQuery = (params) => {
   } else {
     // Original source filtering logic
     const allSocialSources =
-      '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")';
+      '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")';
     switch (postTypeSource) {
       case "News":
         qsParts.push('source:("FakeNews" OR "News")');
@@ -353,7 +353,8 @@ const buildElasticsearchQuery = (params) => {
             { match_phrase: { source: "Pinterest" } },
             { match_phrase: { source: "Reddit" } },
             { match_phrase: { source: "LinkedIn" } },
-            { match_phrase: { source: "Web" } },
+            { match_phrase: { source: "Web" } },  
+            { match_phrase: { source: "TikTok" } },
           ],
           minimum_should_match: 1,
         },
@@ -750,6 +751,7 @@ const postsController = {
           "Reddit",
           "LinkedIn",
           "Web",
+          "TikTok",
           "All",
         ].includes(postTypeSource);
 

@@ -164,10 +164,11 @@ const mentionsTrendController = {
                 body: queryTemplate
             });
 
-            // Process results
+            // Process resultsfre
             let maxDate = '';
             let maxMentions = 0;
             const datesArray = [];
+            const datesWithPosts = [];
 
             const buckets = response?.aggregations['2']?.buckets || [];
 
@@ -187,16 +188,109 @@ const mentionsTrendController = {
                     }
                     
                     datesArray.push(`${keyAsString},${docCount}`);
+                    
+                    // Fetch posts for this specific date
+                    let postsForDate = [];
+                    if (docCount > 0) {
+                        try {
+                            const MAX_POSTS_PER_DATE = 10; // Limit posts per date to avoid too much data
+                            
+                            // Use the same aggregation query but add date filter and get actual documents
+                            const postsQuery = {
+                                size: Math.min(docCount, MAX_POSTS_PER_DATE),
+                                query: {
+                                    bool: {
+                                        must: [
+                                            ...query.bool.must,
+                                            {
+                                                range: {
+                                                    p_created_time: {
+                                                        gte: keyAsString,
+                                                        lt: new Date(new Date(keyAsString).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        must_not: query.bool.must_not || []
+                                    }
+                                },
+                                sort: [{ p_created_time: { order: 'desc' } }]
+                            };
+                            
+                            const postsResponse = await elasticClient.search({
+                                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                                body: postsQuery
+                            });
+                            
+                            postsForDate = postsResponse.hits.hits.map(hit => formatPostData(hit));
+                        } catch (error) {
+                            console.error(`Error fetching posts for date ${keyAsString}:`, error);
+                            postsForDate = [];
+                        }
+                    }
+                    
+                    // Add date with its posts
+                    datesWithPosts.push({
+                        date: keyAsString,
+                        count: docCount,
+                        posts: postsForDate
+                    });
                 }
             }
 
             // Sort dates in descending order
             datesArray.sort((a, b) => new Date(b.split(',')[0]) - new Date(a.split(',')[0]));
+            datesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // Now fetch all posts for the date range and group them by date
+            try {
+                const allPostsQuery = {
+                    size: 1000, // Get more posts to distribute across dates
+                    query: query,
+                    sort: [{ p_created_time: { order: 'desc' } }]
+                };
+                
+                const allPostsResponse = await elasticClient.search({
+                    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                    body: allPostsQuery
+                });
+                
+                const allPosts = allPostsResponse.hits.hits.map(hit => formatPostData(hit));
+                
+                // Group posts by date
+                const postsByDate = {};
+                allPosts.forEach(post => {
+                    // Extract date from created_at
+                    let postDate = '';
+                    if (post.created_at) {
+                        const dateObj = new Date(post.created_at);
+                        postDate = dateObj.toISOString().split('T')[0];
+                    }
+                    
+                    if (postDate && !postsByDate[postDate]) {
+                        postsByDate[postDate] = [];
+                    }
+                    if (postDate) {
+                        postsByDate[postDate].push(post);
+                    }
+                });
+                
+                // Update datesWithPosts with actual posts
+                datesWithPosts.forEach(dateObj => {
+                    if (postsByDate[dateObj.date]) {
+                        dateObj.posts = postsByDate[dateObj.date].slice(0, 10); // Limit to 10 posts per date
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error fetching all posts for date grouping:', error);
+            }
 
             return res.status(200).json({
                 success: true,
-                mentionsGraphData: datesArray.join('|'),
+                // mentionsGraphData: datesArray.join('|'),
                 maxMentionData: `${maxDate},${maxMentions}`,
+                datesWithPosts: datesWithPosts,
                 query:queryTemplate.query
                 
             });
@@ -509,6 +603,127 @@ const mentionsTrendController = {
 };
 
 /**
+ * Format post data for the frontend
+ * @param {Object} hit - Elasticsearch document hit
+ * @returns {Object} Formatted post data
+ */
+const formatPostData = (hit) => {
+    const source = hit._source;
+
+    // Use a default image if a profile picture is not provided
+    const profilePic = source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    // Social metrics
+    const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
+    const following = source.u_following > 0 ? `${source.u_following}` : '';
+    const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
+    const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
+
+    // Emotion
+    const llm_emotion = source.llm_emotion ||
+        (source.source === 'GoogleMyBusiness' && source.rating
+            ? (source.rating >= 4 ? 'Supportive'
+                : source.rating <= 2 ? 'Frustrated'
+                    : 'Neutral')
+            : '');
+
+    // Clean up comments URL if available
+    const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
+        ? source.p_url.trim().replace('https: // ', 'https://')
+        : '';
+
+    const comments = `${source.p_comments}`;
+    const shares = source.p_shares > 0 ? `${source.p_shares}` : '';
+    const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : '';
+
+    const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
+    const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ''
+        ? source.p_picture_url
+        : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    // Determine sentiment
+    let predicted_sentiment = '';
+    let predicted_category = '';
+    
+    if (source.predicted_sentiment_value)
+        predicted_sentiment = `${source.predicted_sentiment_value}`;
+    else if (source.source === 'GoogleMyBusiness' && source.rating) {
+        predicted_sentiment = source.rating >= 4 ? 'Positive'
+            : source.rating <= 2 ? 'Negative'
+                : 'Neutral';
+    }
+
+    if (source.predicted_category) predicted_category = source.predicted_category;
+
+    // Handle YouTube-specific fields
+    let youtubeVideoUrl = '';
+    let profilePicture2 = '';
+    if (source.source === 'Youtube') {
+        if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
+        else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+    } else {
+        profilePicture2 = source.p_picture ? source.p_picture : '';
+    }
+
+    // Determine source icon based on source name
+    let sourceIcon = '';
+    const userSource = source.source;
+    if (['khaleej_times', 'Omanobserver', 'Time of oman', 'Blogs'].includes(userSource))
+        sourceIcon = 'Blog';
+    else if (userSource === 'Reddit')
+        sourceIcon = 'Reddit';
+    else if (['FakeNews', 'News'].includes(userSource))
+        sourceIcon = 'News';
+    else if (userSource === 'Tumblr')
+        sourceIcon = 'Tumblr';
+    else if (userSource === 'Vimeo')
+        sourceIcon = 'Vimeo';
+    else if (['Web', 'DeepWeb'].includes(userSource))
+        sourceIcon = 'Web';
+    else
+        sourceIcon = userSource;
+
+    // Format message text – with special handling for GoogleMaps/Tripadvisor
+    let message_text = '';
+    if (['GoogleMaps', 'Tripadvisor'].includes(source.source)) {
+        const parts = source.p_message_text.split('***|||###');
+        message_text = parts[0].replace(/\n/g, '<br>');
+    } else {
+        message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+    }
+
+    return {
+        profilePicture: profilePic,
+        profilePicture2,
+        userFullname: source.u_fullname,
+        user_data_string: '',
+        followers,
+        following,
+        posts,
+        likes,
+        llm_emotion,
+        commentsUrl,
+        comments,
+        shares,
+        engagements,
+        content,
+        image_url: imageUrl,
+        predicted_sentiment,
+        predicted_category,
+        youtube_video_url: youtubeVideoUrl,
+        source_icon: `${source.p_url},${sourceIcon}`,
+        message_text,
+        source: source.source,
+        rating: source.rating,
+        comment: source.comment,
+        businessResponse: source.business_response,
+        uSource: source.u_source,
+        googleName: source.name,
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+    };
+};
+
+/**
  * Build a base query string from category data for filters processing
  * @param {string} selectedCategory - Category to filter by
  * @param {Object} categoryData - Category data
@@ -618,7 +833,8 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                         { match_phrase: { source: "LinkedIn" } },
                         { match_phrase: { source: "Pinterest" } },
                         { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } }
+                        { match_phrase: { source: "Reddit" } },
+                        { match_phrase: { source: "TikTok" } }
                     ],
                     minimum_should_match: 1
                 }

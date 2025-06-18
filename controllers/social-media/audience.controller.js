@@ -24,7 +24,7 @@ const audienceController = {
             }
 
             const topicQueryString = buildTopicQueryString(categoryData);
-            const sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
+            const sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Pinterest" OR "Web" OR "Reddit")`;
             
             // Process filters for time range
             const filters = processFilters({
@@ -434,7 +434,8 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                         { match_phrase: { source: "LinkedIn" } },
                         { match_phrase: { source: "Pinterest" } },
                         { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } }
+                        { match_phrase: { source: "Reddit" } },
+                        { match_phrase: { source: "TikTok" } }
                     ],
                     minimum_should_match: 1
                 }

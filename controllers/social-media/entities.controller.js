@@ -473,7 +473,8 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                         { match_phrase: { source: "LinkedIn" } },
                         { match_phrase: { source: "Pinterest" } },
                         { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } }
+                        { match_phrase: { source: "Reddit" } },
+                        { match_phrase: { source: "TikTok" } }
                     ],
                     minimum_should_match: 1
                 }

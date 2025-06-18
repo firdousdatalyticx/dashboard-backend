@@ -23,6 +23,24 @@ const executeElasticSearchCount = async (params) => {
 };
 
 /**
+ * Helper function to execute Elasticsearch search query
+ * @param {Object} params Query parameters for Elasticswearch
+ * @returns {Promise<Object>} Elasticsearch response
+ */
+const executeElasticSearchQuery = async (params) => {
+    try {
+        const response = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: params
+        });
+        return response;
+    } catch (error) {
+        console.error('Elasticsearch search error:', error);
+        throw error;
+    }
+};
+
+/**
  * Build touchpoint query string for Elasticsearch
  * @param {Number} touchpointId The ID of the touchpoint
  * @returns {Promise<String>} Elasticsearch query string
@@ -153,9 +171,31 @@ const keywordsController = {
 
                     const es_data = await executeElasticSearchCount(params)
             
+                    // Fetch posts for this touchpoint
+                    const MAX_POSTS_PER_KEYWORD = 30;
+                    const limit = Math.min(es_data.count, MAX_POSTS_PER_KEYWORD);
+                    
+                    let posts = [];
+                    if (es_data.count > 0) {
+                        try {
+                            const postsQuery = {
+                                size: limit,
+                                query: params.body.query,
+                                sort: [{ created_at: { order: 'desc' } }]
+                            };
+                            
+                            const postsResponse = await executeElasticSearchQuery(postsQuery);
+                            posts = postsResponse.hits.hits.map(hit => formatPostData(hit));
+                        } catch (error) {
+                            console.error(`Error fetching posts for touchpoint ${tp_data[0].tp_name}:`, error);
+                            posts = [];
+                        }
+                    }
+            
                     responseArray.push({
                       key_count: es_data.count,
-                      keyword: tp_data[0].tp_name
+                      keyword: tp_data[0].tp_name,
+                      posts: posts
                     })
                   }
                 } 
@@ -252,9 +292,31 @@ const keywordsController = {
             
                     const results = await executeElasticSearchCount(params)
             
+                    // Fetch posts for this keyword
+                    const MAX_POSTS_PER_KEYWORD = 30;
+                    const limit = Math.min(results.count, MAX_POSTS_PER_KEYWORD);
+                    
+                    let posts = [];
+                    if (results.count > 0) {
+                        try {
+                            const postsQuery = {
+                                size: limit,
+                                query: params.body.query,
+                                sort: [{ created_at: { order: 'desc' } }]
+                            };
+                            
+                            const postsResponse = await executeElasticSearchQuery(postsQuery);
+                            posts = postsResponse.hits.hits.map(hit => formatPostData(hit));
+                        } catch (error) {
+                            console.error(`Error fetching posts for keyword ${keyHashArray[i]}:`, error);
+                            posts = [];
+                        }
+                    }
+            
                     responseArray.push({
                       key_count: results.count,
-                      keyword: keyHashArray[i]
+                      keyword: keyHashArray[i],
+                      posts: posts
                     })
                   }
                 }
@@ -275,7 +337,126 @@ const keywordsController = {
    
 };
 
+/**
+ * Format post data for the frontend
+ * @param {Object} hit - Elasticsearch document hit
+ * @returns {Object} Formatted post data
+ */
+const formatPostData = (hit) => {
+    const source = hit._source;
 
+    // Use a default image if a profile picture is not provided
+    const profilePic = source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    // Social metrics
+    const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
+    const following = source.u_following > 0 ? `${source.u_following}` : '';
+    const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
+    const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
+
+    // Emotion
+    const llm_emotion = source.llm_emotion ||
+        (source.source === 'GoogleMyBusiness' && source.rating
+            ? (source.rating >= 4 ? 'Supportive'
+                : source.rating <= 2 ? 'Frustrated'
+                    : 'Neutral')
+            : '');
+
+    // Clean up comments URL if available
+    const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
+        ? source.p_url.trim().replace('https: // ', 'https://')
+        : '';
+
+    const comments = `${source.p_comments}`;
+    const shares = source.p_shares > 0 ? `${source.p_shares}` : '';
+    const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : '';
+
+    const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
+    const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ''
+        ? source.p_picture_url
+        : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    // Determine sentiment
+    let predicted_sentiment = '';
+    let predicted_category = '';
+    
+    if (source.predicted_sentiment_value)
+        predicted_sentiment = `${source.predicted_sentiment_value}`;
+    else if (source.source === 'GoogleMyBusiness' && source.rating) {
+        predicted_sentiment = source.rating >= 4 ? 'Positive'
+            : source.rating <= 2 ? 'Negative'
+                : 'Neutral';
+    }
+
+    if (source.predicted_category) predicted_category = source.predicted_category;
+
+    // Handle YouTube-specific fields
+    let youtubeVideoUrl = '';
+    let profilePicture2 = '';
+    if (source.source === 'Youtube') {
+        if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
+        else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+    } else {
+        profilePicture2 = source.p_picture ? source.p_picture : '';
+    }
+
+    // Determine source icon based on source name
+    let sourceIcon = '';
+    const userSource = source.source;
+    if (['khaleej_times', 'Omanobserver', 'Time of oman', 'Blogs'].includes(userSource))
+        sourceIcon = 'Blog';
+    else if (userSource === 'Reddit')
+        sourceIcon = 'Reddit';
+    else if (['FakeNews', 'News'].includes(userSource))
+        sourceIcon = 'News';
+    else if (userSource === 'Tumblr')
+        sourceIcon = 'Tumblr';
+    else if (userSource === 'Vimeo')
+        sourceIcon = 'Vimeo';
+    else if (['Web', 'DeepWeb'].includes(userSource))
+        sourceIcon = 'Web';
+    else
+        sourceIcon = userSource;
+
+    // Format message text – with special handling for GoogleMaps/Tripadvisor
+    let message_text = '';
+    if (['GoogleMaps', 'Tripadvisor'].includes(source.source)) {
+        const parts = source.p_message_text.split('***|||###');
+        message_text = parts[0].replace(/\n/g, '<br>');
+    } else {
+        message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+    }
+
+    return {
+        profilePicture: profilePic,
+        profilePicture2,
+        userFullname: source.u_fullname,
+        user_data_string: '',
+        followers,
+        following,
+        posts,
+        likes,
+        llm_emotion,
+        commentsUrl,
+        comments,
+        shares,
+        engagements,
+        content,
+        image_url: imageUrl,
+        predicted_sentiment,
+        predicted_category,
+        youtube_video_url: youtubeVideoUrl,
+        source_icon: `${source.p_url},${sourceIcon}`,
+        message_text,
+        source: source.source,
+        rating: source.rating,
+        comment: source.comment,
+        businessResponse: source.business_response,
+        uSource: source.u_source,
+        googleName: source.name,
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+    };
+};
 
 /**
  * Build a base query string from category data for filters processing
@@ -478,3 +659,8 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
     }
 }
 module.exports = keywordsController; 
+
+
+
+
+

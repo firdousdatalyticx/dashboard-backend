@@ -824,14 +824,15 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
       query.bool.must.push({
         bool: {
           should: [
-            { match_phrase: { source: "Facebook" } },
-            { match_phrase: { source: "Twitter" } },
-            { match_phrase: { source: "Instagram" } },
-            { match_phrase: { source: "Youtube" } },
-            { match_phrase: { source: "LinkedIn" } },
-            { match_phrase: { source: "Pinterest" } },
-            { match_phrase: { source: "Web" } },
-            { match_phrase: { source: "Reddit" } },
+              { match_phrase: { source: "Facebook" } },
+              { match_phrase: { source: "Twitter" } },
+              { match_phrase: { source: "Instagram" } },
+              { match_phrase: { source: "Youtube" } },
+              { match_phrase: { source: "LinkedIn" } },
+              { match_phrase: { source: "Pinterest" } },
+              { match_phrase: { source: "Web" } },
+              { match_phrase: { source: "Reddit" } },
+              { match_phrase: { source: "TikTok" } }
           ],
           minimum_should_match: 1,
         },

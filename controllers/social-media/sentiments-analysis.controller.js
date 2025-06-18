@@ -94,6 +94,7 @@ const sentimentsController = {
                     }
                 });
             }
+
             // Create aggregations for both simple counts and interval-based data
             const params = {
                 size: 0,
@@ -204,13 +205,14 @@ const sentimentsController = {
                             gte: startDate,
                             lte: endDate
                         }
-                    },
-                       range: {
-                        p_created_time: {
-                            gte: startDate,
-                            lte: endDate
-                        }
                     }
+                    // ,
+                    //    range: {
+                    //     p_created_time: {
+                    //         gte: startDate,
+                    //         lte: endDate
+                    //     }
+                    // }
                 };
                 
                 // Process all sentiments in this interval
@@ -250,6 +252,7 @@ const sentimentsController = {
                     const MAX_POSTS_PER_SENTIMENT = 30;
                     const limit = Math.min(sentimentCount, MAX_POSTS_PER_SENTIMENT);
                     
+                    // console.log("sentimentIntervalQuery",JSON.stringify(sentimentIntervalQuery))
                     const sentimentPostsQuery = {
                         size: limit,
                         query: sentimentIntervalQuery,

@@ -205,6 +205,12 @@ const emotionsController = {
                             gte: startDate,
                             lte: endDate
                         }
+                    },
+                       range: {
+                        p_created_time: {
+                            gte: startDate,
+                            lte: endDate
+                        }
                     }
                 };
                 

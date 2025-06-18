@@ -171,6 +171,7 @@ const sentimentsController = {
                     // Calculate end of month
                     const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
                     endDate = `${year}-${month}-${lastDay}`;
+
                 } else if (calendarInterval === 'week') {
                     // For weekly, we need to calculate the start/end of the week
                     const [year, week] = intervalDate.split('-');
@@ -200,6 +201,12 @@ const sentimentsController = {
                 const timeIntervalFilter = {
                     range: {
                         created_at: {
+                            gte: startDate,
+                            lte: endDate
+                        }
+                    },
+                       range: {
+                        p_created_time: {
                             gte: startDate,
                             lte: endDate
                         }

@@ -667,7 +667,6 @@ const mentionsChartController = {
         selectedTab
       );
 
-      console.log(topicQueryString)
       if(topicQueryString==""){
           return res.status(200).json({ responseOutput:{} });
       }

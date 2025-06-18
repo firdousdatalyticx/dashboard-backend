@@ -353,6 +353,8 @@ const sentimentsMultipleCategoriesController = {
         }
       }
 
+      console.log("baseQuery",JSON.stringify(baseQuery))
+
       // Execute single query with all category aggregations
       const params = {
         size: 0,
@@ -784,6 +786,14 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         {
           range: {
             created_at: {
+              gte: dateRange.greaterThanTime,
+              lte: dateRange.lessThanTime,
+            },
+          },
+        },
+          {
+          range: {
+            p_created_time: {
               gte: dateRange.greaterThanTime,
               lte: dateRange.lessThanTime,
             },

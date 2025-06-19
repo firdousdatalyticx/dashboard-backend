@@ -129,7 +129,7 @@ const poiSentimentDistributionController = {
                                     must: [
                                         {
                                             range: {
-                                                created_at: {
+                                                p_created_time: {
                                                     gte: dateFilter
                                                 }
                                             }
@@ -218,7 +218,40 @@ const poiSentimentDistributionController = {
                                     aggs: {
                                         docs: {
                                             top_hits: {
-                                                _source: ['id', 'title', 'content', 'created_at', 'predicted_sentiment_value', 'p_message'],
+                                                _source: [
+                                                    'id', 
+                                                    'title', 
+                                                    'content', 
+                                                    'created_at',
+                                                    'p_created_time',
+                                                    'predicted_sentiment_value', 
+                                                    'predicted_category',
+                                                    'p_message',
+                                                    'p_message_text',
+                                                    'u_profile_photo',
+                                                    'u_fullname',
+                                                    'u_followers',
+                                                    'u_following',
+                                                    'u_posts',
+                                                    'p_likes',
+                                                    'p_comments',
+                                                    'p_comments_text',
+                                                    'p_url',
+                                                    'p_shares',
+                                                    'p_engagement',
+                                                    'p_content',
+                                                    'p_picture',
+                                                    'p_picture_url',
+                                                    'source',
+                                                    'llm_emotion',
+                                                    'video_embed_url',
+                                                    'p_id',
+                                                    'rating',
+                                                    'comment',
+                                                    'business_response',
+                                                    'u_source',
+                                                    'name'
+                                                ],
                                                 size: 100
                                             }
                                         }
@@ -237,7 +270,7 @@ const poiSentimentDistributionController = {
                     sentiments: data.sentiments.buckets.map((b) => ({
                         sentiment: b.key,
                         count: b.doc_count,
-                        docs: b.docs.hits.hits.map((doc) => doc._source)
+                        posts: b.docs.hits.hits.map((hit) => formatPostData(hit))
                     }))
                 })
             );
@@ -251,6 +284,127 @@ const poiSentimentDistributionController = {
             });
         }
     }
+};
+
+/**
+ * Format post data for the frontend
+ * @param {Object} hit - Elasticsearch document hit
+ * @returns {Object} Formatted post data
+ */
+const formatPostData = (hit) => {
+    const source = hit._source;
+
+    // Use a default image if a profile picture is not provided
+    const profilePic = source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    // Social metrics
+    const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
+    const following = source.u_following > 0 ? `${source.u_following}` : '';
+    const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
+    const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
+
+    // Emotion
+    const llm_emotion = source.llm_emotion ||
+        (source.source === 'GoogleMyBusiness' && source.rating
+            ? (source.rating >= 4 ? 'Supportive'
+                : source.rating <= 2 ? 'Frustrated'
+                    : 'Neutral')
+            : '');
+
+    // Clean up comments URL if available
+    const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
+        ? source.p_url.trim().replace('https: // ', 'https://')
+        : '';
+
+    const comments = `${source.p_comments}`;
+    const shares = source.p_shares > 0 ? `${source.p_shares}` : '';
+    const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : '';
+
+    const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
+    const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ''
+        ? source.p_picture_url
+        : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    // Determine sentiment
+    let predicted_sentiment = '';
+    let predicted_category = '';
+    
+    if (source.predicted_sentiment_value)
+        predicted_sentiment = `${source.predicted_sentiment_value}`;
+    else if (source.source === 'GoogleMyBusiness' && source.rating) {
+        predicted_sentiment = source.rating >= 4 ? 'Positive'
+            : source.rating <= 2 ? 'Negative'
+                : 'Neutral';
+    }
+
+    if (source.predicted_category) predicted_category = source.predicted_category;
+
+    // Handle YouTube-specific fields
+    let youtubeVideoUrl = '';
+    let profilePicture2 = '';
+    if (source.source === 'Youtube') {
+        if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
+        else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+    } else {
+        profilePicture2 = source.p_picture ? source.p_picture : '';
+    }
+
+    // Determine source icon based on source name
+    let sourceIcon = '';
+    const userSource = source.source;
+    if (['khaleej_times', 'Omanobserver', 'Time of oman', 'Blogs'].includes(userSource))
+        sourceIcon = 'Blog';
+    else if (userSource === 'Reddit')
+        sourceIcon = 'Reddit';
+    else if (['FakeNews', 'News'].includes(userSource))
+        sourceIcon = 'News';
+    else if (userSource === 'Tumblr')
+        sourceIcon = 'Tumblr';
+    else if (userSource === 'Vimeo')
+        sourceIcon = 'Vimeo';
+    else if (['Web', 'DeepWeb'].includes(userSource))
+        sourceIcon = 'Web';
+    else
+        sourceIcon = userSource;
+
+    // Format message text – with special handling for GoogleMaps/Tripadvisor
+    let message_text = '';
+    if (['GoogleMaps', 'Tripadvisor'].includes(source.source)) {
+        const parts = source.p_message_text.split('***|||###');
+        message_text = parts[0].replace(/\n/g, '<br>');
+    } else {
+        message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+    }
+
+    return {
+        profilePicture: profilePic,
+        profilePicture2,
+        userFullname: source.u_fullname,
+        user_data_string: '',
+        followers,
+        following,
+        posts,
+        likes,
+        llm_emotion,
+        commentsUrl,
+        comments,
+        shares,
+        engagements,
+        content,
+        image_url: imageUrl,
+        predicted_sentiment,
+        predicted_category,
+        youtube_video_url: youtubeVideoUrl,
+        source_icon: `${source.p_url},${sourceIcon}`,
+        message_text,
+        source: source.source,
+        rating: source.rating,
+        comment: source.comment,
+        businessResponse: source.business_response,
+        uSource: source.u_source,
+        googleName: source.name,
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+    };
 };
 
 module.exports = poiSentimentDistributionController; 

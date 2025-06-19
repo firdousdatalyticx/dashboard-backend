@@ -26,6 +26,7 @@ const sentimentsController = {
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
 
+
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -112,7 +113,7 @@ const sentimentsController = {
                     },
                     time_intervals: {
                         date_histogram: {
-                            field: 'created_at',
+                            field: 'p_created_time',
                             calendar_interval: calendarInterval,
                             format: formatPattern,
                             min_doc_count: 0,
@@ -201,7 +202,7 @@ const sentimentsController = {
                 // Time interval filter for the current interval
                 const timeIntervalFilter = {
                     range: {
-                        created_at: {
+                        p_created_time: {
                             gte: startDate,
                             lte: endDate
                         }
@@ -256,7 +257,7 @@ const sentimentsController = {
                     const sentimentPostsQuery = {
                         size: limit,
                         query: sentimentIntervalQuery,
-                        sort: [{ created_at: { order: 'desc' } }]
+                        sort: [{ p_created_time: { order: 'desc' } }]
                     };
                     
                     try {
@@ -445,7 +446,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
             must: [
                 {
                     range: {
-                        created_at: {
+                        p_created_time: {
                             gte: dateRange.greaterThanTime,
                             lte: dateRange.lessThanTime
                         }

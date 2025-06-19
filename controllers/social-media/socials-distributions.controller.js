@@ -111,11 +111,25 @@ const socialsDistributionsController = {
                 return acc;
             }, {});
 
-            // No need to include platforms with zero counts anymore
-            // or add totalCount to the response
+            // Merge LinkedIn variants into a single count
+            const finalSourceCounts = {};
+            let linkedinCount = 0;
+
+            for (const [source, count] of Object.entries(sourceCounts)) {
+                if (source === 'LinkedIn' || source === 'Linkedin') {
+                    linkedinCount += count;
+                } else {
+                    finalSourceCounts[source] = count;
+                }
+            }
+
+            // Add combined LinkedIn count if there are any
+            if (linkedinCount > 0) {
+                finalSourceCounts['LinkedIn'] = linkedinCount;
+            }
 
             // Return counts
-            return res.json(sourceCounts);
+            return res.json(finalSourceCounts);
         } catch (error) {
             console.error('Error fetching social media distributions:', error);
             return res.status(500).json({ 

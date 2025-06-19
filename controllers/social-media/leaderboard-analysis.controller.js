@@ -165,7 +165,7 @@ const leaderboardAnalysisController = {
                                     must: [
                                         {
                                             range: {
-                                                created_at: {
+                                                p_created_time: {
                                                     gte: dateFilter
                                                 }
                                             }
@@ -272,7 +272,7 @@ const leaderboardAnalysisController = {
                                         },
                                         trends: {
                                             date_histogram: {
-                                                field: 'created_at',
+                                                field: 'p_created_time',
                                                 calendar_interval: 'day',
                                                 min_doc_count: 1
                                             }
@@ -341,7 +341,7 @@ const leaderboardAnalysisController = {
                                 ...acc,
                                 ...sentiment.sample_reviews.hits.hits.map((review) => ({
                                     message: review._source.p_message,
-                                    date: review._source.created_at,
+                                    date: review._source.p_created_time,
                                     sentiment: review._source.predicted_sentiment_value,
                                     keywords: review._source.keywords,
                                     relevanceScore: review._score

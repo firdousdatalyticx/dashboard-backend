@@ -114,7 +114,7 @@ const emotionsController = {
                     },
                     time_intervals: {
                         date_histogram: {
-                            field: 'created_at',
+                            field: 'p_created_time',
                             calendar_interval: calendarInterval,
                             format: formatPattern,
                             min_doc_count: 0,
@@ -201,7 +201,7 @@ const emotionsController = {
                 // Time interval filter for the current interval
                 const timeIntervalFilter = {
                     range: {
-                        created_at: {
+                        p_created_time: {
                             gte: startDate,
                             lte: endDate
                         }
@@ -263,7 +263,7 @@ const emotionsController = {
                     const emotionPostsQuery = {
                         size: limit,
                         query: emotionIntervalQuery,
-                        sort: [{ created_at: { order: 'desc' } }]
+                        sort: [{ p_created_time: { order: 'desc' } }]
                     };
                     
                     try {
@@ -453,7 +453,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
             must: [
                 {
                     range: {
-                        created_at: {
+                        p_created_time: {
                             gte: dateRange.greaterThanTime,
                             lte: dateRange.lessThanTime
                         }

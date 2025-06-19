@@ -15,6 +15,8 @@ const socialsDistributionsController = {
                 unTopic='false',
                 topicId
             } = req.body;
+
+            console.log(fromDate, toDate);
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -46,13 +48,7 @@ const socialsDistributionsController = {
                             lte: filters.lessThanTime
                         };
             
-                        if (unTopic === 'true') {
-                            queryTimeRange = {
-                                gte: '2023-01-01',
-                                lte: '2023-04-30'
-                            };
-                        }
-            
+        
                         // Build base query
                         const query = buildBaseQuery({
                             greaterThanTime: queryTimeRange.gte,
@@ -131,46 +127,6 @@ const socialsDistributionsController = {
 };
 
 /**
- * Extract terms from category data
- * @param {string} selectedCategory - Category to filter by
- * @param {Object} categoryData - Category data
- * @returns {Array} Array of terms
- */
-function extractTermsFromCategoryData(selectedCategory, categoryData) {
-    const allTerms = [];
-    
-    if (selectedCategory === 'all') {
-        // Combine all keywords, hashtags, and urls from all categories
-        Object.values(categoryData).forEach(data => {
-            if (data.keywords && data.keywords.length > 0) {
-                allTerms.push(...data.keywords);
-            }
-            if (data.hashtags && data.hashtags.length > 0) {
-                allTerms.push(...data.hashtags);
-            }
-            if (data.urls && data.urls.length > 0) {
-                allTerms.push(...data.urls);
-            }
-        });
-    } else if (categoryData[selectedCategory]) {
-        const data = categoryData[selectedCategory];
-        if (data.keywords && data.keywords.length > 0) {
-            allTerms.push(...data.keywords);
-        }
-        if (data.hashtags && data.hashtags.length > 0) {
-            allTerms.push(...data.hashtags);
-        }
-        if (data.urls && data.urls.length > 0) {
-            allTerms.push(...data.urls);
-        }
-    }
-    
-    // Remove duplicates and falsy values
-    return [...new Set(allTerms)].filter(Boolean);
-}
-
-
-/**
  * Build a base query string from category data for filters processing
  * @param {string} selectedCategory - Category to filter by
  * @param {Object} categoryData - Category data
@@ -226,19 +182,26 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         bool: {
             must: [
                 {
-                    range: {
-                        created_at: {
-                            gte: dateRange.greaterThanTime,
-                            lte: dateRange.lessThanTime
-                        }
-                    }
-                },
-                {
-                    range: {
-                        p_created_time: {
-                            gte: dateRange.greaterThanTime,
-                            lte: dateRange.lessThanTime
-                        }
+                    bool: {
+                        should: [
+                            {
+                                range: {
+                                    created_at: {
+                                        gte: dateRange.greaterThanTime,
+                                        lte: dateRange.lessThanTime
+                                    }
+                                }
+                            },
+                            {
+                                range: {
+                                    p_created_time: {
+                                        gte: dateRange.greaterThanTime,
+                                        lte: dateRange.lessThanTime
+                                    }
+                                }
+                            }
+                        ],
+                        minimum_should_match: 1
                     }
                 }
             ],
@@ -277,6 +240,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                         { match_phrase: { source: "Twitter" } },
                         { match_phrase: { source: "Instagram" } },
                         { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "Linkedin" } },
                         { match_phrase: { source: "LinkedIn" } },
                         { match_phrase: { source: "Pinterest" } },
                         { match_phrase: { source: "Web" } },

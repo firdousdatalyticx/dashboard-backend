@@ -182,26 +182,11 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         bool: {
             must: [
                 {
-                    bool: {
-                        should: [
-                            {
-                                range: {
-                                    created_at: {
-                                        gte: dateRange.greaterThanTime,
-                                        lte: dateRange.lessThanTime
-                                    }
-                                }
-                            },
-                            {
-                                range: {
-                                    p_created_time: {
-                                        gte: dateRange.greaterThanTime,
-                                        lte: dateRange.lessThanTime
-                                    }
-                                }
-                            }
-                        ],
-                        minimum_should_match: 1
+                    range: {
+                        p_created_time: {
+                            gte: dateRange.greaterThanTime,
+                            lte: dateRange.lessThanTime
+                        }
                     }
                 }
             ],

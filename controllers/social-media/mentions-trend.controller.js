@@ -164,6 +164,17 @@ const mentionsTrendController = {
                 body: queryTemplate
             });
 
+            // Get total count using the same query
+            const totalCountQuery = {
+                query: query,
+                size: 0
+            };
+            const totalCountResponse = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: totalCountQuery
+            });
+            const totalCount = totalCountResponse.hits.total.value || totalCountResponse.hits.total || 0;
+
             // Process resultsfre
             let maxDate = '';
             let maxMentions = 0;
@@ -290,6 +301,7 @@ const mentionsTrendController = {
                 success: true,
                 // mentionsGraphData: datesArray.join('|'),
                 maxMentionData: `${maxDate},${maxMentions}`,
+                totalCount: totalCount,
                 datesWithPosts: datesWithPosts,
                 query:queryTemplate.query
                 
@@ -823,6 +835,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                         { match_phrase: { source: "Instagram" } },
                         { match_phrase: { source: "Youtube" } },
                         { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Linkedin" } },
                         { match_phrase: { source: "Pinterest" } },
                         { match_phrase: { source: "Web" } },
                         { match_phrase: { source: "Reddit" } },

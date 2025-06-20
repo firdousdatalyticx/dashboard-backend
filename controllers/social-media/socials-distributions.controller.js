@@ -129,7 +129,7 @@ const socialsDistributionsController = {
             }
 
             // Return counts
-            return res.json(finalSourceCounts);
+            return res.json(finalSourceCounts   );
         } catch (error) {
             console.error('Error fetching social media distributions:', error);
             return res.status(500).json({ 

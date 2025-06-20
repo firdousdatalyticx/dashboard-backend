@@ -52,14 +52,14 @@ const poiSentimentDistributionController = {
         };
       }
 
-      console.log(dateRange)
             // If no valid categories with search criteria, return empty results
             if (validCategories.length === 0) {
                 return res.json({ distribution: [] });
             }
-
+ let sourceFilter =[];
+            if(source=="All"){
             // Build source filter based on special topic
-            const sourceFilter = isSpecialTopic ? [
+             sourceFilter = isSpecialTopic ? [
                 { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } }
             ] : [
@@ -74,6 +74,11 @@ const poiSentimentDistributionController = {
                 { match_phrase: { source: 'TikTok' } }
             ];
 
+        }else{
+             sourceFilter = [
+                { match_phrase: { source: source } }
+             ]
+        }
             // Build ElasticSearch query with only valid categories
             const params = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -281,38 +286,38 @@ const poiSentimentDistributionController = {
             };
 
 
-            //  if (sentiment && sentiment!=="" && sentiment !== 'undefined' && sentiment !== 'null') {
-            //     if (sentiment.includes(',')) {
-            //         // Handle multiple sentiment types
-            //         const sentimentArray = sentiment.split(',');
-            //         const sentimentFilter = {
-            //             bool: {
-            //                 should: sentimentArray.map(sentiment => ({
-            //                     match: { predicted_sentiment_value: sentiment.trim() }
-            //                 })),
-            //                 minimum_should_match: 1
-            //             }
-            //         };
-            //         query.bool.must.push(sentimentFilter);
-            //     } else {
-            //         // Handle single sentiment type
-            //         params.body.query.bool.must.push({
-            //             match: { predicted_sentiment_value: sentiment.trim() }
-            //         });
-            //     }
-            // }
+             if (sentiment && sentiment!=="" && sentiment !== 'undefined' && sentiment !== 'null') {
+                if (sentiment.includes(',')) {
+                    // Handle multiple sentiment types
+                    const sentimentArray = sentiment.split(',');
+                    const sentimentFilter = {
+                        bool: {
+                            should: sentimentArray.map(sentiment => ({
+                                match: { predicted_sentiment_value: sentiment.trim() }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    };
+                    query.bool.must.push(sentimentFilter);
+                } else {
+                    // Handle single sentiment type
+                    params.body.query.bool.must.push({
+                        match: { predicted_sentiment_value: sentiment.trim() }
+                    });
+                }
+            }
               // Apply LLM Mention Type filter if provided
-            // if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
-            //     const mentionTypeFilter = {
-            //         bool: {
-            //             should: llm_mention_type.map(type => ({
-            //                 match: { llm_mention_type: type }
-            //             })),
-            //             minimum_should_match: 1
-            //         }
-            //     };
-            //     params.body.query.bool.must.push(mentionTypeFilter);
-            // }
+            if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+                const mentionTypeFilter = {
+                    bool: {
+                        should: llm_mention_type.map(type => ({
+                            match: { llm_mention_type: type }
+                        })),
+                        minimum_should_match: 1
+                    }
+                };
+                params.body.query.bool.must.push(mentionTypeFilter);
+            }
             const result = await elasticClient.search(params);
             const distribution = Object.entries(result.aggregations?.categories?.buckets || {}).map(
                 ([category, data]) => ({

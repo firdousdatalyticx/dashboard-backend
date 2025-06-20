@@ -10,19 +10,22 @@ const buildWordCloudParams = (options) => {
   const {
     queryString,
     sentimentType,
+    fromDate,
+    toDate,
+    source,
     from = 0,
     size = 5000,
     sort = "p_created_time:desc",
-    timeRange = { gte: "now-90d", lte: "now" },
-    isSpecialTopic = false,
+    timeRange = {
+      gte: fromDate != null ? fromDate : "now-90d",
+      lte: toDate != null ? toDate : "now",
+    },
+    llm_mention_type
   } = options;
 
-  const [sortField, sortOrder] = sort.split(":");
 
-  // Build source filter based on special topic
-  const sourceFilter = isSpecialTopic
-    ? 'source:("Twitter" OR "Facebook")'
-    : 'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")';
+
+  const [sortField, sortOrder] = sort.split(":");
 
   // Base query structure
   const baseQuery = {
@@ -30,7 +33,11 @@ const buildWordCloudParams = (options) => {
       must: [
         {
           query_string: {
-            query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND ${sourceFilter}`,
+            query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
+              source != "All"
+                ? source
+                : '"Twitter" OR "Facebook" OR "Instagram"'
+            })`,
           },
         },
         {
@@ -42,6 +49,19 @@ const buildWordCloudParams = (options) => {
     },
   };
 
+
+          // Apply LLM Mention Type filter if provided
+if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+    const mentionTypeFilter = {
+        bool: {
+            should: llm_mention_type.map(type => ({
+                match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+        }
+    };
+    baseQuery.bool.must.push(mentionTypeFilter);
+}
   // Add sentiment specific conditions
   if (sentimentType === "positive") {
     baseQuery.bool.must[0].query_string.query +=
@@ -72,7 +92,7 @@ const buildWordCloudParams = (options) => {
       top_terms: {
         terms: {
           field: "p_message.keyword",
-          size: 100,
+          size: 50,
         },
       },
     },
@@ -89,11 +109,17 @@ const buildPostsByPhraseParams = (options) => {
     phrase,
     queryString,
     sentimentType,
+    fromDate,
+    toDate,
+    source,
     from = 0,
     size = 100,
     sort = "p_created_time:desc",
-    timeRange = { gte: "now-90d", lte: "now" },
-    isSpecialTopic = false,
+    timeRange = {
+      gte: fromDate != null ? fromDate : "now-90d",
+      lte: toDate != null ? toDate : "now",
+    },
+    llm_mention_type
   } = options;
 
   const [sortField, sortOrder] = sort.split(":");
@@ -103,18 +129,17 @@ const buildPostsByPhraseParams = (options) => {
       ? "llm_positive_points.keyword"
       : "llm_negative_points.keyword";
 
-  // Build source filter based on special topic
-  const sourceFilter = isSpecialTopic
-    ? 'source:("Twitter" OR "Facebook")'
-    : 'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")';
-
   // Base query structure
   const baseQuery = {
     bool: {
       must: [
         {
           query_string: {
-            query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND ${sourceFilter}`,
+            query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
+              source != "All"
+                ? source
+                : '"Twitter" OR "Facebook" OR "Instagram"'
+            })`,
           },
         },
         {
@@ -125,6 +150,19 @@ const buildPostsByPhraseParams = (options) => {
       ],
     },
   };
+  
+    // Apply LLM Mention Type filter if provided
+  if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+      const mentionTypeFilter = {
+          bool: {
+              should: llm_mention_type.map(type => ({
+                  match: { llm_mention_type: type }
+              })),
+              minimum_should_match: 1
+          }
+      };
+      baseQuery.bool.must.push(mentionTypeFilter);
+  }
 
   // Add sentiment specific conditions
   if (sentimentType === "positive") {
@@ -156,19 +194,9 @@ const wordCloudController = {
    */
   getWordPhrases: async (req, res) => {
     try {
-      const {
-        sentimentType = "positive",
-        topicId,
-        fromDate,
-        toDate,
-        source,
-        llm_mention_type,
-      } = req.body;
-
-      // Check if this is the special topicId
-      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
+      const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type } = req.body;
       const categoryData = req.processedCategories || {};
+
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -181,14 +209,23 @@ const wordCloudController = {
         });
       }
 
-      // Create search terms array from the category data
+      // Create search terms array from the category data based on selected category
       const searchTerms = [];
 
-      Object.values(categoryData).forEach((category) => {
-        if (category.keywords) searchTerms.push(...category.keywords);
-        if (category.hashtags) searchTerms.push(...category.hashtags);
-        if (category.urls) searchTerms.push(...category.urls);
-      });
+      if (category === "all") {
+        Object.values(categoryData).forEach((categoryItem) => {
+          if (categoryItem.keywords) searchTerms.push(...categoryItem.keywords);
+          if (categoryItem.hashtags) searchTerms.push(...categoryItem.hashtags);
+          if (categoryItem.urls) searchTerms.push(...categoryItem.urls);
+        });
+      } else if (categoryData[category]) {
+        const selectedCategoryData = categoryData[category];
+
+        console.log("selectedCategoryData", selectedCategoryData);
+        if (selectedCategoryData.keywords) searchTerms.push(...selectedCategoryData.keywords);
+        if (selectedCategoryData.hashtags) searchTerms.push(...selectedCategoryData.hashtags);
+        if (selectedCategoryData.urls) searchTerms.push(...selectedCategoryData.urls);
+      }
 
       if (searchTerms.length === 0) {
         return res.json({
@@ -204,23 +241,16 @@ const wordCloudController = {
       // Create query string from search terms
       const queryString = searchTerms.map((term) => `"${term}"`).join(" OR ");
 
-      // Set time range based on special topic
-      const timeRange = isSpecialTopic
-        ? { gte: "2020-01-01", lte: "now" }
-        : { gte: "now-90d", lte: "now" };
-
-      if (fromDate && toDate) {
-        timeRange.gte = fromDate;
-        timeRange.lte = toDate;
-      }
-
       // Build and execute Elasticsearch query
       const params = buildWordCloudParams({
         queryString,
         sentimentType,
-        timeRange,
-        isSpecialTopic,
+        fromDate,
+        toDate,
+        source,
+        llm_mention_type
       });
+
 
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -251,7 +281,7 @@ const wordCloudController = {
           value: term.doc_count,
         })),
         total: posts.length,
-        params,
+        
       });
     } catch (error) {
       console.error("Error fetching word cloud data:", error);
@@ -273,16 +303,15 @@ const wordCloudController = {
       const {
         phrase,
         sentimentType = "positive",
+        fromDate,
+        toDate,
+        source,
+        category = "all",
         page = 1,
         size = 100,
         sort = "p_created_time:desc",
-        topicId,
-        fromDate,
-        toDate,
+        llm_mention_type
       } = req.body;
-
-      // Check if this is the special topicId
-      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
       const categoryData = req.processedCategories || {};
 
@@ -303,14 +332,21 @@ const wordCloudController = {
         });
       }
 
-      // Create search terms array from the category data
+      // Create search terms array from the category data based on selected category
       const searchTerms = [];
 
-      Object.values(categoryData).forEach((category) => {
-        if (category.keywords) searchTerms.push(...category.keywords);
-        if (category.hashtags) searchTerms.push(...category.hashtags);
-        if (category.urls) searchTerms.push(...category.urls);
-      });
+      if (category === "all") {
+        Object.values(categoryData).forEach((categoryItem) => {
+          if (categoryItem.keywords) searchTerms.push(...categoryItem.keywords);
+          if (categoryItem.hashtags) searchTerms.push(...categoryItem.hashtags);
+          if (categoryItem.urls) searchTerms.push(...categoryItem.urls);
+        });
+      } else if (categoryData[category]) {
+        const selectedCategoryData = categoryData[category];
+        if (selectedCategoryData.keywords) searchTerms.push(...selectedCategoryData.keywords);
+        if (selectedCategoryData.hashtags) searchTerms.push(...selectedCategoryData.hashtags);
+        if (selectedCategoryData.urls) searchTerms.push(...selectedCategoryData.urls);
+      }
 
       if (searchTerms.length === 0) {
         return res.json({
@@ -328,15 +364,6 @@ const wordCloudController = {
       // Calculate from based on page and size
       const from = (parseInt(page) - 1) * parseInt(size);
 
-      // Set time range based on special topic
-      const timeRange = isSpecialTopic
-        ? { gte: "2020-01-01", lte: "now" }
-        : { gte: "now-90d", lte: "now" };
-
-      if (fromDate && toDate) {
-        timeRange.gte = fromDate;
-        timeRange.lte = toDate;
-      }
       // Build and execute Elasticsearch query
       const params = buildPostsByPhraseParams({
         phrase,
@@ -345,8 +372,10 @@ const wordCloudController = {
         from,
         size: parseInt(size),
         sort,
-        timeRange,
-        isSpecialTopic,
+        fromDate,
+        toDate,
+        source,
+        llm_mention_type
       });
 
       const response = await elasticClient.search({

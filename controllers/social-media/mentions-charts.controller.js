@@ -1550,13 +1550,26 @@ const mentionsChartController = {
         body: query,
       });
 
-      // Convert array into object format
-      let influencersCoverage = {};
-      result.aggregations.llm_language.buckets.forEach((bucket) => {
-        influencersCoverage[bucket.key] = bucket.doc_count;
-      });
+          // Convert array into object format with filtering and normalization
+    let influencersCoverage = {};
+    result.aggregations.llm_language.buckets.forEach((bucket) => {
+      // Skip unknown values
+      if (bucket.key.toLowerCase() === 'unknown') {
+        return;
+      }
+      
+      // Normalize language names (capitalize first letter)
+      const normalizedKey = bucket.key.charAt(0).toUpperCase() + bucket.key.slice(1).toLowerCase();
+      
+      // Merge counts if the normalized key already exists
+      if (influencersCoverage[normalizedKey]) {
+        influencersCoverage[normalizedKey] += bucket.doc_count;
+      } else {
+        influencersCoverage[normalizedKey] = bucket.doc_count;
+      }
+    });
 
-      return res.status(200).json({ influencersCoverage, result });
+    return res.status(200).json({ influencersCoverage, result });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });

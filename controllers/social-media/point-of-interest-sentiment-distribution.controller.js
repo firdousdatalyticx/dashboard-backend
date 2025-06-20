@@ -51,6 +51,7 @@ const poiSentimentDistributionController = {
                 { match_phrase: { source: 'Pinterest' } },
                 { match_phrase: { source: 'Reddit' } },
                 { match_phrase: { source: 'LinkedIn' } },
+                  { match_phrase: { source: "Linkedin" } },
                 { match_phrase: { source: 'Web' } },
                 { match_phrase: { source: 'TikTok' } }
             ];

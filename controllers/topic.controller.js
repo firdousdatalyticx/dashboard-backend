@@ -1072,35 +1072,62 @@ const topicController = {
                         ? { gte: "2020-01-01", lte: "now" }
                         : { gte: formatDate(pastDate), lte: formatDate(today) };
 
-
+                    if (numericTopicId === 2473) {
+                            dateRange.gte = "2023-01-01";
+                            dateRange.lte = "2023-04-30";
+                        }
 
    
             
             // Determine social media sources based on special topic
             const socialSources = isSpecialTopic ? 
                 ["Facebook", "Twitter"] :
-                ["Facebook", "Twitter", "Instagram", "Youtube", "Pinterest", "Reddit", "LinkedIn", "Web"];
+             
+                ["Facebook", "Twitter", "Instagram", "Youtube", "Pinterest", "Reddit", "LinkedIn","Linkedin","TikTok", "Web"];
             
-            // Build query for social media
-            const buildQuery = () => ({
-                bool: {
-                    must: [
+            const must  = [
                         {
                             terms: {
                                 "source.keyword": socialSources
                             }
                         },
+                       
+                    ]
+             const goolgeMust = [
                         {
+                            terms: {
+                                "u_source.keyword": googleUrls
+                            }
+                        }
+                    ]
+                    if(isSpecialTopic){
+                     must.push( {
                             range: {
                                 created_at: dateRange,
                             },
                         },
-                        {
-                        range: {
-                                p_created_time: dateRange
-                            }
-                        }
-                    ],
+                        // {
+                        // range: {
+                        //         p_created_time: dateRange
+                        //     }
+                        // }
+                    )   
+                    goolgeMust.push({
+                            range: {
+                                created_at: dateRange,
+                            },
+                        },
+                        // {
+                        // range: {
+                        //         p_created_time: dateRange
+                        //     }
+                        // }
+                    )
+                    }
+            // Build query for social media
+            const buildQuery = () => ({
+                bool: {
+                    must:must,
                     should: [
                         // Match all text fields with keywords/hashtags
                         {
@@ -1134,21 +1161,12 @@ const topicController = {
                 },
             });
             
+    
+
             // Build query for Google
             const buildGoogleQuery = () => ({
                 bool: {
-                    must: [
-                        {
-                            terms: {
-                                "u_source.keyword": googleUrls
-                            }
-                        },
-                        {
-                            range: {
-                                created_at: dateRange,
-                            },
-                        }
-                    ]
+                    must:goolgeMust
                 }
             });
             
@@ -1193,6 +1211,7 @@ const topicController = {
             return res.json({
                 success: true,
                 query:buildQuery(),
+                googleQuery:buildGoogleQuery(),
                 data: {
                     googleCount,
                     socialMediaCount: socialMediaData.length>0?nonGoogleCount:0,

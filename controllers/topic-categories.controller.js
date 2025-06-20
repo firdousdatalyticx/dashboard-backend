@@ -370,6 +370,7 @@ const topicCategoriesController = {
         ? { gte: "2020-01-01", lte: "now" }
         : { gte: formatDate(pastDate), lte: formatDate(today) };
 
+        
       // Determine social media sources based on special topic
       const socialSources = isSpecialTopic
         ? ["Facebook", "Twitter"]
@@ -381,6 +382,8 @@ const topicCategoriesController = {
             "Pinterest",
             "Reddit",
             "LinkedIn",
+            "Linkedin",
+            "TikTok",
             "Web",
           ];
 
@@ -388,21 +391,44 @@ const topicCategoriesController = {
         dateRange.gte = "2023-01-01";
         dateRange.lte = "2023-04-30";
       }
-      // Query builder for social media data
-      const buildSocialMediaQuery = () => ({
-        bool: {
-          must: [
+
+      const must = [
+          
+          ]
+      const googleMust = 
+         [
             {
+              terms: {
+                "u_source.keyword": googleUrls,
+              },
+            },
+           
+          ]
+      
+
+        if(numericTopicId === 2473 || isSpecialTopic){
+            must.push({
               range: {
                 created_at: dateRange,
               }
             },
-            {
-                range: {
-                    p_created_time: dateRange
-                }
-            }
-          ],
+            // {
+            //     range: {
+            //         p_created_time: dateRange
+            //     }
+            // }
+          )
+
+          googleMust.push( {
+              range: {
+                created_at: dateRange,
+              },
+            },)
+        }          
+      // Query builder for social media data
+      const buildSocialMediaQuery = () => ({
+        bool: {
+          must: must,
           filter: [
             {
               terms: {
@@ -459,18 +485,7 @@ const topicCategoriesController = {
       // Query builder for Google data
       const buildGoogleQuery = () => ({
         bool: {
-          must: [
-            {
-              terms: {
-                "u_source.keyword": googleUrls,
-              },
-            },
-            {
-              range: {
-                created_at: dateRange,
-              },
-            },
-          ],
+          must:googleMust,
         },
       });
 

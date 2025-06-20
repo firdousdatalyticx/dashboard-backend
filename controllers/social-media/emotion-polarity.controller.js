@@ -22,8 +22,304 @@ const emotionPolarityController = {
             
             const topicQueryString = buildTopicQueryString(categoryData);
 
+<<<<<<< Updated upstream
             // Update source filter based on special topic
             const sourceFilter = isSpecialTopic ? {
+=======
+      // Get request parameters
+      const params = req.method === "POST" ? req.body : req.query;
+      const {
+        maxPostsPerEmotion = 30,
+        topEmotionsCount = 10, // Default to top 10 emotions
+        skipEmptyEmotions = true, // Whether to skip emotions with zero posts
+        topicId,
+        fromDate,
+        timeSlot,
+        toDate,
+        sentiment,
+        source = "All", // Add source parameter with default value 'All'
+        llm_mention_type,
+      } = params;
+
+      const now = new Date();
+      let startDate;
+      let endDate = now;
+
+      // Determine date range based on timeSlot
+      if (timeSlot === "Custom date" && fromDate && toDate) {
+        startDate = parseISO(fromDate);
+        endDate = parseISO(toDate);
+      } else {
+        // Handle predefined time slots
+        switch (timeSlot) {
+          case "last24hours":
+            startDate = subHours(now, 24);
+            break;
+          case "last7days":
+            startDate = subDays(now, 7);
+            break;
+          case "last30days":
+            startDate = subDays(now, 30);
+            break;
+          case "last60days":
+            startDate = subDays(now, 60);
+            break;
+          case "last120days":
+            startDate = subDays(now, 120);
+            break;
+          case "last90days":
+          default:
+            startDate = subDays(now, 90);
+            break;
+        }
+      }
+
+      const greaterThanTime = format(startDate, "yyyy-MM-dd");
+      const lessThanTime = format(endDate, "yyyy-MM-dd");
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const topicQueryString = buildTopicQueryString(categoryData);
+
+      // Build the query with date range
+      const must = [
+        {
+          query_string: {
+            query: topicQueryString,
+            analyze_wildcard: true,
+          },
+        },
+        {
+          exists: {
+            field: "llm_polarity",
+          },
+        },
+        {
+          range: {
+            created_at: {
+              gte: greaterThanTime,
+              lte: lessThanTime,
+            },
+          },
+        },
+        {
+          range: {
+            p_created_time: {
+              gte: greaterThanTime,
+              lte: lessThanTime,
+            },
+          },
+        },
+      ];
+
+      // Update source filter based on special topic
+      const sourceFilter = isSpecialTopic
+        ? {
+            bool: {
+              should: [
+                { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Twitter" } },
+              ],
+              minimum_should_match: 1,
+            },
+          }
+        : {
+            bool: {
+              should: [
+                { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Twitter" } },
+                { match_phrase: { source: "Instagram" } },
+                { match_phrase: { source: "Youtube" } },
+                { match_phrase: { source: "Pinterest" } },
+                { match_phrase: { source: "Reddit" } },
+                { match_phrase: { source: "LinkedIn" } },
+                { match_phrase: { source: "Linkedin" } },
+                { match_phrase: { source: "Web" } },
+                { match_phrase: { source: "TikTok" } },
+              ],
+              minimum_should_match: 1,
+            },
+          };
+
+      // Add source filter if a specific source is selected
+      if (source !== "All") {
+        must.push({
+          match_phrase: { source: source },
+        });
+      } else {
+        if (isSpecialTopic) {
+          must.push({
+            bool: {
+              should: [
+                { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Twitter" } },
+              ],
+              minimum_should_match: 1,
+            },
+          });
+        } else {
+          must.push({
+            bool: {
+              should: [
+                { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Twitter" } },
+                { match_phrase: { source: "Instagram" } },
+                { match_phrase: { source: "Youtube" } },
+                { match_phrase: { source: "Pinterest" } },
+                { match_phrase: { source: "Reddit" } },
+                 { match_phrase: { source: "Linkedin" } },
+                { match_phrase: { source: "LinkedIn" } },
+                { match_phrase: { source: "Web" } },
+                { match_phrase: { source: "TikTok" } },
+              ],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Add sentiment filter if provided
+      if (sentiment && sentiment != "" && sentiment !== "All") {
+        must.push({
+          match_phrase: {
+            predicted_sentiment_value: sentiment,
+          },
+        });
+      }
+
+      // Apply LLM Mention Type filter if provided
+      if (
+        llm_mention_type &&
+        Array.isArray(llm_mention_type) &&
+        llm_mention_type.length > 0
+      ) {
+        const mentionTypeFilter = {
+          bool: {
+            should: llm_mention_type.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        };
+        must.push(mentionTypeFilter);
+      }
+
+      const elasticParams = {
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          size: 0,
+          query: {
+            bool: {
+              must: must,
+            },
+          },
+          aggs: {
+            sentiment_distribution: {
+              histogram: {
+                field: "llm_polarity",
+                interval: 0.2,
+                min_doc_count: 0,
+                extended_bounds: {
+                  min: -1,
+                  max: 1,
+                },
+              },
+            },
+            stats: {
+              stats: {
+                field: "llm_polarity",
+              },
+            },
+            emotions: {
+              terms: {
+                field: "llm_emotion.keyword",
+                size: 10000,
+                order: { _count: "desc" },
+              },
+              aggs: {
+                avg_polarity: {
+                  avg: {
+                    field: "llm_polarity",
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const results = await elasticClient.search(elasticParams);
+
+      // Get the distribution data
+      const distribution =
+        results.aggregations?.sentiment_distribution?.buckets || [];
+      const stats = results.aggregations?.stats || [];
+
+      // Filter emotions to include only those with counts > 0 if skipEmptyEmotions is true
+      let emotions = results.aggregations?.emotions?.buckets || [];
+      if (skipEmptyEmotions) {
+        emotions = emotions.filter((emotion) => emotion.doc_count > 0);
+      }
+
+      // Get only the top N emotions
+      const topEmotions = emotions.slice(0, parseInt(topEmotionsCount, 10));
+
+      // Transform the distribution data and ensure all bins are present
+      const allBins = Array.from({ length: 11 }, (_, i) => {
+        const polarity = parseFloat((-1 + i * 0.2).toFixed(1));
+        const existingBin = distribution.find(
+          (b) => parseFloat(b.key.toFixed(1)) === polarity
+        );
+        return {
+          polarity,
+          count: existingBin?.doc_count || 0,
+        };
+      });
+
+      // Now fetch posts for each top emotion
+      const emotionsWithPostsPromises = topEmotions.map(
+        async (emotionBucket) => {
+          const emotionName = emotionBucket.key;
+          const originalCount = emotionBucket.doc_count;
+          const averagePolarity = emotionBucket.avg_polarity?.value || 0;
+
+          // Query to find posts with this emotion
+          const emotionQuery = {
+            bool: {
+              must: [
+                // Use the same base query from above
+                {
+                  query_string: {
+                    query: topicQueryString,
+                    analyze_wildcard: true,
+                  },
+                },
+                // Add emotion filter
+                {
+                  match_phrase: {
+                    llm_emotion: emotionName,
+                  },
+                },
+                {
+                  range: {
+                    created_at: {
+                      gte: greaterThanTime,
+                      lte: lessThanTime,
+                    },
+                  },
+                },
+                {
+                  range: {
+                    p_created_time: {
+                      gte: greaterThanTime,
+                      lte: lessThanTime,
+                    },
+                  },
+                },
+              ],
+              filter: {
+>>>>>>> Stashed changes
                 bool: {
                     should: [
                         { match_phrase: { source: 'Facebook' } },

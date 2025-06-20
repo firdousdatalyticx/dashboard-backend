@@ -1,6 +1,9 @@
+const { subDays } = require('date-fns/subDays');
 const { elasticClient } = require('../../config/elasticsearch');
 const { buildTopicQueryString } = require('../../utils/queryBuilder');
 const { PrismaClient } = require('@prisma/client');
+const { format } = require('date-fns/format');
+const { subHours } = require('date-fns/subHours');
 const prisma = new PrismaClient();
 
 const emotionPolarityController = {
@@ -14,15 +17,88 @@ const emotionPolarityController = {
                 maxPostsPerEmotion = 30,
                 topEmotionsCount = 10, // Default to top 10 emotions
                 skipEmptyEmotions = true, // Whether to skip emotions with zero posts
-                topicId
+                topicId,
+                      fromDate,
+                      timeSlot,
+                toDate,
+                sentiment,
+                source = 'All', // Add source parameter with default value 'All'
+                llm_mention_type
             } = params;
+            
+             const now = new Date();
+            let startDate;
+            let endDate = now;
+
+            // Determine date range based on timeSlot
+            if (timeSlot === 'Custom date' && fromDate && toDate) {
+                startDate = parseISO(fromDate);
+                endDate = parseISO(toDate);
+            } else {
+                // Handle predefined time slots
+                switch (timeSlot) {
+                    case 'last24hours':
+                        startDate = subHours(now, 24);
+                        break;
+                    case 'last7days':
+                        startDate = subDays(now, 7);
+                        break;
+                    case 'last30days':
+                        startDate = subDays(now, 30);
+                        break;
+                    case 'last60days':
+                        startDate = subDays(now, 60);
+                        break;
+                    case 'last120days':
+                        startDate = subDays(now, 120);
+                        break;
+                    case 'last90days':
+                    default:
+                        startDate = subDays(now, 90);
+                        break;
+                }
+            }
+            
+            const greaterThanTime = format(startDate, 'yyyy-MM-dd');
+            const lessThanTime = format(endDate, 'yyyy-MM-dd');
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             const topicQueryString = buildTopicQueryString(categoryData);
 
-            // Update source filter based on special topic
+                // Build the query with date range
+            const must = [
+                {
+                    query_string: {
+                        query: topicQueryString,
+                        analyze_wildcard: true
+                    }
+                },
+                {
+                    exists: {
+                        field: 'llm_polarity'
+                    }
+                },
+                {
+                    range: {
+                        created_at: {
+                            gte: greaterThanTime,
+                            lte: lessThanTime
+                        }
+                    }
+                },
+                {
+                    range: {
+                        p_created_time: {
+                            gte: greaterThanTime,
+                            lte: lessThanTime
+                        }
+                    }
+                }
+            ];
+
+                 // Update source filter based on special topic
             const sourceFilter = isSpecialTopic ? {
                 bool: {
                     should: [
@@ -48,26 +124,77 @@ const emotionPolarityController = {
                 }
             };
 
+              // Add source filter if a specific source is selected
+            if (source !== 'All') {
+                must.push({
+                    match_phrase: { source: source }
+                });
+            } else {
+                if(isSpecialTopic){
+                    must.push({
+                          bool: {
+                    should: [
+                        { match_phrase: { source: 'Facebook' } },
+                        { match_phrase: { source: 'Twitter' } }
+                    ],
+                    minimum_should_match: 1
+                }
+                    })
+                }else{
+                    
+                
+                must.push({
+                    bool: {
+                        should: [
+                        { match_phrase: { source: 'Facebook' } },
+                        { match_phrase: { source: 'Twitter' } },
+                        { match_phrase: { source: 'Instagram' } },
+                        { match_phrase: { source: 'Youtube' } },
+                        { match_phrase: { source: 'Pinterest' } },
+                        { match_phrase: { source: 'Reddit' } },
+                        { match_phrase: { source: 'LinkedIn' } },
+                        { match_phrase: { source: 'Web' } },
+                        { match_phrase: { source: 'TikTok' } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            }
+            }
+
+            // Add sentiment filter if provided
+            if (sentiment && sentiment!="" && sentiment !== 'All') {
+                must.push({
+                    match_phrase: {
+                        "predicted_sentiment_value": sentiment
+                    }
+                });
+            }
+
+
+            // Apply LLM Mention Type filter if provided
+                if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+                    const mentionTypeFilter = {
+                        bool: {
+                            should: llm_mention_type.map(type => ({
+                                match: { llm_mention_type: type }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    };
+                    must.push(mentionTypeFilter);
+                }
+
+
+        
+
             const elasticParams = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: {
                     size: 0,
                     query: {
-                        bool: {
-                            must: [
-                                {
-                                    query_string: {
-                                        query: topicQueryString,
-                                        analyze_wildcard: true
-                                    }
-                                },
-                                {
-                                    exists: {
-                                        field: 'llm_polarity'
-                                    }
-                                }
-                            ],
-                            filter: sourceFilter
+                     bool: {
+                            must: must
                         }
                     },
                     aggs: {
@@ -152,7 +279,23 @@ const emotionPolarityController = {
                                 match_phrase: {
                                     llm_emotion: emotionName
                                 }
-                            }
+                            },
+                             {
+                    range: {
+                        created_at: {
+                            gte: greaterThanTime,
+                            lte: lessThanTime
+                        }
+                    }
+                },
+                  {
+                    range: {
+                        p_created_time: {
+                            gte: greaterThanTime,
+                            lte: lessThanTime
+                        }
+                    }
+                }
                         ],
                         filter: {
                             bool: {

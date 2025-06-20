@@ -3,7 +3,13 @@ const { elasticClient } = require('../../config/elasticsearch');
 const poiSentimentDistributionController = {
     getDistribution: async (req, res) => {
         try {
-            const { topicId } = req.body || {};
+            const { topicId, 
+                 source = "All",
+        category = "all",
+          fromDate,
+        toDate,
+        sentiment,
+        llm_mention_type } = req.body || {};
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -34,6 +40,19 @@ const poiSentimentDistributionController = {
                 return hasKeywords || hasHashtags || hasUrls;
             });
 
+               let dateRange;
+      if (fromDate == null && toDate == null) {
+        dateRange = {
+          gte: dateFilter,
+        };
+      } else {
+        dateRange = {
+          gte: fromDate,
+          lte: toDate,
+        };
+      }
+
+      console.log(dateRange)
             // If no valid categories with search criteria, return empty results
             if (validCategories.length === 0) {
                 return res.json({ distribution: [] });
@@ -129,9 +148,7 @@ const poiSentimentDistributionController = {
                                     must: [
                                         {
                                             range: {
-                                                p_created_time: {
-                                                    gte: dateFilter
-                                                }
+                                                p_created_time: dateRange
                                             }
                                         },
                                         {
@@ -263,6 +280,39 @@ const poiSentimentDistributionController = {
                 }
             };
 
+
+            //  if (sentiment && sentiment!=="" && sentiment !== 'undefined' && sentiment !== 'null') {
+            //     if (sentiment.includes(',')) {
+            //         // Handle multiple sentiment types
+            //         const sentimentArray = sentiment.split(',');
+            //         const sentimentFilter = {
+            //             bool: {
+            //                 should: sentimentArray.map(sentiment => ({
+            //                     match: { predicted_sentiment_value: sentiment.trim() }
+            //                 })),
+            //                 minimum_should_match: 1
+            //             }
+            //         };
+            //         query.bool.must.push(sentimentFilter);
+            //     } else {
+            //         // Handle single sentiment type
+            //         params.body.query.bool.must.push({
+            //             match: { predicted_sentiment_value: sentiment.trim() }
+            //         });
+            //     }
+            // }
+              // Apply LLM Mention Type filter if provided
+            // if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+            //     const mentionTypeFilter = {
+            //         bool: {
+            //             should: llm_mention_type.map(type => ({
+            //                 match: { llm_mention_type: type }
+            //             })),
+            //             minimum_should_match: 1
+            //         }
+            //     };
+            //     params.body.query.bool.must.push(mentionTypeFilter);
+            // }
             const result = await elasticClient.search(params);
             const distribution = Object.entries(result.aggregations?.categories?.buckets || {}).map(
                 ([category, data]) => ({
@@ -275,7 +325,7 @@ const poiSentimentDistributionController = {
                 })
             );
 
-            return res.json({ distribution });
+            return res.json({ distribution,params });
         } catch (error) {
             console.error('Error fetching POI sentiment distribution:', error);
             return res.status(500).json({ 

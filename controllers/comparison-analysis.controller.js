@@ -318,7 +318,7 @@ const comparisonAnalysisController = {
                     must: [
                         {
                             range: {
-                                created_at: {
+                                p_created_time: {
                                     gte: startDate.toISOString(),
                                     lte: endDate.toISOString()
                                 }
@@ -335,19 +335,21 @@ const comparisonAnalysisController = {
                 });
             } else {
                 query.bool.must.push({
-                    bool: {
-                        should: [
-                            { match_phrase: { source: "Facebook" } },
-                            { match_phrase: { source: "Twitter" } },
-                            { match_phrase: { source: "Instagram" } },
-                            { match_phrase: { source: "Youtube" } },
-                            { match_phrase: { source: "LinkedIn" } },
-                            { match_phrase: { source: "Pinterest" } },
-                            { match_phrase: { source: "Web" } },
-                            { match_phrase: { source: "Reddit" } }
-                        ],
-                        minimum_should_match: 1
-                    }
+                                  bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "Linkedin" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } },
+                        { match_phrase: { source: "TikTok" } }
+                    ],
+                    minimum_should_match: 1
+                }
                 });
             }
 
@@ -498,7 +500,7 @@ const comparisonAnalysisController = {
                     aggs: {
                         time_intervals: {
                             date_histogram: {
-                                field: 'created_at',
+                                field: 'p_created_time',
                                 calendar_interval: calendarInterval,
                                 format: formatPattern,
                                 min_doc_count: 0,
@@ -620,13 +622,26 @@ const comparisonAnalysisController = {
                     bool: {
                         must: [
                             {
-                                terms: {
-                                    "source.keyword": ["Facebook", "Twitter", "Instagram", "Youtube", "Linkedin", "Pinterest", "Reddit", "Tumblr", "Vimeo", "Web"]
-                                }
+                            
+                bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "Linkedin" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } },
+                        { match_phrase: { source: "TikTok" } }
+                    ],
+                    minimum_should_match: 1
+                }
                             },
                             {
                                 range: {
-                                    created_at: {
+                                    p_created_time: {
                                         gte: filters.greaterThanTime,
                                         lte: filters.lessThanTime,
                                     },
@@ -690,7 +705,26 @@ const comparisonAnalysisController = {
             }, {});
     
     
-            return res.json(counts);
+                 // Merge LinkedIn variants into a single count
+            const finalSourceCounts = {};
+            let linkedinCount = 0;
+
+            for (const [source, count] of Object.entries(counts)) {
+                if (source === 'LinkedIn' || source === 'Linkedin') {
+                    linkedinCount += count;
+                } else {
+                    finalSourceCounts[source] = count;
+                }
+            }
+
+            // Add combined LinkedIn count if there are any
+            if (linkedinCount > 0) {
+                finalSourceCounts['LinkedIn'] = linkedinCount;
+            }
+
+            // Return counts
+            return res.json(finalSourceCounts);
+            // return res.json(counts);
         } catch (error) {
             console.error('Error fetching results:', error);
             return res.status(500).json({ 

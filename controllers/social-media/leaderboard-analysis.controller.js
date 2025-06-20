@@ -23,7 +23,12 @@ function mergeArraysByDate(arr1, arr2) {
 const leaderboardAnalysisController = {
     getLeaderboardAnalysis: async (req, res) => {
         try {
-            const { topicId } = req.body || {};
+            const { topicId,   source = "All",
+        category = "all",
+        fromDate,
+        toDate,
+        sentiment,
+        llm_mention_type, } = req.body || {};
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -48,6 +53,18 @@ const leaderboardAnalysisController = {
                 dateFilter = ninetyDaysAgo.toISOString();
             }
 
+
+                        let dateRange;
+      if (fromDate == null && toDate == null) {
+        dateRange = {
+          gte: dateFilter,
+        };
+      } else {
+        dateRange = {
+          gte: fromDate,
+          lte: toDate,
+        };
+      }
             // Define source filter based on special topic
             const sourceFilter = isSpecialTopic ? [
                 { match_phrase: { source: 'Facebook' } },
@@ -165,9 +182,7 @@ const leaderboardAnalysisController = {
                                     must: [
                                         {
                                             range: {
-                                                p_created_time: {
-                                                    gte: dateFilter
-                                                }
+                                                p_created_time: dateRange
                                             }
                                         },
                                         {
@@ -292,6 +307,39 @@ const leaderboardAnalysisController = {
                 }
             };
 
+                         if (sentiment && sentiment!="" && sentiment !== 'undefined' && sentiment !== 'null') {
+                if (sentiment.includes(',')) {
+                    // Handle multiple sentiment types
+                    const sentimentArray = sentiment.split(',');
+                    const sentimentFilter = {
+                        bool: {
+                            should: sentimentArray.map(sentiment => ({
+                                match: { predicted_sentiment_value: sentiment.trim() }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    };
+                    query.bool.must.push(sentimentFilter);
+                } else {
+                    // Handle single sentiment type
+                    params.body.query.bool.must.push({
+                        match: { predicted_sentiment_value: sentiment.trim() }
+                    });
+                }
+            }
+
+            // Apply LLM Mention Type filter if provided
+                if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+                    const mentionTypeFilter = {
+                        bool: {
+                            should: llm_mention_type.map(type => ({
+                                match: { llm_mention_type: type }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    };
+                     params.body.query.bool.must.push(mentionTypeFilter);
+                }
             const result = await elasticClient.search(params);
 
             let leaderboard = Object.entries(result.aggregations?.categories?.buckets || {}).map(
@@ -341,7 +389,7 @@ const leaderboardAnalysisController = {
                                 ...acc,
                                 ...sentiment.sample_reviews.hits.hits.map((review) => ({
                                     message: review._source.p_message,
-                                    date: review._source.p_created_time,
+                                    date: review._source.created_at,
                                     sentiment: review._source.predicted_sentiment_value,
                                     keywords: review._source.keywords,
                                     relevanceScore: review._score

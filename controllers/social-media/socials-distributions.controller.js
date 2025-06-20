@@ -13,7 +13,8 @@ const socialsDistributionsController = {
                 category = 'all',
                 source = 'All',
                 unTopic='false',
-                topicId
+                topicId,
+                llm_mention_type
             } = req.body;
 
             console.log(fromDate, toDate);
@@ -47,6 +48,13 @@ const socialsDistributionsController = {
                             gte: filters.greaterThanTime,
                             lte: filters.lessThanTime
                         };
+
+                        if (Number(topicId) == 2473) {
+                            queryTimeRange = {
+                                gte: '2023-01-01',
+                                lte: '2023-04-30'
+                            };
+                        }
             
         
                         // Build base query
@@ -79,6 +87,37 @@ const socialsDistributionsController = {
                                 });
                             }
                         }
+
+                        // Apply LLM Mention Type filter if provided (sync with mentions-trend)
+                        if (llm_mention_type && llm_mention_type !== "" && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+                            const mentionTypeFilter = {
+                                bool: {
+                                    should: llm_mention_type.map(type => ({
+                                        match: { llm_mention_type: type }
+                                    })),
+                                    minimum_should_match: 1
+                                }
+                            };
+                            query.bool.must.push(mentionTypeFilter);
+                        }
+
+                        // Normalize the input for string-based llm_mention_type
+                        const mentionTypesArray = typeof llm_mention_type === 'string' 
+                            ? llm_mention_type.split(',').map(s => s.trim()) 
+                            : llm_mention_type;
+
+                        // Apply LLM Mention Type filter if provided (handle string input)
+                        if (llm_mention_type && llm_mention_type !== "" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
+                            const mentionTypeFilter = {
+                                bool: {
+                                    should: mentionTypesArray.map(type => ({
+                                        match: { llm_mention_type: type }
+                                    })),
+                                    minimum_should_match: 1
+                                }
+                            };
+                            query.bool.must.push(mentionTypeFilter);
+                        }
           
             // Now create the aggregation query with the same base query
             const aggQuery = {
@@ -100,6 +139,17 @@ const socialsDistributionsController = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: aggQuery
             });
+
+            // Get total count using the same query (for comparison with mentions-trend)
+            const totalCountQuery = {
+                query: query,
+                size: 0
+            };
+            const totalCountResponse = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: totalCountQuery
+            });
+            const totalCount = totalCountResponse.hits.total.value || totalCountResponse.hits.total || 0;
 
             // Extract the aggregation buckets
             const buckets = aggResponse.aggregations.source_counts.buckets;
@@ -128,8 +178,11 @@ const socialsDistributionsController = {
                 finalSourceCounts['LinkedIn'] = linkedinCount;
             }
 
-            // Return counts
-            return res.json(finalSourceCounts   );
+            // Return counts with total for comparison
+            return res.json({
+                ...finalSourceCounts,
+                // totalCount: totalCount
+            });
         } catch (error) {
             console.error('Error fetching social media distributions:', error);
             return res.status(500).json({ 

@@ -607,6 +607,118 @@ function getFrequency(fromDate, toDate) {
   }
 }
 
+/**
+ * Format post data for language mentions
+ * @param {Object} hit - Elasticsearch document hit
+ * @returns {Object} Formatted post data
+ */
+const formatPostDataForLanguage = (hit) => {
+  const source = hit._source;
+
+  // Use a default image if a profile picture is not provided
+  const profilePic = source.u_profile_photo || `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
+
+  // Social metrics
+  const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
+  const following = source.u_following > 0 ? `${source.u_following}` : '';
+  const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
+  const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
+
+  // Emotion
+  const llm_emotion = source.llm_emotion || '';
+
+  // Clean up comments URL if available
+  const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
+    ? source.p_url.trim().replace('https: // ', 'https://')
+    : '';
+
+  const comments = `${source.p_comments || 0}`;
+  const shares = source.p_shares > 0 ? `${source.p_shares}` : '';
+  const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : '';
+
+  const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
+  const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ''
+    ? source.p_picture_url
+    : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
+
+  // Determine sentiment
+  let predicted_sentiment = '';
+  let predicted_category = '';
+  
+  if (source.predicted_sentiment_value)
+    predicted_sentiment = `${source.predicted_sentiment_value}`;
+
+  if (source.predicted_category) predicted_category = source.predicted_category;
+
+  // Handle YouTube-specific fields
+  let youtubeVideoUrl = '';
+  let profilePicture2 = '';
+  if (source.source === 'Youtube') {
+    if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
+    else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+  } else {
+    profilePicture2 = source.p_picture ? source.p_picture : '';
+  }
+
+  // Determine source icon based on source name
+  let sourceIcon = '';
+  const userSource = source.source;
+  if (['khaleej_times', 'Omanobserver', 'Time of oman', 'Blogs'].includes(userSource))
+    sourceIcon = 'Blog';
+  else if (userSource === 'Reddit')
+    sourceIcon = 'Reddit';
+  else if (['FakeNews', 'News'].includes(userSource))
+    sourceIcon = 'News';
+  else if (userSource === 'Tumblr')
+    sourceIcon = 'Tumblr';
+  else if (userSource === 'Vimeo')
+    sourceIcon = 'Vimeo';
+  else if (['Web', 'DeepWeb'].includes(userSource))
+    sourceIcon = 'Web';
+  else
+    sourceIcon = userSource;
+
+  // Format message text – with special handling for GoogleMaps/Tripadvisor
+  let message_text = '';
+  if (['GoogleMaps', 'Tripadvisor'].includes(source.source)) {
+    const parts = source.p_message_text.split('***|||###');
+    message_text = parts[0].replace(/\n/g, '<br>');
+  } else {
+    message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+  }
+
+  return {
+    profilePicture: profilePic,
+    profilePicture2,
+    userFullname: source.u_fullname,
+    user_data_string: '',
+    followers,
+    following,
+    posts,
+    likes,
+    llm_emotion,
+    commentsUrl,
+    comments,
+    shares,
+    engagements,
+    content,
+    image_url: imageUrl,
+    predicted_sentiment,
+    predicted_category,
+    youtube_video_url: youtubeVideoUrl,
+    source_icon: `${source.p_url},${sourceIcon}`,
+    message_text,
+    source: source.source,
+    rating: source.rating,
+    comment: source.comment,
+    businessResponse: source.business_response,
+    uSource: source.u_source,
+    googleName: source.name,
+    created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+    language: source.llm_language // Include the detected language
+  };
+};
+
 const mentionsChartController = {
   actionRequiredMentions: async (req, res) => {
     try {
@@ -1485,7 +1597,7 @@ const mentionsChartController = {
     }
   },
 
-  languageMentions: async (req, res) => {
+    languageMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
       
@@ -1511,65 +1623,150 @@ const mentionsChartController = {
       const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
-      // **Single Aggregation Query for Dynamic Urgency Levels**
-      const query = {
-        size: 1000,
-        query: {
-          bool: {
-            must: [
-              { query_string: { query: topicQueryString } },
-              {
-                range: {
-                  p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
-                  },
+      // Build base query for aggregation
+      const baseQuery = {
+        bool: {
+          must: [
+            { query_string: { query: topicQueryString } },
+            {
+              range: {
+                p_created_time: {
+                  gte: effectiveFromDate || "now-90d",
+                  lte: effectiveToDate || "now",
                 },
               },
-            ],
-            must_not: [{ term: { "llm_language.keyword": "" } }],
-          },
-        },
-        aggs: {
-          llm_language: {
-            terms: { field: "llm_language.keyword", size: 7 },
-          },
+            },
+          ],
+          must_not: [{ term: { "llm_language.keyword": "" } }],
         },
       };
 
       if (sentimentType && sentimentType != "") {
-        query.query.bool.must.push({
+        baseQuery.bool.must.push({
           match: {
             predicted_sentiment_value: sentimentType.trim(),
           },
         });
       }
-      // Execute query
+
+      // **Single Aggregation Query**
+      const aggregationQuery = {
+        size: 0,
+        query: baseQuery,
+        aggs: {
+          llm_language: {
+            terms: { field: "llm_language.keyword", size: 10 },
+          },
+        },
+      };
+
+      // Execute aggregation query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        body: query,
+        body: aggregationQuery,
       });
 
-          // Convert array into object format with filtering and normalization
-    let influencersCoverage = {};
-    result.aggregations.llm_language.buckets.forEach((bucket) => {
-      // Skip unknown values
-      if (bucket.key.toLowerCase() === 'unknown') {
-        return;
-      }
-      
-      // Normalize language names (capitalize first letter)
-      const normalizedKey = bucket.key.charAt(0).toUpperCase() + bucket.key.slice(1).toLowerCase();
-      
-      // Merge counts if the normalized key already exists
-      if (influencersCoverage[normalizedKey]) {
-        influencersCoverage[normalizedKey] += bucket.doc_count;
-      } else {
-        influencersCoverage[normalizedKey] = bucket.doc_count;
-      }
-    });
+      // Process aggregation results with filtering and normalization
+      let languageGroups = {};
+      let totalCount = 0;
 
-    return res.status(200).json({ influencersCoverage, result });
+      result.aggregations.llm_language.buckets.forEach((bucket) => {
+        // Skip unknown values and non-language entries
+        if (bucket.key.toLowerCase() === 'unknown' || bucket.key.toLowerCase() === 'education') {
+          return;
+        }
+        
+        // Normalize language names (capitalize first letter)
+        const normalizedKey = bucket.key.charAt(0).toUpperCase() + bucket.key.slice(1).toLowerCase();
+        
+        // Merge counts if the normalized key already exists
+        if (languageGroups[normalizedKey]) {
+          languageGroups[normalizedKey].count += bucket.doc_count;
+        } else {
+          languageGroups[normalizedKey] = {
+            name: normalizedKey,
+            count: bucket.doc_count,
+            originalKeys: [bucket.key] // Keep track of original keys for querying
+          };
+        }
+        totalCount += bucket.doc_count;
+      });
+
+      // Now fetch posts for each language
+      const languagesWithPosts = [];
+      const MAX_POSTS_PER_LANGUAGE = 10;
+
+      for (const [languageName, languageData] of Object.entries(languageGroups)) {
+        try {
+          // Create query for this specific language (using original keys)
+          const languageQuery = {
+            ...baseQuery,
+            bool: {
+              ...baseQuery.bool,
+              must: [
+                ...baseQuery.bool.must,
+                {
+                  terms: {
+                    "llm_language.keyword": languageData.originalKeys
+                  }
+                }
+              ]
+            }
+          };
+
+          // Get posts for this language
+          const postsQuery = {
+            size: MAX_POSTS_PER_LANGUAGE,
+            query: languageQuery,
+            sort: [{ p_created_time: { order: 'desc' } }]
+          };
+
+          const postsResponse = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: postsQuery
+          });
+
+          // Format posts
+          const posts = postsResponse.hits.hits.map(hit => formatPostDataForLanguage(hit));
+
+          // Calculate percentage
+          const percentage = totalCount > 0 ? ((languageData.count / totalCount) * 100).toFixed(1) : 0;
+
+          languagesWithPosts.push({
+            name: languageName,
+            count: languageData.count,
+            percentage: parseFloat(percentage),
+            posts: posts
+          });
+
+        } catch (error) {
+          console.error(`Error fetching posts for language ${languageName}:`, error);
+          // Add language data without posts if there's an error
+          const percentage = totalCount > 0 ? ((languageData.count / totalCount) * 100).toFixed(1) : 0;
+          languagesWithPosts.push({
+            name: languageName,
+            count: languageData.count,
+            percentage: parseFloat(percentage),
+            posts: []
+          });
+        }
+      }
+
+      // Sort by count (descending)
+      languagesWithPosts.sort((a, b) => b.count - a.count);
+
+      // Create backward compatibility object
+      const influencersCoverage = {};
+      languagesWithPosts.forEach(lang => {
+        influencersCoverage[lang.name] = lang.count;
+      });
+
+      return res.status(200).json({ 
+        influencersCoverage, 
+        languages: languagesWithPosts,
+        totalCount,
+        result 
+      });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });

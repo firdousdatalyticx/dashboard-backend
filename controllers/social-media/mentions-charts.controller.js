@@ -166,14 +166,14 @@ const elasticSearchCount = async (params) => {
     // Elasticsearch `_count` API call
     const response = await elasticClient.count({
       index: process.env.ELASTICSEARCH_DEFAULTINDEX, // Specify the default index here
-      body: params.body // Query body
-    })
-    return response
+      body: params.body, // Query body
+    });
+    return response;
   } catch (error) {
-    console.error('Elasticsearch count error:', error)
-    throw error
+    console.error("Elasticsearch count error:", error);
+    throw error;
   }
-}
+};
 
 const elasticMentionQueryTemplate = (topicQueryString, gte, lte) => ({
   query: {
@@ -182,14 +182,13 @@ const elasticMentionQueryTemplate = (topicQueryString, gte, lte) => ({
         { query_string: { query: topicQueryString } },
         {
           range: {
-            p_created_time: { gte: gte, lte: lte }
-          }
-        }
-      ]
-    }
-  }
-})
-
+            p_created_time: { gte: gte, lte: lte },
+          },
+        },
+      ],
+    },
+  },
+});
 
 const getActionRequired = async (
   fromDate,
@@ -342,35 +341,56 @@ const getPosts = async (
       { term: { "llm_highest_risk_type.keyword": value } },
       { term: { "customer_journey.keyword": type } }
     );
-  } else if (field === "customer_journey && llm_mention_audience && llm_mention_type") {
-query.query.bool.must.push({ term: { "customer_journey.keyword": value } });
-query.query.bool.must.push({ term: { "llm_mention_audience.keyword": type } });
-query.query.bool.must.push({
-  terms: {
-    "llm_mention_type.keyword": [
-      "Complaint",
-      "Customer Complaint",
-      "Criticism",
-    ],
-  },
-});
-
-  } else if (field === "migration_topics") {
-  query.query.bool.must.push({
-    match_phrase: {
-      "migration_topics": `${type}: "${sentimentType}"`
-    }
-  });
-  sentimentType=null;
-}else if(field==="trust_dimensions"){
+  } else if (
+    field === "customer_journey && llm_mention_audience && llm_mention_type"
+  ) {
+    query.query.bool.must.push({ term: { "customer_journey.keyword": value } });
     query.query.bool.must.push({
-    match_phrase: {
-      "trust_dimensions": `${type}: "${sentimentType}"`
-    }
-  });
-  sentimentType=null;
-}
- else {
+      term: { "llm_mention_audience.keyword": type },
+    });
+    query.query.bool.must.push({
+      terms: {
+        "llm_mention_type.keyword": [
+          "Complaint",
+          "Customer Complaint",
+          "Criticism",
+        ],
+      },
+    });
+  } else if (field === "migration_topics") {
+    query.query.bool.must.push({
+      match_phrase: {
+        migration_topics: `${type}: "${sentimentType}"`,
+      },
+    });
+    sentimentType = null;
+  } else if (field === "trust_dimensions") {
+    query.query.bool.must.push({
+      match_phrase: {
+        trust_dimensions: `${type}: "${sentimentType}"`,
+      },
+    });
+    sentimentType = null;
+  } else if (field === "llm_core_insights.event_type") {
+    query.query.bool.must.push({
+      match_phrase: {
+        "llm_core_insights.event_type": `${type}`,
+      },
+    });
+  } else if (field === "llm_motivation.word_cloud_phrases") {
+    query.query.bool.must.push(
+      {
+        term: {
+          "llm_motivation.word_cloud_phrases.keyword": `${value}`,
+        },
+      },
+      {
+        term: {
+          "llm_motivation.phase.keyword": `${type}`,
+        },
+      }
+    );
+  } else {
     query.query.bool.must.push({
       term: { [`${field}.keyword`]: type },
     });
@@ -384,40 +404,50 @@ query.query.bool.must.push({
     });
   }
 
-          // Apply LLM Mention Type filter if provided
-      if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
-          const mentionTypeFilter = {
-              bool: {
-                  should: llm_mention_type.map(type => ({
-                      match: { llm_mention_type: type }
-                  })),
-                  minimum_should_match: 1
-              }
-          };
-          query.query.bool.must.push(mentionTypeFilter);
-      }
+  // Apply LLM Mention Type filter if provided
+  if (
+    llm_mention_type != "" &&
+    llm_mention_type &&
+    Array.isArray(llm_mention_type) &&
+    llm_mention_type.length > 0
+  ) {
+    const mentionTypeFilter = {
+      bool: {
+        should: llm_mention_type.map((type) => ({
+          match: { llm_mention_type: type },
+        })),
+        minimum_should_match: 1,
+      },
+    };
+    query.query.bool.must.push(mentionTypeFilter);
+  }
 
-      // Normalize the input
-      const mentionTypesArray = typeof llm_mention_type === 'string' 
-        ? llm_mention_type.split(',').map(s => s.trim()) 
-        : llm_mention_type;
+  // Normalize the input
+  const mentionTypesArray =
+    typeof llm_mention_type === "string"
+      ? llm_mention_type.split(",").map((s) => s.trim())
+      : llm_mention_type;
 
-      // Apply LLM Mention Type filter if provided
-      if (llm_mention_type!="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
-        const mentionTypeFilter = {
-          bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
-              // If it's keyword type:
-              // term: { "llm_mention_type.keyword": type }
-            })),
-            minimum_should_match: 1
-          }
-        };
+  // Apply LLM Mention Type filter if provided
+  if (
+    llm_mention_type != "" &&
+    mentionTypesArray &&
+    Array.isArray(mentionTypesArray) &&
+    mentionTypesArray.length > 0
+  ) {
+    const mentionTypeFilter = {
+      bool: {
+        should: mentionTypesArray.map((type) => ({
+          match: { llm_mention_type: type },
+          // If it's keyword type:
+          // term: { "llm_mention_type.keyword": type }
+        })),
+        minimum_should_match: 1,
+      },
+    };
 
-        query.query.bool.must.push(mentionTypeFilter);
-
-      }
+    query.query.bool.must.push(mentionTypeFilter);
+  }
 
   const results = await elasticClient.search({
     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -575,15 +605,15 @@ query.query.bool.must.push({
     responseArray.push(cardData);
   }
 
-  if(value && value>0 && results?.hits?.hits?.length>parseInt(value) ){
-   responseArray = responseArray.slice(0, parseInt(value));
+  if (value && value > 0 && results?.hits?.hits?.length > parseInt(value)) {
+    responseArray = responseArray.slice(0, parseInt(value));
   }
   return res.status(200).json({
     success: true,
     responseArray,
     total: responseArray.length || 0,
     results,
-    query
+    query,
   });
 };
 
@@ -616,82 +646,87 @@ const formatPostDataForLanguage = (hit) => {
   const source = hit._source;
 
   // Use a default image if a profile picture is not provided
-  const profilePic = source.u_profile_photo || `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
+  const profilePic =
+    source.u_profile_photo || `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
 
   // Social metrics
-  const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
-  const following = source.u_following > 0 ? `${source.u_following}` : '';
-  const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
-  const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
+  const followers = source.u_followers > 0 ? `${source.u_followers}` : "";
+  const following = source.u_following > 0 ? `${source.u_following}` : "";
+  const posts = source.u_posts > 0 ? `${source.u_posts}` : "";
+  const likes = source.p_likes > 0 ? `${source.p_likes}` : "";
 
   // Emotion
-  const llm_emotion = source.llm_emotion || '';
+  const llm_emotion = source.llm_emotion || "";
 
   // Clean up comments URL if available
-  const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
-    ? source.p_url.trim().replace('https: // ', 'https://')
-    : '';
+  const commentsUrl =
+    source.p_comments_text && source.p_comments_text.trim() !== ""
+      ? source.p_url.trim().replace("https: // ", "https://")
+      : "";
 
   const comments = `${source.p_comments || 0}`;
-  const shares = source.p_shares > 0 ? `${source.p_shares}` : '';
-  const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : '';
+  const shares = source.p_shares > 0 ? `${source.p_shares}` : "";
+  const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : "";
 
-  const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
-  const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ''
-    ? source.p_picture_url
-    : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
+  const content =
+    source.p_content && source.p_content.trim() !== "" ? source.p_content : "";
+  const imageUrl =
+    source.p_picture_url && source.p_picture_url.trim() !== ""
+      ? source.p_picture_url
+      : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
 
   // Determine sentiment
-  let predicted_sentiment = '';
-  let predicted_category = '';
-  
+  let predicted_sentiment = "";
+  let predicted_category = "";
+
   if (source.predicted_sentiment_value)
     predicted_sentiment = `${source.predicted_sentiment_value}`;
 
   if (source.predicted_category) predicted_category = source.predicted_category;
 
   // Handle YouTube-specific fields
-  let youtubeVideoUrl = '';
-  let profilePicture2 = '';
-  if (source.source === 'Youtube') {
+  let youtubeVideoUrl = "";
+  let profilePicture2 = "";
+  if (source.source === "Youtube") {
     if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
-    else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+    else if (source.p_id)
+      youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
   } else {
-    profilePicture2 = source.p_picture ? source.p_picture : '';
+    profilePicture2 = source.p_picture ? source.p_picture : "";
   }
 
   // Determine source icon based on source name
-  let sourceIcon = '';
+  let sourceIcon = "";
   const userSource = source.source;
-  if (['khaleej_times', 'Omanobserver', 'Time of oman', 'Blogs'].includes(userSource))
-    sourceIcon = 'Blog';
-  else if (userSource === 'Reddit')
-    sourceIcon = 'Reddit';
-  else if (['FakeNews', 'News'].includes(userSource))
-    sourceIcon = 'News';
-  else if (userSource === 'Tumblr')
-    sourceIcon = 'Tumblr';
-  else if (userSource === 'Vimeo')
-    sourceIcon = 'Vimeo';
-  else if (['Web', 'DeepWeb'].includes(userSource))
-    sourceIcon = 'Web';
-  else
-    sourceIcon = userSource;
+  if (
+    ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
+      userSource
+    )
+  )
+    sourceIcon = "Blog";
+  else if (userSource === "Reddit") sourceIcon = "Reddit";
+  else if (["FakeNews", "News"].includes(userSource)) sourceIcon = "News";
+  else if (userSource === "Tumblr") sourceIcon = "Tumblr";
+  else if (userSource === "Vimeo") sourceIcon = "Vimeo";
+  else if (["Web", "DeepWeb"].includes(userSource)) sourceIcon = "Web";
+  else sourceIcon = userSource;
 
   // Format message text – with special handling for GoogleMaps/Tripadvisor
-  let message_text = '';
-  if (['GoogleMaps', 'Tripadvisor'].includes(source.source)) {
-    const parts = source.p_message_text.split('***|||###');
-    message_text = parts[0].replace(/\n/g, '<br>');
+  let message_text = "";
+  if (["GoogleMaps", "Tripadvisor"].includes(source.source)) {
+    const parts = source.p_message_text.split("***|||###");
+    message_text = parts[0].replace(/\n/g, "<br>");
   } else {
-    message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+    message_text = source.p_message_text
+      ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
+      : "";
   }
 
   return {
     profilePicture: profilePic,
     profilePicture2,
     userFullname: source.u_fullname,
-    user_data_string: '',
+    user_data_string: "",
     followers,
     following,
     posts,
@@ -714,8 +749,10 @@ const formatPostDataForLanguage = (hit) => {
     businessResponse: source.business_response,
     uSource: source.u_source,
     googleName: source.name,
-    created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
-    language: source.llm_language // Include the detected language
+    created_at: new Date(
+      source.p_created_time || source.created_at
+    ).toLocaleString(),
+    language: source.llm_language, // Include the detected language
   };
 };
 
@@ -734,9 +771,9 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      
-      if(topicQueryString==""){
-        return res.status(200).json({responseOutput:{}});
+
+      if (topicQueryString == "") {
+        return res.status(200).json({ responseOutput: {} });
       }
       // Apply special topic source filtering
       if (isSpecialTopic) {
@@ -744,11 +781,12 @@ const mentionsChartController = {
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
-      
+
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
-      
+
       // Fetch mention actions in **one** query
       const response = await getActionRequired(
         effectiveFromDate,
@@ -779,8 +817,8 @@ const mentionsChartController = {
         selectedTab
       );
 
-      if(topicQueryString==""){
-          return res.status(200).json({ responseOutput:{} });
+      if (topicQueryString == "") {
+        return res.status(200).json({ responseOutput: {} });
       }
       // Apply special topic source filtering
       if (isSpecialTopic) {
@@ -790,7 +828,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
@@ -885,7 +924,7 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-  
+
   entities: async (req, res) => {
     try {
       const {
@@ -896,10 +935,10 @@ const mentionsChartController = {
         sentimentType,
         sources = "All",
       } = req.body;
-      
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-      
+
       const isScadUser = false;
       const selectedTab = "Social";
 
@@ -919,11 +958,12 @@ const mentionsChartController = {
           topicQueryString = `${topicQueryString} AND source:(${sources})`;
         }
       }
-      
+
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
-      
+
       const params = {
         size: 0,
         query: {
@@ -985,7 +1025,7 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-  
+
   recurrenceMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
@@ -1009,7 +1049,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
@@ -1068,10 +1109,10 @@ const mentionsChartController = {
   urgencyMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
-      
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-      
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1080,11 +1121,8 @@ const mentionsChartController = {
         selectedTab
       );
 
-      if(topicQueryString==""){
-         return res
-        .status(200)
-        .json({ responseOutput: {} });
-        
+      if (topicQueryString == "") {
+        return res.status(200).json({ responseOutput: {} });
       }
       // Apply special topic source filtering
       if (isSpecialTopic) {
@@ -1094,7 +1132,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
@@ -1157,10 +1196,10 @@ const mentionsChartController = {
   audienceMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
-      
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-      
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1177,7 +1216,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
@@ -1234,10 +1274,10 @@ const mentionsChartController = {
   audienceMentionsAcrossMentionType: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
-      
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-      
+
       const isScadUser = false;
       const selectedTab = "Social";
 
@@ -1247,15 +1287,12 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if(topicQueryString==""){
-          return res.status(200).json({
-    data: [
-      
-    ],
-    totalAudiences: 0,
-    query: {}
-
-      });
+      if (topicQueryString == "") {
+        return res.status(200).json({
+          data: [],
+          totalAudiences: 0,
+          query: {},
+        });
       }
 
       // Apply special topic source filtering
@@ -1266,7 +1303,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // Elasticsearch query
@@ -1351,14 +1389,14 @@ const mentionsChartController = {
       });
     }
   },
-  
+
   riskTypeAcrossCustomerJourney: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
-      
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-      
+
       const isScadUser = false;
       const selectedTab = "Social";
 
@@ -1377,7 +1415,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // Elasticsearch query
@@ -1469,14 +1508,14 @@ const mentionsChartController = {
       });
     }
   },
-  
+
   complaintsAcrossCustomerJourneyStagesbyAudience: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
-      
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-      
+
       const isScadUser = false;
       const selectedTab = "Social";
 
@@ -1486,7 +1525,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      
+
       // Apply special topic source filtering
       if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
@@ -1495,7 +1534,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // Elasticsearch query
@@ -1597,13 +1637,13 @@ const mentionsChartController = {
     }
   },
 
-    languageMentions: async (req, res) => {
+  languageMentions: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
-      
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-      
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1620,7 +1660,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // Build base query for aggregation
@@ -1672,13 +1713,18 @@ const mentionsChartController = {
 
       result.aggregations.llm_language.buckets.forEach((bucket) => {
         // Skip unknown values and non-language entries
-        if (bucket.key.toLowerCase() === 'unknown' || bucket.key.toLowerCase() === 'education') {
+        if (
+          bucket.key.toLowerCase() === "unknown" ||
+          bucket.key.toLowerCase() === "education"
+        ) {
           return;
         }
-        
+
         // Normalize language names (capitalize first letter)
-        const normalizedKey = bucket.key.charAt(0).toUpperCase() + bucket.key.slice(1).toLowerCase();
-        
+        const normalizedKey =
+          bucket.key.charAt(0).toUpperCase() +
+          bucket.key.slice(1).toLowerCase();
+
         // Merge counts if the normalized key already exists
         if (languageGroups[normalizedKey]) {
           languageGroups[normalizedKey].count += bucket.doc_count;
@@ -1686,7 +1732,7 @@ const mentionsChartController = {
           languageGroups[normalizedKey] = {
             name: normalizedKey,
             count: bucket.doc_count,
-            originalKeys: [bucket.key] // Keep track of original keys for querying
+            originalKeys: [bucket.key], // Keep track of original keys for querying
           };
         }
         totalCount += bucket.doc_count;
@@ -1696,7 +1742,9 @@ const mentionsChartController = {
       const languagesWithPosts = [];
       const MAX_POSTS_PER_LANGUAGE = 10;
 
-      for (const [languageName, languageData] of Object.entries(languageGroups)) {
+      for (const [languageName, languageData] of Object.entries(
+        languageGroups
+      )) {
         try {
           // Create query for this specific language (using original keys)
           const languageQuery = {
@@ -1707,47 +1755,57 @@ const mentionsChartController = {
                 ...baseQuery.bool.must,
                 {
                   terms: {
-                    "llm_language.keyword": languageData.originalKeys
-                  }
-                }
-              ]
-            }
+                    "llm_language.keyword": languageData.originalKeys,
+                  },
+                },
+              ],
+            },
           };
 
           // Get posts for this language
           const postsQuery = {
             size: MAX_POSTS_PER_LANGUAGE,
             query: languageQuery,
-            sort: [{ p_created_time: { order: 'desc' } }]
+            sort: [{ p_created_time: { order: "desc" } }],
           };
 
           const postsResponse = await elasticClient.search({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: postsQuery
+            body: postsQuery,
           });
 
           // Format posts
-          const posts = postsResponse.hits.hits.map(hit => formatPostDataForLanguage(hit));
+          const posts = postsResponse.hits.hits.map((hit) =>
+            formatPostDataForLanguage(hit)
+          );
 
           // Calculate percentage
-          const percentage = totalCount > 0 ? ((languageData.count / totalCount) * 100).toFixed(1) : 0;
+          const percentage =
+            totalCount > 0
+              ? ((languageData.count / totalCount) * 100).toFixed(1)
+              : 0;
 
           languagesWithPosts.push({
             name: languageName,
             count: languageData.count,
             percentage: parseFloat(percentage),
-            posts: posts
+            posts: posts,
           });
-
         } catch (error) {
-          console.error(`Error fetching posts for language ${languageName}:`, error);
+          console.error(
+            `Error fetching posts for language ${languageName}:`,
+            error
+          );
           // Add language data without posts if there's an error
-          const percentage = totalCount > 0 ? ((languageData.count / totalCount) * 100).toFixed(1) : 0;
+          const percentage =
+            totalCount > 0
+              ? ((languageData.count / totalCount) * 100).toFixed(1)
+              : 0;
           languagesWithPosts.push({
             name: languageName,
             count: languageData.count,
             percentage: parseFloat(percentage),
-            posts: []
+            posts: [],
           });
         }
       }
@@ -1757,22 +1815,22 @@ const mentionsChartController = {
 
       // Create backward compatibility object
       const influencersCoverage = {};
-      languagesWithPosts.forEach(lang => {
+      languagesWithPosts.forEach((lang) => {
         influencersCoverage[lang.name] = lang.count;
       });
 
-      return res.status(200).json({ 
-        influencersCoverage, 
+      return res.status(200).json({
+        influencersCoverage,
         languages: languagesWithPosts,
         totalCount,
-        result 
+        result,
       });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-  
+
   mentionsPost: async (req, res) => {
     try {
       const {
@@ -1784,7 +1842,6 @@ const mentionsChartController = {
         field,
         type,
         value,
-        
       } = req.query;
 
       // Check if this is the special topicId
@@ -1797,7 +1854,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      
+
       // Apply special topic source filtering
       if (isSpecialTopic) {
         if (source != "All") {
@@ -1818,11 +1875,13 @@ const mentionsChartController = {
           topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
         }
       }
-      
+
       // Apply special topic date range
-      const effectiveGreaterThanTime = isSpecialTopic && !greaterThanTime ? "2020-01-01" : greaterThanTime;
-      const effectiveLessThanTime = isSpecialTopic && !lessThanTime ? "now" : lessThanTime;
-      
+      const effectiveGreaterThanTime =
+        isSpecialTopic && !greaterThanTime ? "2020-01-01" : greaterThanTime;
+      const effectiveLessThanTime =
+        isSpecialTopic && !lessThanTime ? "now" : lessThanTime;
+
       // Fetch mention actions in **one** query
       await getPosts(
         effectiveGreaterThanTime,
@@ -1851,8 +1910,8 @@ const mentionsChartController = {
         selectedTab
       );
 
-      if(topicQueryString==""){
-        return res.status(200).json({ responseOutput:{} });
+      if (topicQueryString == "") {
+        return res.status(200).json({ responseOutput: {} });
       }
 
       // Expanded list of sources (now fully dynamic)
@@ -1863,20 +1922,17 @@ const mentionsChartController = {
         size: 0,
         query: {
           bool: {
-            must: [
-              { query_string: { query: topicQueryString } },
-         
-            ],
+            must: [{ query_string: { query: topicQueryString } }],
 
             must_not: [{ term: { "llm_mention_type.keyword": "" } }],
           },
         },
         aggs: {
           mention_types: {
-            terms: { 
-              field: "llm_mention_type.keyword", 
-              size: 8,  // 🔥 Changed from 7 to 5 to get only top 5
-              order: { _count: "desc" }  // 🔥 Added explicit ordering by count (descending)
+            terms: {
+              field: "llm_mention_type.keyword",
+              size: 8, // 🔥 Changed from 7 to 5 to get only top 5
+              order: { _count: "desc" }, // 🔥 Added explicit ordering by count (descending)
             },
             aggs: {
               sources: {
@@ -1914,7 +1970,7 @@ const mentionsChartController = {
       ];
 
       let responseOutput = {};
-      
+
       // 🔥 Now only processes top 5 mention types (automatically limited by Elasticsearch)
       result.aggregations.mention_types.buckets.forEach((mention) => {
         let mentionData = {};
@@ -1976,7 +2032,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
@@ -2066,33 +2123,40 @@ const mentionsChartController = {
   },
 
   UNDP: async (req, res) => {
-    
-      const { greaterThanTime, lessThanTime, subtopicId, topicId, sentimentType,type,aidType} = req.body;
+    const {
+      greaterThanTime,
+      lessThanTime,
+      subtopicId,
+      topicId,
+      sentimentType,
+      type,
+      aidType,
+    } = req.body;
 
-      const isScadUser = false;
-      const selectedTab = "Social";
-      let topicQueryString = await buildQueryString(
-        topicId,
-        isScadUser,
-        selectedTab
-      );
+    const isScadUser = false;
+    const selectedTab = "Social";
+    let topicQueryString = await buildQueryString(
+      topicId,
+      isScadUser,
+      selectedTab
+    );
 
-      // Expanded list of sources
-      // topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
+    // Expanded list of sources
+    // topicQueryString = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" ')`;
 
-    if (type === 'complaintTouchpoints') {
+    if (type === "complaintTouchpoints") {
       try {
         const sourcesArray = [
-          'Physical Branches and ATMs',
-          'Digital Channels',
-          'Customer Service Centers',
-          'Financial Advisors',
-          'Marketing Channels',
-          'Community Initiatives',
-          'Partner Networks',
-          'Self-Service Portals',
-          'Other'
-        ]
+          "Physical Branches and ATMs",
+          "Digital Channels",
+          "Customer Service Centers",
+          "Financial Advisors",
+          "Marketing Channels",
+          "Community Initiatives",
+          "Partner Networks",
+          "Self-Service Portals",
+          "Other",
+        ];
         // const sourcesArray = [
         //   'Mobile Banking App',
         //   'Mobile App',
@@ -2146,7 +2210,7 @@ const mentionsChartController = {
 
         // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
 
-        let responseOutput = {}
+        let responseOutput = {};
 
         // const dat= await elasticSearchCount(
         //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
@@ -2165,44 +2229,51 @@ const mentionsChartController = {
           //   _sources = sourcesArray[i]
           // }
 
-          let complaintContent= 0
-          let query= ''
+          let complaintContent = 0;
+          let query = "";
 
-          query = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"')  AND llm_mention_type:("Customer Complaint") AND llm_mention_touchpoint:("${sourcesArray[i]}")`
-            complaintContent = await elasticClient.count({
+          query = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"')  AND llm_mention_type:("Customer Complaint") AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
+          complaintContent = await elasticClient.count({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: elasticMentionQueryTemplate(query, greaterThanTime, lessThanTime),
+            body: elasticMentionQueryTemplate(
+              query,
+              greaterThanTime,
+              lessThanTime
+            ),
           });
 
           // console.log(query, 'complaintContents here')
           if (complaintContent?.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
-            ] = complaintContent?.count
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
+            ] = complaintContent?.count;
           }
         }
 
-      return res.status(200).json({responseOutput});
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-    } else if (type === 'UNDPtouchpoints') {
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "UNDPtouchpoints") {
       try {
         const sourcesArray = [
-          'Infrastructure Rebuilding',
-          'Emergency Medical Aid',
-          'Humanitarian Aid',
-          'International Cooperation',
-          'Disaster Relief Coordination',
-          'Aid Effectiveness',
-          'Recovery Progress',
-          'Crisis Communications'
-        ]
+          "Infrastructure Rebuilding",
+          "Emergency Medical Aid",
+          "Humanitarian Aid",
+          "International Cooperation",
+          "Disaster Relief Coordination",
+          "Aid Effectiveness",
+          "Recovery Progress",
+          "Crisis Communications",
+        ];
 
         // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
 
-        let responseOutput = {}
+        let responseOutput = {};
 
         // const dat= await elasticSearchCount(
         //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
@@ -2221,56 +2292,67 @@ const mentionsChartController = {
           //   _sources = sourcesArray[i]
           // }
 
-          let content= 0
-          let query= ''
-          let greatertime = '2023-01-01'
-          let lesstime = '2023-04-30'
+          let content = 0;
+          let query = "";
+          let greatertime = "2023-01-01";
+          let lesstime = "2023-04-30";
 
           // query = `${topicQueryString} AND touchpoint_un:("${sourcesArray[i]}") AND 'IGO Entities':("United Nations Development Programme (UNDP)")`
           // query = `${topicQueryString} AND Keywords:("Yes")  AND touchpoint_un:("${sourcesArray[i]}") AND keywords:("Yes") :("United Nations Development Programme (UNDP)")`
 
-          query = `${topicQueryString} AND Keywords:("Yes")  AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          query = `${topicQueryString} AND Keywords:("Yes")  AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
           // content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
 
-          const data = elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30')
-        
+          const data = elasticMentionQueryTemplate(
+            query,
+            "2023-01-01",
+            "2023-04-30"
+          );
+
           content = await elasticClient.count({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'),
+            body: elasticMentionQueryTemplate(
+              query,
+              "2023-01-01",
+              "2023-04-30"
+            ),
           });
           if (content?.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
-            ] = content?.count
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
+            ] = content?.count;
           }
         }
 
         //console.log('data', responseOutput)
 
-    return res.status(200).json({responseOutput});
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-    } else if (type === 'UNDPAnnoucement') {
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "UNDPAnnoucement") {
       try {
         const sourcesArray = [
-          'Missing Persons',
-          'Humanitarian Aid Distribution',
-          'Emergency Response Coordination',
-          'Damage Reports',
-          'Relief Measures',
-          'Special Appeals',
-          'Safety Tips',
-          'Public Health Advisor',
-          'Emergency Response Coordination',
-          'International Cooperation',
-          'Impact Reports',
-          'Infrastructure Reports'
-        ]
+          "Missing Persons",
+          "Humanitarian Aid Distribution",
+          "Emergency Response Coordination",
+          "Damage Reports",
+          "Relief Measures",
+          "Special Appeals",
+          "Safety Tips",
+          "Public Health Advisor",
+          "Emergency Response Coordination",
+          "International Cooperation",
+          "Impact Reports",
+          "Infrastructure Reports",
+        ];
         // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
 
-        let responseOutput = {}
+        let responseOutput = {};
 
         // const dat= await elasticSearchCount(
         //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
@@ -2289,39 +2371,44 @@ const mentionsChartController = {
           //   _sources = sourcesArray[i]
           // }
 
-          let content= 0
-          let query= ''
+          let content = 0;
+          let query = "";
 
-          query = `${topicQueryString} AND un_keywords:("Yes") AND announcement:("${sourcesArray[i]}")`
+          query = `${topicQueryString} AND un_keywords:("Yes") AND announcement:("${sourcesArray[i]}")`;
 
-          content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
+          content = await elasticSearchCount(
+            elasticMentionQueryTemplate(query, "2023-01-01", "2023-04-30")
+          );
 
           if (content?.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
-            ] = content?.count
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
+            ] = content?.count;
           }
         }
 
         //console.log('data', responseOutput)
 
-    return res.status(200).json({responseOutput});
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-    } else if (type === 'touchpointsIdentification') {
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "touchpointsIdentification") {
       try {
         const sourcesArray = [
-          'Infrastructure Rebuilding',
-          'Emergency Medical Aid',
-          'Humanitarian Aid',
-          'International Cooperation',
-          'Disaster Relief Coordination',
-          'Aid Effectiveness',
-          'Recovery Progress',
-          'Crisis Communications'
-        ]
+          "Infrastructure Rebuilding",
+          "Emergency Medical Aid",
+          "Humanitarian Aid",
+          "International Cooperation",
+          "Disaster Relief Coordination",
+          "Aid Effectiveness",
+          "Recovery Progress",
+          "Crisis Communications",
+        ];
         // const sourcesArray = [
         //   'Physical Branches and ATMs',
         //   'Digital Channels',
@@ -2336,7 +2423,7 @@ const mentionsChartController = {
 
         // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
 
-        let responseOutput = {}
+        let responseOutput = {};
 
         // const dat= await elasticSearchCount(
         //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
@@ -2355,131 +2442,155 @@ const mentionsChartController = {
           //   _sources = sourcesArray[i]
           // }
 
-          let content= 0
-          let query= ''
+          let content = 0;
+          let query = "";
 
-          query = `${topicQueryString} AND touchpoint_un:("${sourcesArray[i]}")`
+          query = `${topicQueryString} AND touchpoint_un:("${sourcesArray[i]}")`;
 
-          content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2023-04-30'))
+          content = await elasticSearchCount(
+            elasticMentionQueryTemplate(query, "2023-01-01", "2023-04-30")
+          );
 
           if (content?.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
-            ] = content?.count
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
+            ] = content?.count;
           }
         }
 
         //console.log('data', responseOutput)
 
-
-      return res.status(200).json({responseOutput});
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-    } else if (type === 'touchpointSentimentsChartUNtopic') {
-        try {
-          const sourcesArray = [
-            'Infrastructure Rebuilding',
-            'Emergency Medical Aid',
-            'Humanitarian Aid',
-            'International Cooperation',
-            'Disaster Relief Coordination',
-            'Aid Effectiveness',
-            'Recovery Progress',
-            'Crisis Communications'
-          ]
-    
-          // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
-    
-          let responseOutput = {}
-    
-          // const dat: any = await elasticSearchCount(
-          //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
-          // )
-          // console.log('data', dat)
-    
-          // const dat: any = await testClientElasticQuery()
-          // console.log('dataasds', dat?.hits?.hits)
-          for (let i = 0; i < sourcesArray.length; i++) {
-            // let _sources
-            // if (sourcesArray[i] === 'Youtube') {
-            //   _sources = '"Youtube" OR "Vimeo"'
-            // } else if (sourcesArray[i] === 'Web') {
-            //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
-            // } else {
-            //   _sources = sourcesArray[i]
-            // }
-    
-            let positiveContent = 0,
-              negativeContent = 0,
-              neutralContent = 0,
-              webContent = 0
-            let positiveContentQuery, negativeContentQuery, neutralContentQuery, webContentQuery
-    
-            // let count: any = unData.filter(data => data?.touchpoint_identification === sourcesArray[i])
-    
-            positiveContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`
-            negativeContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
-            neutralContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
-            console.log()
-    
-            positiveContent = await elasticSearchCount(
-              elasticMentionQueryTemplate(positiveContentQuery, '2023-02-05', '2023-02-21')
-            )
-            negativeContent = await elasticSearchCount(
-              elasticMentionQueryTemplate(negativeContentQuery, '2023-02-05', '2023-02-21')
-            )
-            neutralContent = await elasticSearchCount(
-              elasticMentionQueryTemplate(neutralContentQuery, '2023-02-05', '2023-02-21')
-            )
-    
-            if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
-              ;(responseOutput)[
-                sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
-              ] = {
-                positiveContent: positiveContent?.count,
-                negativeContent: negativeContent?.count,
-                neutralContent: neutralContent?.count
-              }
-            }
-          }
-    
-          // console.log('data', responseOutput)
-    
-          return res.status(200).json({responseOutput});
-          } catch (error) {
-            console.error("Error fetching data:", error);
-            return res.status(500).json({ error: "Internal server error" });
-          }
-   
-      } 
-    else if (type === 'IGOEntities') {
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "touchpointSentimentsChartUNtopic") {
       try {
         const sourcesArray = [
-          'United Nations Development Programme (UNDP)',
-          "United Nations Children's Fund (UNICEF)",
-          'World Health Organization (WHO)',
-          'United Nations High Commissioner for Refugees (UNHCR)',
-          'World Food Programme (WFP)',
-          'International Labour Organization (ILO)',
-          'United Nations Educational, Scientific and Cultural Organization (UNESCO)',
-          'United Nations Population Fund (UNFPA)',
-          'United Nations Office on Drugs and Crime (UNODC)',
-          'International Criminal Court (ICC)',
-          'International Maritime Organization (IMO)',
-          'International Telecommunication Union (ITU)',
-          'United Nations Environment Programme (UNEP)',
-          'United Nations Office for the Coordination of Humanitarian Affairs (OCHA)',
-          'United Nations Institute for Training and Research (UNITAR)',
-          'United Nations Conference on Trade and Development (UNCTAD)',
-          'United Nations Human Settlements Programme (UN-Habitat)',
-          'World Intellectual Property Organization (WIPO)',
-          'United Nations Framework Convention on Climate Change (UNFCCC)'
-        ]
+          "Infrastructure Rebuilding",
+          "Emergency Medical Aid",
+          "Humanitarian Aid",
+          "International Cooperation",
+          "Disaster Relief Coordination",
+          "Aid Effectiveness",
+          "Recovery Progress",
+          "Crisis Communications",
+        ];
+
         // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
 
-        let responseOutput = {}
+        let responseOutput = {};
+
+        // const dat: any = await elasticSearchCount(
+        //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
+        // )
+        // console.log('data', dat)
+
+        // const dat: any = await testClientElasticQuery()
+        // console.log('dataasds', dat?.hits?.hits)
+        for (let i = 0; i < sourcesArray.length; i++) {
+          // let _sources
+          // if (sourcesArray[i] === 'Youtube') {
+          //   _sources = '"Youtube" OR "Vimeo"'
+          // } else if (sourcesArray[i] === 'Web') {
+          //   _sources = '"FakeNews" OR "News" OR "Blogs" OR "Web"'
+          // } else {
+          //   _sources = sourcesArray[i]
+          // }
+
+          let positiveContent = 0,
+            negativeContent = 0,
+            neutralContent = 0,
+            webContent = 0;
+          let positiveContentQuery,
+            negativeContentQuery,
+            neutralContentQuery,
+            webContentQuery;
+
+          // let count: any = unData.filter(data => data?.touchpoint_identification === sourcesArray[i])
+
+          positiveContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`;
+          negativeContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`;
+          neutralContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND touchpoint_un:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`;
+          console.log();
+
+          positiveContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(
+              positiveContentQuery,
+              "2023-02-05",
+              "2023-02-21"
+            )
+          );
+          negativeContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(
+              negativeContentQuery,
+              "2023-02-05",
+              "2023-02-21"
+            )
+          );
+          neutralContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(
+              neutralContentQuery,
+              "2023-02-05",
+              "2023-02-21"
+            )
+          );
+
+          if (
+            positiveContent.count > 0 ||
+            negativeContent.count > 0 ||
+            neutralContent.count > 0
+          ) {
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
+            ] = {
+              positiveContent: positiveContent?.count,
+              negativeContent: negativeContent?.count,
+              neutralContent: neutralContent?.count,
+            };
+          }
+        }
+
+        // console.log('data', responseOutput)
+
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "IGOEntities") {
+      try {
+        const sourcesArray = [
+          "United Nations Development Programme (UNDP)",
+          "United Nations Children's Fund (UNICEF)",
+          "World Health Organization (WHO)",
+          "United Nations High Commissioner for Refugees (UNHCR)",
+          "World Food Programme (WFP)",
+          "International Labour Organization (ILO)",
+          "United Nations Educational, Scientific and Cultural Organization (UNESCO)",
+          "United Nations Population Fund (UNFPA)",
+          "United Nations Office on Drugs and Crime (UNODC)",
+          "International Criminal Court (ICC)",
+          "International Maritime Organization (IMO)",
+          "International Telecommunication Union (ITU)",
+          "United Nations Environment Programme (UNEP)",
+          "United Nations Office for the Coordination of Humanitarian Affairs (OCHA)",
+          "United Nations Institute for Training and Research (UNITAR)",
+          "United Nations Conference on Trade and Development (UNCTAD)",
+          "United Nations Human Settlements Programme (UN-Habitat)",
+          "World Intellectual Property Organization (WIPO)",
+          "United Nations Framework Convention on Climate Change (UNFCCC)",
+        ];
+        // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
+
+        let responseOutput = {};
 
         // const dat= await elasticSearchCount(
         //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
@@ -2498,56 +2609,61 @@ const mentionsChartController = {
           //   _sources = sourcesArray[i]
           // }
 
-          let content= 0
-          let query= ''
+          let content = 0;
+          let query = "";
 
           // query = `${topicQueryString} AND un_keywords:("Yes") AND 'IGO Entities':("${sourcesArray[i]}")`
-          query = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}")`
+          query = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}")`;
           // console.log(query, 'IGO Entities')
 
-          content = await elasticSearchCount(elasticMentionQueryTemplate(query, '2023-01-01', '2024-12-03'))
+          content = await elasticSearchCount(
+            elasticMentionQueryTemplate(query, "2023-01-01", "2024-12-03")
+          );
 
-          console.log(content, 'content')
+          console.log(content, "content");
           if (content?.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
-            ] = content?.count
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
+            ] = content?.count;
           }
         }
 
         //console.log('data', responseOutput)
 
-      return res.status(200).json({responseOutput});
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-    } else if (type === 'IGOSentimentsChartUNtopic') {
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "IGOSentimentsChartUNtopic") {
       try {
         const sourcesArray = [
-          'United Nations Development Programme (UNDP)',
+          "United Nations Development Programme (UNDP)",
           "United Nations Children's Fund (UNICEF)",
-          'World Health Organization (WHO)',
-          'United Nations High Commissioner for Refugees (UNHCR)',
-          'World Food Programme (WFP)',
-          'International Labour Organization (ILO)',
-          'United Nations Educational, Scientific and Cultural Organization (UNESCO)',
-          'United Nations Population Fund (UNFPA)',
-          'United Nations Office on Drugs and Crime (UNODC)',
-          'International Criminal Court (ICC)',
-          'International Maritime Organization (IMO)',
-          'International Telecommunication Union (ITU)',
-          'United Nations Environment Programme (UNEP)',
-          'United Nations Office for the Coordination of Humanitarian Affairs (OCHA)',
-          'United Nations Institute for Training and Research (UNITAR)',
-          'United Nations Conference on Trade and Development (UNCTAD)',
-          'United Nations Human Settlements Programme (UN-Habitat)',
-          'World Intellectual Property Organization (WIPO)',
-          'United Nations Framework Convention on Climate Change (UNFCCC)'
-        ]
+          "World Health Organization (WHO)",
+          "United Nations High Commissioner for Refugees (UNHCR)",
+          "World Food Programme (WFP)",
+          "International Labour Organization (ILO)",
+          "United Nations Educational, Scientific and Cultural Organization (UNESCO)",
+          "United Nations Population Fund (UNFPA)",
+          "United Nations Office on Drugs and Crime (UNODC)",
+          "International Criminal Court (ICC)",
+          "International Maritime Organization (IMO)",
+          "International Telecommunication Union (ITU)",
+          "United Nations Environment Programme (UNEP)",
+          "United Nations Office for the Coordination of Humanitarian Affairs (OCHA)",
+          "United Nations Institute for Training and Research (UNITAR)",
+          "United Nations Conference on Trade and Development (UNCTAD)",
+          "United Nations Human Settlements Programme (UN-Habitat)",
+          "World Intellectual Property Organization (WIPO)",
+          "United Nations Framework Convention on Climate Change (UNFCCC)",
+        ];
         //const twitterContentQuery = `${topicQueryString} AND un_keywords:("Yes")`
 
-        let responseOutput = {}
+        let responseOutput = {};
 
         // const dat= await testClientElasticQuery(
         //   elasticMentionQueryTemplate(twitterContentQuery, '2023-02-05', '2023-02-20')
@@ -2566,11 +2682,14 @@ const mentionsChartController = {
           //   _sources = sourcesArray[i]
           // }
 
-          let positiveContent= 0,
-            negativeContent= 0,
-            neutralContent= 0,
-            webContent= 0
-          let positiveContentQuery, negativeContentQuery, neutralContentQuery, webContentQuery
+          let positiveContent = 0,
+            negativeContent = 0,
+            neutralContent = 0,
+            webContent = 0;
+          let positiveContentQuery,
+            negativeContentQuery,
+            neutralContentQuery,
+            webContentQuery;
 
           // let count= unData.filter(data => data?.touchpoint_identification === sourcesArray[i])
 
@@ -2578,88 +2697,126 @@ const mentionsChartController = {
           // negativeContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
           // neutralContentQuery = `${topicQueryString} AND un_keywords:("Yes") AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
 
-          positiveContentQuery = `${topicQueryString}   AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`
-          negativeContentQuery = `${topicQueryString}   AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`
-          neutralContentQuery = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`
+          positiveContentQuery = `${topicQueryString}   AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Positive")`;
+          negativeContentQuery = `${topicQueryString}   AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Negative")`;
+          neutralContentQuery = `${topicQueryString}  AND igo_entities:("${sourcesArray[i]}") AND predicted_sentiment_value:("Neutral")`;
 
           positiveContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(positiveContentQuery, '2023-01-01', '2024-12-03')
-          )
+            elasticMentionQueryTemplate(
+              positiveContentQuery,
+              "2023-01-01",
+              "2024-12-03"
+            )
+          );
 
           negativeContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(negativeContentQuery, '2023-01-01', '2024-12-03')
-          )
+            elasticMentionQueryTemplate(
+              negativeContentQuery,
+              "2023-01-01",
+              "2024-12-03"
+            )
+          );
           neutralContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(neutralContentQuery, '2023-01-01', '2024-12-03')
-          )
+            elasticMentionQueryTemplate(
+              neutralContentQuery,
+              "2023-01-01",
+              "2024-12-03"
+            )
+          );
 
-          if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+          if (
+            positiveContent.count > 0 ||
+            negativeContent.count > 0 ||
+            neutralContent.count > 0
+          ) {
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
             ] = {
               positiveContent: positiveContent?.count,
               negativeContent: negativeContent?.count,
-              neutralContent: neutralContent?.count
-            }
+              neutralContent: neutralContent?.count,
+            };
           }
         }
 
         //console.log('data', responseOutput)
 
-          return res.status(200).json({responseOutput});
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-      } else if (type === 'unAidsChart') {
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "unAidsChart") {
       //elasticQueryTemplateRange
       try {
-        let dataArray= []
-        if (aidType === 'Aid Requested/Aid Recieved') {
-          const query1 = `${topicQueryString}  AND aid_requests_received:("receipt of aid")`
-          const query2 = `${topicQueryString} AND aid_requests_received:("request for aid")`
+        let dataArray = [];
+        if (aidType === "Aid Requested/Aid Recieved") {
+          const query1 = `${topicQueryString}  AND aid_requests_received:("receipt of aid")`;
+          const query2 = `${topicQueryString} AND aid_requests_received:("request for aid")`;
 
-          const aidRec= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
-          const aidReq= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
+          const aidRec = await elasticSearchCount(
+            elasticMentionQueryTemplate(query1, "2023-01-01", "2023-04-30")
+          );
+          const aidReq = await elasticSearchCount(
+            elasticMentionQueryTemplate(query2, "2023-01-01", "2023-04-30")
+          );
 
-          dataArray = [aidReq.count, aidRec.count]
-        } else if (aidType === 'Aid Type') {
-          const query1 = `${topicQueryString}  AND aid_type:("Local Aid")`
-          const query2 = `${topicQueryString}  AND aid_type:("International Aid")`
+          dataArray = [aidReq.count, aidRec.count];
+        } else if (aidType === "Aid Type") {
+          const query1 = `${topicQueryString}  AND aid_type:("Local Aid")`;
+          const query2 = `${topicQueryString}  AND aid_type:("International Aid")`;
 
-          const local= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
-          const inter= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
-          dataArray = [local.count, inter.count]
-        } else if (aidType === 'Mental Health and Trauma') {
-          const query1 = `${topicQueryString}  AND Aid Type:("Local Aid")`
-          const query2 = `${topicQueryString}  AND Aid Type:("International Aid")`
+          const local = await elasticSearchCount(
+            elasticMentionQueryTemplate(query1, "2023-01-01", "2023-04-30")
+          );
+          const inter = await elasticSearchCount(
+            elasticMentionQueryTemplate(query2, "2023-01-01", "2023-04-30")
+          );
+          dataArray = [local.count, inter.count];
+        } else if (aidType === "Mental Health and Trauma") {
+          const query1 = `${topicQueryString}  AND Aid Type:("Local Aid")`;
+          const query2 = `${topicQueryString}  AND Aid Type:("International Aid")`;
 
-          const local= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
-          const inter= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
-          dataArray = [local.count, inter.count]
-        } else if (aidType === 'Political or Social Criticism') {
-          const query1 = `${topicQueryString} AND Aid Type:("Local Aid")`
-          const query2 = `${topicQueryString} AND Aid Type:("International Aid")`
+          const local = await elasticSearchCount(
+            elasticMentionQueryTemplate(query1, "2023-01-01", "2023-04-30")
+          );
+          const inter = await elasticSearchCount(
+            elasticMentionQueryTemplate(query2, "2023-01-01", "2023-04-30")
+          );
+          dataArray = [local.count, inter.count];
+        } else if (aidType === "Political or Social Criticism") {
+          const query1 = `${topicQueryString} AND Aid Type:("Local Aid")`;
+          const query2 = `${topicQueryString} AND Aid Type:("International Aid")`;
 
-          const local= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
-          const inter= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
-          dataArray = [local.count, inter.count]
-        } else if (aidType === 'Environmental Hazards') {
-          const query1 = `${topicQueryString}  AND Aid Type:("Local Aid")`
-          const query2 = `${topicQueryString}  AND Aid Type:("International Aid")`
+          const local = await elasticSearchCount(
+            elasticMentionQueryTemplate(query1, "2023-01-01", "2023-04-30")
+          );
+          const inter = await elasticSearchCount(
+            elasticMentionQueryTemplate(query2, "2023-01-01", "2023-04-30")
+          );
+          dataArray = [local.count, inter.count];
+        } else if (aidType === "Environmental Hazards") {
+          const query1 = `${topicQueryString}  AND Aid Type:("Local Aid")`;
+          const query2 = `${topicQueryString}  AND Aid Type:("International Aid")`;
 
-          const local= await elasticSearchCount(elasticMentionQueryTemplate(query1, '2023-01-01', '2023-04-30'))
-          const inter= await elasticSearchCount(elasticMentionQueryTemplate(query2, '2023-01-01', '2023-04-30'))
-          dataArray = [local.count, inter.count]
+          const local = await elasticSearchCount(
+            elasticMentionQueryTemplate(query1, "2023-01-01", "2023-04-30")
+          );
+          const inter = await elasticSearchCount(
+            elasticMentionQueryTemplate(query2, "2023-01-01", "2023-04-30")
+          );
+          dataArray = [local.count, inter.count];
         }
 
-          return res.status(200).json({dataArray});
-          } catch (error) {
-            console.error("Error fetching data:", error);
-            return res.status(500).json({ error: "Internal server error" });
-          }
-     
-    } else if (type === 'touchpointIndustry') {
+        return res.status(200).json({ dataArray });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "touchpointIndustry") {
       try {
         // const sourcesArray = [
         //   'Mobile Banking App',
@@ -2721,18 +2878,18 @@ const mentionsChartController = {
         // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
 
         const sourcesArray = [
-          'Physical Branches and ATMs',
-          'Digital Channels',
-          'Customer Service Centers',
-          'Financial Advisors',
-          'Marketing Channels',
-          'Community Initiatives',
-          'Partner Networks',
-          'Self-Service Portals',
-          'Other'
-        ]
+          "Physical Branches and ATMs",
+          "Digital Channels",
+          "Customer Service Centers",
+          "Financial Advisors",
+          "Marketing Channels",
+          "Community Initiatives",
+          "Partner Networks",
+          "Self-Service Portals",
+          "Other",
+        ];
 
-        let responseOutput = {}
+        let responseOutput = {};
 
         // const dat= await elasticSearchCount(
         //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
@@ -2751,52 +2908,72 @@ const mentionsChartController = {
           //   _sources = sourcesArray[i]
           // }
 
-          let twitterContent= 0,
-            facebookContent= 0,
-            instagramContent= 0,
-            webContent= 0
-          let twitterContentQuery, facebookContentQuery, instagramContentQuery, webContentQuery
+          let twitterContent = 0,
+            facebookContent = 0,
+            instagramContent = 0,
+            webContent = 0;
+          let twitterContentQuery,
+            facebookContentQuery,
+            instagramContentQuery,
+            webContentQuery;
 
-          twitterContentQuery = `${topicQueryString} AND source:("Twitter") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
-          facebookContentQuery = `${topicQueryString} AND source:("Facebook") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
-          instagramContentQuery = `${topicQueryString} AND source:("Instagram") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          twitterContentQuery = `${topicQueryString} AND source:("Twitter") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
+          facebookContentQuery = `${topicQueryString} AND source:("Facebook") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
+          instagramContentQuery = `${topicQueryString} AND source:("Instagram") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
           //webContentQuery = `${topicQueryString} AND source:('"FakeNews" OR "News" OR "Blogs" OR "Web"') AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
           // console.log(twitterContentQuery, 'touchpointIndustry')
           twitterContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
-          )
-          facebookContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(facebookContentQuery, greaterThanTime, lessThanTime)
-          )
-            instagramContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(instagramContentQuery, greaterThanTime, lessThanTime)
+            elasticMentionQueryTemplate(
+              twitterContentQuery,
+              greaterThanTime,
+              lessThanTime
             )
+          );
+          facebookContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(
+              facebookContentQuery,
+              greaterThanTime,
+              lessThanTime
+            )
+          );
+          instagramContent = await elasticSearchCount(
+            elasticMentionQueryTemplate(
+              instagramContentQuery,
+              greaterThanTime,
+              lessThanTime
+            )
+          );
           // webContent = await elasticSearchCount(
           //   elasticMentionQueryTemplate(webContentQuery, greaterThanTime, lessThanTime)
           // )
 
-          if (twitterContent.count > 0 || facebookContent.count > 0 || instagramContent.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+          if (
+            twitterContent.count > 0 ||
+            facebookContent.count > 0 ||
+            instagramContent.count > 0
+          ) {
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
             ] = {
               twitterContent: twitterContent?.count,
               facebookContent: facebookContent?.count,
-              instagramContent: instagramContent?.count
+              instagramContent: instagramContent?.count,
               // webContent: webContent?.count
-            }
+            };
           }
         }
 
         //console.log('data', responseOutput)
 
-          return res.status(200).json({responseOutput});
-          } catch (error) {
-            console.error("Error fetching data:", error);
-            return res.status(500).json({ error: "Internal server error" });
-          }
-        
-    
-    } else if (type === 'touchpointSentimentsChart') {
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+    } else if (type === "touchpointSentimentsChart") {
       try {
         // const sourcesArray = [
         //   'Mobile Banking App',
@@ -2850,20 +3027,20 @@ const mentionsChartController = {
         //   'Other'
         // ]
         const sourcesArray = [
-          'Physical Branches and ATMs',
-          'Digital Channels',
-          'Customer Service Centers',
-          'Financial Advisors',
-          'Marketing Channels',
-          'Community Initiatives',
-          'Partner Networks',
-          'Self-Service Portals',
-          'Other'
-        ]
+          "Physical Branches and ATMs",
+          "Digital Channels",
+          "Customer Service Centers",
+          "Financial Advisors",
+          "Marketing Channels",
+          "Community Initiatives",
+          "Partner Networks",
+          "Self-Service Portals",
+          "Other",
+        ];
 
         // const twitterContentQuery = `${topicQueryString} AND llm_mention_touchpoint:("Physical Office")  AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"')`
 
-        let responseOutput = {}
+        let responseOutput = {};
 
         // const dat= await elasticSearchCount(
         //   elasticMentionQueryTemplate(twitterContentQuery, greaterThanTime, lessThanTime)
@@ -2882,51 +3059,72 @@ const mentionsChartController = {
           //   _sources = sourcesArray[i]
           // }
 
-          let positiveContent= 0,
-            negativeContent= 0,
-            neutralContent= 0,
-            webContent= 0
-          let positiveContentQuery, negativeContentQuery, neutralContentQuery, webContentQuery
+          let positiveContent = 0,
+            negativeContent = 0,
+            neutralContent = 0,
+            webContent = 0;
+          let positiveContentQuery,
+            negativeContentQuery,
+            neutralContentQuery,
+            webContentQuery;
 
-          positiveContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Positive") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
-          negativeContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Negative") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
-          neutralContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Neutral") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`
+          positiveContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Positive") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
+          negativeContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Negative") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
+          neutralContentQuery = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"') AND predicted_sentiment_value:("Neutral") AND llm_mention_type:('"Customer Complaint" OR "Inquiry" OR "Praise" OR "Suggestion" OR "Product Feedback"') AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
           // console.log('touchpointSentimentsChart', positiveContentQuery)
           positiveContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(positiveContentQuery, greaterThanTime, lessThanTime)
-          )
+            elasticMentionQueryTemplate(
+              positiveContentQuery,
+              greaterThanTime,
+              lessThanTime
+            )
+          );
           negativeContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(negativeContentQuery, greaterThanTime, lessThanTime)
-          )
+            elasticMentionQueryTemplate(
+              negativeContentQuery,
+              greaterThanTime,
+              lessThanTime
+            )
+          );
           neutralContent = await elasticSearchCount(
-            elasticMentionQueryTemplate(neutralContentQuery, greaterThanTime, lessThanTime)
-          )
+            elasticMentionQueryTemplate(
+              neutralContentQuery,
+              greaterThanTime,
+              lessThanTime
+            )
+          );
 
-          if (positiveContent.count > 0 || negativeContent.count > 0 || neutralContent.count > 0) {
-            ;(responseOutput)[
-              sourcesArray[i] === 'Customer Service (Phone, Email, or Live Chat)' ? 'Customer Service' : sourcesArray[i]
+          if (
+            positiveContent.count > 0 ||
+            negativeContent.count > 0 ||
+            neutralContent.count > 0
+          ) {
+            responseOutput[
+              sourcesArray[i] ===
+              "Customer Service (Phone, Email, or Live Chat)"
+                ? "Customer Service"
+                : sourcesArray[i]
             ] = {
               positiveContent: positiveContent?.count,
               negativeContent: negativeContent?.count,
-              neutralContent: neutralContent?.count
-            }
+              neutralContent: neutralContent?.count,
+            };
           }
         }
 
         //console.log('data', responseOutput)
-          return res.status(200).json({responseOutput});
-          } catch (error) {
-            console.error("Error fetching data:", error);
-            return res.status(500).json({ error: "Internal server error" });
-          }
-      
+        return res.status(200).json({ responseOutput });
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        return res.status(500).json({ error: "Internal server error" });
+      }
     }
   },
 
-
   migrationTopicsSummary: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType,source } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
+        req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -2947,7 +3145,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
@@ -2967,7 +3166,7 @@ const mentionsChartController = {
               },
             ],
 
-              must_not: [
+            must_not: [
               { term: { "migration_topics.keyword": "" } },
               { term: { "migration_topics.keyword": "{}" } },
             ],
@@ -3005,9 +3204,525 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-  trustDimensionsEducationSystem:async (req, res) => {
+
+  eventTypePopularity: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType,source } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
+        req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // Build the main query
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
+                  },
+                },
+              },
+            ],
+            must_not: [
+              { term: { "llm_core_insights.event_type.keyword": "" } },
+              { term: { "llm_core_insights.event_type.keyword": "null" } },
+              {
+                bool: {
+                  must_not: {
+                    exists: { field: "llm_core_insights.event_type" },
+                  },
+                },
+              },
+            ],
+          },
+        },
+        aggs: {
+          event_types: {
+            terms: {
+              field: "llm_core_insights.event_type.keyword",
+              size: 20,
+              missing: "Unknown", // Handle documents without event_type
+            },
+            aggs: {
+              sources: {
+                terms: { field: "source.keyword", size: 30 },
+              },
+            },
+          },
+        },
+      };
+
+      // Add sentiment filter if provided
+      if (sentimentType && sentimentType !== "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Add source filter if provided
+      if (source && source !== "") {
+        query.query.bool.must.push({
+          term: {
+            "source.keyword": source.trim(),
+          },
+        });
+      }
+
+      // Add subtopic filter if provided
+      if (subtopicId && subtopicId !== "") {
+        query.query.bool.must.push({
+          term: {
+            subtopic_id: parseInt(subtopicId),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      // Transform the aggregation results into a format suitable for pie charts
+      const buckets = result.aggregations.event_types.buckets;
+      const totalDocs = result.hits.total.value;
+
+      // Map to hold merged event types
+      const mergedMap = new Map();
+
+      for (const bucket of buckets) {
+        const parts = bucket.key
+          .split("|")
+          .map((p) => p.trim())
+          .filter((p) => p && p !== "null");
+
+        for (const part of parts) {
+          const baseName = part; // No lowercasing unless you want to force case-insensitive match
+
+          const current = mergedMap.get(baseName) || {
+            name: baseName,
+            value: 0,
+            sourcesMap: new Map(),
+          };
+
+          current.value += bucket.doc_count;
+
+          // Merge sources
+          for (const source of bucket.sources.buckets) {
+            const prevCount = current.sourcesMap.get(source.key) || 0;
+            current.sourcesMap.set(source.key, prevCount + source.doc_count);
+          }
+
+          mergedMap.set(baseName, current);
+        }
+      }
+
+      // Convert to array and calculate percentage
+      let pieData = Array.from(mergedMap.values()).map((entry) => ({
+        name: entry.name,
+        value: entry.value,
+        percentage:
+          totalDocs > 0 ? ((entry.value / totalDocs) * 100).toFixed(2) : "0.00",
+        sources: Array.from(entry.sourcesMap.entries()).map(
+          ([name, count]) => ({ name, count })
+        ),
+      }));
+
+      // Sort descending and take top 6
+      pieData = pieData.sort((a, b) => b.value - a.value).slice(0, 6);
+
+      return res.status(200).json({
+        success: true,
+        data: pieData,
+        total: totalDocs,
+        results: buckets,
+        query: query,
+      });
+    } catch (error) {
+      console.error("Error fetching event type data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  },
+  llmMotivationPhase: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentiment, source } =
+        req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // Build the main query
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
+                  },
+                },
+              },
+            ],
+            must_not: [
+              { term: { "llm_motivation.phase.keyword": "" } },
+              { term: { "llm_motivation.phase.keyword": "null" } },
+              {
+                bool: {
+                  must_not: {
+                    exists: { field: "llm_motivation.phase" },
+                  },
+                },
+              },
+            ],
+          },
+        },
+        aggs: {
+          event_types: {
+            terms: {
+              field: "llm_motivation.phase.keyword",
+              size: 20,
+              missing: "Unknown",
+            },
+            aggs: {
+              sources: {
+                terms: { field: "source.keyword", size: 30 },
+              },
+              // Add word cloud phrases aggregation
+              word_cloud_phrases: {
+                terms: {
+                  field: "llm_motivation.word_cloud_phrases.keyword",
+                  size: 100, // Adjust size based on your needs
+                  min_doc_count: 1,
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Add sentiment filter if provided
+      if (sentiment && sentiment !== "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentiment.trim(),
+          },
+        });
+      }
+
+      // Add source filter if provided
+      if (source && source !== "") {
+        query.query.bool.must.push({
+          term: {
+            "source.keyword": source.trim(),
+          },
+        });
+      }
+
+      // Add subtopic filter if provided
+      if (subtopicId && subtopicId !== "") {
+        query.query.bool.must.push({
+          term: {
+            subtopic_id: parseInt(subtopicId),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      // Transform the aggregation results
+      const buckets = result.aggregations.event_types.buckets;
+      const totalDocs = result.hits.total.value;
+
+      // Map to hold merged event types
+      const mergedMap = new Map();
+
+      for (const bucket of buckets) {
+        const parts = bucket.key
+          .split("|")
+          .map((p) => p.trim())
+          .filter((p) => p && p !== "null");
+
+        for (const part of parts) {
+          const baseName = part;
+
+          const current = mergedMap.get(baseName) || {
+            name: baseName,
+            value: 0,
+            sourcesMap: new Map(),
+            wordCloudPhrasesMap: new Map(),
+          };
+
+          current.value += bucket.doc_count;
+
+          // Merge sources
+          for (const source of bucket.sources.buckets) {
+            const prevCount = current.sourcesMap.get(source.key) || 0;
+            current.sourcesMap.set(source.key, prevCount + source.doc_count);
+          }
+
+          // Merge word cloud phrases
+          for (const phrase of bucket.word_cloud_phrases.buckets) {
+            const prevCount = current.wordCloudPhrasesMap.get(phrase.key) || 0;
+            current.wordCloudPhrasesMap.set(
+              phrase.key,
+              prevCount + phrase.doc_count
+            );
+          }
+
+          mergedMap.set(baseName, current);
+        }
+      }
+
+      // Convert to array and calculate percentage
+      let pieData = Array.from(mergedMap.values()).map((entry) => ({
+        name: entry.name,
+        value: entry.value,
+        percentage:
+          totalDocs > 0 ? ((entry.value / totalDocs) * 100).toFixed(2) : "0.00",
+        sources: Array.from(entry.sourcesMap.entries()).map(
+          ([name, count]) => ({ name, count })
+        ),
+        wordCloudPhrases: Array.from(entry.wordCloudPhrasesMap.entries())
+          .map(([phrase, count]) => ({ phrase, count }))
+          .sort((a, b) => b.count - a.count) // Sort by count descending
+          .slice(0, 50), // Limit to top 50 phrases per phase
+      }));
+
+      // Sort descending and take top 6
+      pieData = pieData.sort((a, b) => b.value - a.value).slice(0, 6);
+
+      return res.status(200).json({
+        success: true,
+        data: pieData,
+        total: totalDocs,
+        // results: buckets,
+        query: query,
+      });
+    } catch (error) {
+      console.error("Error fetching event type data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  },
+
+
+
+llmMotivationSentimentTrend: async (req, res) => {
+  try {
+    const { fromDate, toDate, subtopicId, topicId, source } = req.body;
+    const isSpecialTopic = parseInt(topicId) === 2600;
+    const selectedTab = "Social";
+    const isScadUser = false;
+
+    let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
+
+    topicQueryString += isSpecialTopic
+      ? ` AND source:("Twitter" OR "Facebook")`
+      : ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+
+    const effectiveFrom = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate || "now-90d";
+    const effectiveTo = isSpecialTopic && !toDate ? "now" : toDate || "now";
+
+    const query = {
+      size: 0,
+      query: {
+        bool: {
+          must: [
+            { query_string: { query: topicQueryString } },
+            {
+              range: {
+                p_created_time: {
+                  gte: effectiveFrom,
+                  lte: effectiveTo,
+                },
+              },
+            },
+          ],
+          must_not: [
+            { terms: { "llm_motivation.phase.keyword": ["", "null"] } },
+            { terms: { "llm_motivation.sentiment.keyword": ["", "null"] } },
+            { bool: { must_not: { exists: { field: "llm_motivation.phase" } } } },
+            { bool: { must_not: { exists: { field: "llm_motivation.sentiment" } } } },
+          ],
+        },
+      },
+      aggs: {
+        phases: {
+          terms: { field: "llm_motivation.phase.keyword", size: 20 },
+          aggs: {
+            sentiments: {
+              terms: { field: "llm_motivation.sentiment.keyword", size: 10 },
+              aggs: {
+                trend: {
+                  date_histogram: {
+                    field: "p_created_time",
+                    calendar_interval: "1d",
+                    min_doc_count: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    // Optional filters
+    if (source) query.query.bool.must.push({ term: { "source.keyword": source.trim() } });
+    if (subtopicId) query.query.bool.must.push({ term: { subtopic_id: parseInt(subtopicId) } });
+
+    const result = await elasticClient.search({
+      index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+      body: query,
+    });
+
+    const totalDocs = result.hits.total.value;
+    const categoriesSet = new Set();
+    const series = [];
+    const phaseSeriesMap = {};
+
+    // Process data for ApexCharts
+    for (const phase of result.aggregations.phases.buckets) {
+      phaseSeriesMap[phase.key] = {
+        positive: [],
+        negative: [],
+        neutral: []
+      };
+
+      for (const sentiment of phase.sentiments.buckets) {
+        const sentimentData = sentiment.trend.buckets.map(b => {
+          categoriesSet.add(b.key_as_string);
+          return {
+            x: new Date(b.key_as_string).getTime(),
+            y: b.doc_count
+          };
+        });
+
+        // Group by sentiment type for each phase
+        const sentimentType = sentiment.key.toLowerCase();
+        if (phaseSeriesMap[phase.key][sentimentType]) {
+          phaseSeriesMap[phase.key][sentimentType] = sentimentData;
+        }
+      }
+    }
+
+    // Format series for ApexCharts
+    for (const [phase, sentiments] of Object.entries(phaseSeriesMap)) {
+      if (sentiments.positive.length > 0) {
+        series.push({
+          name: `${phase} - Positive`,
+          data: sentiments.positive,
+          color: '#10B981' // Green for positive
+        });
+      }
+      if (sentiments.negative.length > 0) {
+        series.push({
+          name: `${phase} - Negative`,
+          data: sentiments.negative,
+          color: '#EF4444' // Red for negative
+        });
+      }
+      if (sentiments.neutral.length > 0) {
+        series.push({
+          name: `${phase} - Neutral`,
+          data: sentiments.neutral,
+          color: '#6B7280' // Gray for neutral
+        });
+      }
+    }
+
+    const categories = Array.from(categoriesSet)
+      .sort()
+      .map(date => new Date(date).getTime());
+
+    return res.status(200).json({
+      success: true,
+      chartData: {
+        series,
+        categories,
+      },
+      stats: {
+        totalDocuments: totalDocs,
+        phasesCount: result.aggregations.phases.buckets.length,
+        dateRange: { from: effectiveFrom, to: effectiveTo },
+      },
+    });
+  } catch (error) {
+    console.error("Sentiment trend error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch trend data",
+      details: error.message,
+    });
+  }
+},
+  trustDimensionsEducationSystem: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
+        req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -3028,7 +3743,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
@@ -3048,7 +3764,7 @@ const mentionsChartController = {
               },
             ],
 
-              must_not: [
+            must_not: [
               { term: { "trust_dimensions.keyword": "" } },
               { term: { "trust_dimensions.keyword": "{}" } },
             ],
@@ -3081,9 +3797,10 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-    trustDimensionsEducationSystem:async (req, res) => {
+  trustDimensionsEducationSystem: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType,source } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
+        req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -3104,7 +3821,8 @@ const mentionsChartController = {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
@@ -3124,7 +3842,7 @@ const mentionsChartController = {
               },
             ],
 
-              must_not: [
+            must_not: [
               { term: { "trust_dimensions.keyword": "" } },
               { term: { "trust_dimensions.keyword": "{}" } },
             ],
@@ -3162,9 +3880,10 @@ const mentionsChartController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-benchMarkingPresenceSentiment: async (req, res) => {
+  benchMarkingPresenceSentiment: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
+        req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -3185,38 +3904,38 @@ benchMarkingPresenceSentiment: async (req, res) => {
       }
 
       // Apply special topic date range
-      const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
       const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query**
-    const query = {
-  size: 10000,
-  query: {
-    bool: {
-      must: [
-        { query_string: { query: topicQueryString } },
-        {
-          range: {
-            p_created_time: {
-              gte: effectiveFromDate || "now-90d",
-              lte: effectiveToDate || "now",
-            },
+      const query = {
+        size: 10000,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
+                  },
+                },
+              },
+              {
+                terms: {
+                  "entity_mentions.entity_type.keyword": ["NGO", "IGO"],
+                },
+              },
+            ],
+            must_not: [
+              { term: { "trust_dimensions.keyword": "" } },
+              { term: { "trust_dimensions.keyword": "{}" } },
+            ],
           },
         },
-        {
-          terms: {
-            "entity_mentions.entity_type.keyword": ["NGO", "IGO"]
-          }
-        },
-      ],
-      must_not: [
-        { term: { "trust_dimensions.keyword": "" } },
-        { term: { "trust_dimensions.keyword": "{}" } },
-      ],
-    },
-  }
-};
-
+      };
 
       // Add sentiment filter if provided
       if (sentimentType && sentimentType != "") {
@@ -3233,19 +3952,11 @@ benchMarkingPresenceSentiment: async (req, res) => {
         body: query,
       });
 
-      
       return res.status(200).json({ result });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
-  }
-
-
-
-
-    
-
-  
+  },
 };
 module.exports = mentionsChartController;

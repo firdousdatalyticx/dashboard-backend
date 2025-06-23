@@ -43,6 +43,9 @@ const migrationTopicsRoutes = require("./migration-topics.routes")
 
 const trustDimensionsEducationSystemRoutes = require("./trust-dimensions-education-system.routes");
 const  benchMarkingPresenceSentimentRoutes  = require('./bench-marking-presence-sentiment.route');
+const eventTypePopularityRoute = require("./event-type-popularity.routes"); 
+const llm_motivation_phase_route= require("./llm_motivation-phase.route")
+const llm_motivation_sentiment_route = require("./llm-motivation-sentiment.route")
 // migration-topics.routes.js
 /**
  * @swagger
@@ -94,6 +97,8 @@ router.use("/undp-keyword",undpKeywordRoutes)
 router.use("/migration-topics",migrationTopicsRoutes)
 router.use("/trust-dimensions-education-system",trustDimensionsEducationSystemRoutes)
 router.use('/bench-marking-presence-sentiment',benchMarkingPresenceSentimentRoutes)
-
+router.use('/event-type-popularity',eventTypePopularityRoute)
+router.use("/llm-motivation-phase",llm_motivation_phase_route);
+router.use("/llm-motivation-sentiment",llm_motivation_sentiment_route)
 
 module.exports = router; 

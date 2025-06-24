@@ -3598,8 +3598,8 @@ llmMotivationPhase: async (req, res) => {
 
     const topicIdNum = parseInt(topicId);
     const isSpecialTopic = topicIdNum === 2600;
-    const isTopic2604 = topicIdNum === 2604;
-    const isTopic2603 = topicIdNum === 2603;
+    const isTopic2604 = topicIdNum === 2604|| topicIdNum===2602;
+    const isTopic2603 = topicIdNum === 2603 ||topicIdNum===2601;
 
     const isScadUser = false;
     const selectedTab = "Social";
@@ -4212,8 +4212,8 @@ llmMotivationSentimentTrend: async (req, res) => {
 
     const topicIdNum = parseInt(topicId);
     const isSpecialTopic = topicIdNum === 2600;
-    const isTopic2604 = topicIdNum === 2604;
-    const isTopic2603 = topicIdNum === 2603;
+    const isTopic2604 = topicIdNum === 2604|| topicIdNum===2602;
+    const isTopic2603 = topicIdNum === 2603 ||topicIdNum===2601;
 
     const isScadUser = false;
     const selectedTab = "Social";

@@ -21,7 +21,7 @@ const controller = require("../../controllers/social-media/sentiments-analysis.c
  *           schema:
  *             $ref: '#/components/schemas/MentionsTrendRequest'
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, controller.llmMotivationSentimentTrend);
+router.post('/', express.json(), authMiddleware, transformCategoryData, mentionsChartController.llmMotivationSentimentTrend);
 
 router.get('/posts', express.json(), authMiddleware, transformCategoryData, mentionsChartController.mentionsPost);
 

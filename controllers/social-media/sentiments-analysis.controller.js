@@ -1,6 +1,58 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
 
+const getSentimentTrendData = async ({ query, formattedMinDate, formattedMaxDate, calendarInterval, formatPattern, analysisType }) => {
+  const aggregations = {
+    time_intervals: {
+      date_histogram: {
+        field: 'p_created_time',
+        calendar_interval: calendarInterval,
+        format: formatPattern,
+        min_doc_count: 0,
+        extended_bounds: {
+          min: formattedMinDate,
+          max: formattedMaxDate
+        }
+      },
+      aggs: {}
+    }
+  };
+
+  if (analysisType === 'sentiment' || analysisType === 'both') {
+    aggregations.time_intervals.aggs.sentiments = {
+      terms: {
+        field: 'predicted_sentiment_value.keyword',
+        size: 100
+      }
+    };
+  }
+
+  if (analysisType === 'phase' || analysisType === 'both') {
+    aggregations.time_intervals.aggs.phases = {
+      terms: {
+        field: 'llm_motivation.phase.keyword',
+        size: 100
+      }
+    };
+  }
+
+  const body = {
+    size: 0,
+    query,
+    aggs: aggregations
+  };
+
+  const response = await elasticClient.search({
+    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+    body
+  });
+
+  const buckets = response.aggregations?.time_intervals?.buckets || [];
+  return {
+    success: true,
+    timeIntervals: buckets
+  };
+}
 const sentimentsController = {
     /**
      * Get sentiment analysis data for social media posts
@@ -309,8 +361,611 @@ const sentimentsController = {
                 error: 'Internal server error'
             });
         }
+    },
+
+llmMotivationSentimentTrend: async (req, res) => {
+  try {
+    const mergePhases = (buckets) => {
+      const phaseMap = {};
+      buckets.forEach((bucket) => {
+        const phaseName = bucket.key;
+        let basePhase = phaseName;
+        if (phaseName.includes("|null")) {
+          basePhase = phaseName.split("|")[0];
+        } else if (phaseName === "null") {
+          basePhase = "null";
+        }
+        if (phaseMap[basePhase]) {
+          phaseMap[basePhase] += bucket.doc_count;
+        } else {
+          phaseMap[basePhase] = bucket.doc_count;
+        }
+      });
+      return Object.entries(phaseMap).map(([name, count]) => ({ name, count }));
+    };
+
+    const {
+      interval = "monthly",
+      source = "All",
+      category = "all",
+      topicId,
+      fromDate,
+      toDate,
+      sentiment,
+      phase,
+      eventType = "all", // New parameter for event type filtering
+      analysisType = "both",
+    } = req.body;
+
+    const topicIdNum = parseInt(topicId);
+    const isSpecialTopic = topicIdNum === 2600;
+    const isTopic2603 = topicIdNum === 2603;
+    const isTopic2604 = topicIdNum === 2604;
+
+    const categoryData = req.processedCategories || {};
+    if (Object.keys(categoryData).length === 0) {
+      return res.json({
+        success: true,
+        sentiments: [],
+        phases: [],
+        preEventData: [],
+        postEventData: [],
+        executionDaysData: [],
+        eventTypeBreakdown: {},
+      });
     }
+
+    const now = new Date();
+    const ninetyDaysAgo = subDays(now, 90);
+    let startDate = fromDate ? parseISO(fromDate) : ninetyDaysAgo;
+    let endDate = toDate ? parseISO(toDate) : now;
+
+    const greaterThanTime = format(startDate, "yyyy-MM-dd");
+    const lessThanTime = format(endDate, "yyyy-MM-dd");
+
+    let calendarInterval = "month";
+    let formatPattern = "yyyy-MM";
+    if (interval === "daily") {
+      calendarInterval = "day";
+      formatPattern = "yyyy-MM-dd";
+    } else if (interval === "weekly") {
+      calendarInterval = "week";
+      formatPattern = "yyyy-MM-dd";
+    }
+
+    const formattedMinDate = format(parseISO(greaterThanTime), formatPattern);
+    const formattedMaxDate = format(parseISO(lessThanTime), formatPattern);
+
+    const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic);
+    addCategoryFilters(query, category, categoryData);
+
+    if (sentiment && sentiment !== "" && sentiment !== "All") {
+      query.bool.must.push({
+        match_phrase: { predicted_sentiment_value: sentiment },
+      });
+    }
+
+    if (phase && phase !== "" && phase !== "All") {
+      if (phase === "exhibition_days") {
+        query.bool.must.push({
+          terms: {
+            "llm_motivation.phase.keyword": ["day1", "day2", "day3", "day4", "day5"],
+          },
+        });
+      } else {
+        query.bool.must.push({ match_phrase: { "llm_motivation.phase": phase } });
+      }
+    }
+
+    // Enhanced event type filtering
+    if (eventType && eventType !== "" && eventType !== "all") {
+      switch (eventType) {
+        case "pre_event":
+          query.bool.must.push({
+            match_phrase: { "llm_motivation.phase.keyword": "pre_event" }
+          });
+          break;
+        case "post_event":
+          query.bool.must.push({
+            match_phrase: { "llm_motivation.phase.keyword": "post_event" }
+          });
+          break;
+        case "execution_days":
+          query.bool.must.push({
+            terms: {
+              "llm_motivation.phase.keyword": ["day1", "day2", "day3", "day4", "day5"]
+            }
+          });
+          break;
+        case "day1":
+        case "day2":
+        case "day3":
+        case "day4":
+        case "day5":
+          query.bool.must.push({
+            match_phrase: { "llm_motivation.phase.keyword": eventType }
+          });
+          break;
+      }
+    }
+
+    if (isTopic2603) {
+      query.bool.should = [
+        {
+          bool: {
+            must: [
+              { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: "2023-01-30",
+                    lte: "2024-03-03",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        {
+          bool: {
+            must: [
+              {
+                terms: {
+                  "llm_motivation.phase.keyword": ["day1", "day2", "day3", "day4"],
+                },
+              },
+              {
+                range: {
+                  p_created_time: {
+                    gte: "2024-03-04",
+                    lte: "2024-03-07",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        {
+          bool: {
+            must: [
+              { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: "2024-03-08",
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ];
+      query.bool.minimum_should_match = 1;
+    }
+
+    if (isTopic2604) {
+      query.bool.should = [
+        {
+          bool: {
+            must: [
+              { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: "2024-01-01",
+                    lte: "2024-10-13",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        {
+          bool: {
+            must: [
+              {
+                terms: {
+                  "llm_motivation.phase.keyword": ["day1", "day2", "day3", "day4", "day5"],
+                },
+              },
+              {
+                range: {
+                  p_created_time: {
+                    gte: "2024-10-14",
+                    lte: "2024-10-18",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        {
+          bool: {
+            must: [
+              { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: "2024-10-19",
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ];
+      query.bool.minimum_should_match = 1;
+    }
+
+    // Enhanced query to get sentiment data with event type breakdown
+    const result = await getSentimentTrendDataWithEventTypes({
+      query,
+      formattedMinDate,
+      formattedMaxDate,
+      calendarInterval,
+      formatPattern,
+      analysisType,
+      eventType,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    console.error("Error fetching sentiments/phase analysis data:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+},
+
+// Enhanced function to handle event type breakdown
+
+
+
+
+
+
+
+
 };
+
+const getSentimentTrendDataWithEventTypes= async ({
+  query,
+  formattedMinDate,
+  formattedMaxDate,
+  calendarInterval,
+  formatPattern,
+  analysisType,
+  eventType,
+}) => {
+  try {
+    const aggregations = {
+      sentiment_over_time: {
+        date_histogram: {
+          field: "p_created_time",
+          calendar_interval: calendarInterval,
+          format: formatPattern,
+          min_doc_count: 0,
+          extended_bounds: {
+            min: formattedMinDate,
+            max: formattedMaxDate,
+          },
+        },
+        aggs: {
+          sentiments: {
+            terms: {
+              field: "predicted_sentiment_value.keyword",
+              size: 10,
+            },
+          },
+          event_phases: {
+            terms: {
+              field: "llm_motivation.phase.keyword",
+              size: 20,
+            },
+            aggs: {
+              phase_sentiments: {
+                terms: {
+                  field: "predicted_sentiment_value.keyword",
+                  size: 10,
+                },
+              },
+            },
+          },
+        },
+      },
+      overall_event_breakdown: {
+        terms: {
+          field: "llm_motivation.phase.keyword",
+          size: 20,
+        },
+        aggs: {
+          sentiment_breakdown: {
+            terms: {
+              field: "predicted_sentiment_value.keyword",
+              size: 10,
+            },
+          },
+        },
+      },
+    };
+
+    const searchBody = {
+      query,
+      aggs: aggregations,
+      size: 0,
+    };
+
+    const response = await elasticClient.search({
+      index: process.env.ELASTICSEARCH_INDEX,
+      body: searchBody,
+    });
+
+    const buckets = response.aggregations.sentiment_over_time.buckets;
+    const overallBreakdown = response.aggregations.overall_event_breakdown.buckets;
+
+    // Process time-series data
+    const sentimentData = buckets.map((bucket) => ({
+      date: bucket.key_as_string,
+      total: bucket.doc_count,
+      sentiments: bucket.sentiments.buckets.reduce((acc, sentBucket) => {
+        acc[sentBucket.key] = sentBucket.doc_count;
+        return acc;
+      }, {}),
+      phases: bucket.event_phases.buckets.map((phaseBucket) => ({
+        phase: phaseBucket.key,
+        count: phaseBucket.doc_count,
+        sentiments: phaseBucket.phase_sentiments.buckets.reduce((acc, sentBucket) => {
+          acc[sentBucket.key] = sentBucket.doc_count;
+          return acc;
+        }, {}),
+      })),
+    }));
+
+    // Process overall event type breakdown
+    const eventTypeBreakdown = overallBreakdown.reduce((acc, bucket) => {
+      const phase = bucket.key;
+      acc[phase] = {
+        total: bucket.doc_count,
+        sentiments: bucket.sentiment_breakdown.buckets.reduce((sentAcc, sentBucket) => {
+          sentAcc[sentBucket.key] = sentBucket.doc_count;
+          return sentAcc;
+        }, {}),
+      };
+      return acc;
+    }, {});
+
+    // Separate data by event types
+    const preEventData = sentimentData.map((item) => ({
+      ...item,
+      phases: item.phases.filter((phase) => phase.phase === "pre_event"),
+    }));
+
+    const postEventData = sentimentData.map((item) => ({
+      ...item,
+      phases: item.phases.filter((phase) => phase.phase === "post_event"),
+    }));
+
+    const executionDaysData = sentimentData.map((item) => ({
+      ...item,
+      phases: item.phases.filter((phase) => 
+        ["day1", "day2", "day3", "day4", "day5"].includes(phase.phase)
+      ),
+    }));
+
+    return {
+      success: true,
+      sentiments: sentimentData,
+      preEventData,
+      postEventData,
+      executionDaysData,
+      eventTypeBreakdown,
+      totalDocuments: response.hits.total.value,
+    };
+  } catch (error) {
+    console.error("Error in getSentimentTrendDataWithEventTypes:", error);
+    throw error;
+  }
+};
+
+
+const normalizePhaseName = (phase) => {
+  if (!phase || typeof phase !== 'string') return 'null';
+  return phase.split('|')[0]; // Normalize to the first part of the phase
+};
+
+
+// Helper function to process sentiment intervals
+async function processSentimentInterval(sentimentBuckets, baseQuery, startDate, endDate, elasticClient) {
+    const sentimentsInInterval = [];
+    const timeIntervalFilter = {
+        range: {
+            p_created_time: {
+                gte: startDate,
+                lte: endDate
+            }
+        }
+    };
+
+    for (const sentimentBucket of sentimentBuckets) {
+        const sentimentName = sentimentBucket.key;
+        const sentimentCount = sentimentBucket.doc_count;
+        
+        if (sentimentCount === 0) {
+            sentimentsInInterval.push({
+                name: sentimentName,
+                count: 0,
+                posts: []
+            });
+            continue;
+        }
+        
+        const sentimentIntervalQuery = {
+            bool: {
+                must: [
+                    ...baseQuery.bool.must,
+                    timeIntervalFilter,
+                    {
+                        term: {
+                            "predicted_sentiment_value.keyword": sentimentName
+                        }
+                    }
+                ]
+            }
+        };
+        
+        const posts = await fetchPostsForQuery(sentimentIntervalQuery, elasticClient, 30);
+        
+        sentimentsInInterval.push({
+            name: sentimentName,
+            count: sentimentCount,
+            posts: posts
+        });
+    }
+    
+    return sentimentsInInterval;
+}
+
+// Helper function to process phase intervals
+async function processPhaseInterval(phaseBuckets, baseQuery, startDate, endDate, elasticClient) {
+    const phasesInInterval = [];
+    const timeIntervalFilter = {
+        range: {
+            p_created_time: {
+                gte: startDate,
+                lte: endDate
+            }
+        }
+    };
+
+    for (const phaseBucket of phaseBuckets) {
+        const phaseName = phaseBucket.key;
+        const phaseCount = phaseBucket.doc_count;
+        
+        if (phaseCount === 0) {
+            phasesInInterval.push({
+                name: phaseName,
+                count: 0,
+                posts: []
+            });
+            continue;
+        }
+        
+        const phaseIntervalQuery = {
+            bool: {
+                must: [
+                    ...baseQuery.bool.must,
+                    timeIntervalFilter,
+                    {
+                        term: {
+                            "llm_motivation.phase.keyword": phaseName
+                        }
+                    }
+                ]
+            }
+        };
+        
+        const posts = await fetchPostsForQuery(phaseIntervalQuery, elasticClient, 30);
+        
+        phasesInInterval.push({
+            name: phaseName,
+            count: phaseCount,
+            posts: posts
+        });
+    }
+    
+    return phasesInInterval;
+}
+
+// Helper function to process combined phase-sentiment intervals
+async function processPhaseSentimentInterval(phaseSentimentBuckets, baseQuery, startDate, endDate, elasticClient) {
+    const phaseSentimentInInterval = [];
+    const timeIntervalFilter = {
+        range: {
+            p_created_time: {
+                gte: startDate,
+                lte: endDate
+            }
+        }
+    };
+
+    for (const phaseBucket of phaseSentimentBuckets) {
+        const phaseName = phaseBucket.key;
+        const phaseCount = phaseBucket.doc_count;
+        const sentimentsInPhase = [];
+        
+        for (const sentimentBucket of (phaseBucket.sentiments?.buckets || [])) {
+            const sentimentName = sentimentBucket.key;
+            const sentimentCount = sentimentBucket.doc_count;
+            
+            if (sentimentCount === 0) {
+                sentimentsInPhase.push({
+                    name: sentimentName,
+                    count: 0,
+                    posts: []
+                });
+                continue;
+            }
+            
+            const combinedQuery = {
+                bool: {
+                    must: [
+                        ...baseQuery.bool.must,
+                        timeIntervalFilter,
+                        {
+                            term: {
+                                "llm_motivation.phase.keyword": phaseName
+                            }
+                        },
+                        {
+                            term: {
+                                "predicted_sentiment_value.keyword": sentimentName
+                            }
+                        }
+                    ]
+                }
+            };
+            
+            const posts = await fetchPostsForQuery(combinedQuery, elasticClient, 30);
+            
+            sentimentsInPhase.push({
+                name: sentimentName,
+                count: sentimentCount,
+                posts: posts
+            });
+        }
+        
+        phaseSentimentInInterval.push({
+            phase: phaseName,
+            count: phaseCount,
+            sentiments: sentimentsInPhase
+        });
+    }
+    
+    return phaseSentimentInInterval;
+}
+
+// Helper function to fetch posts for a given query
+async function fetchPostsForQuery(query, elasticClient, maxPosts = 30) {
+    try {
+        const postsQuery = {
+            size: maxPosts,
+            query: query,
+            sort: [{ p_created_time: { order: 'desc' } }]
+        };
+        
+        const response = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: postsQuery
+        });
+        
+        return response.hits.hits.map(hit => formatPostData(hit));
+    } catch (error) {
+        console.error('Error fetching posts:', error);
+        return [];
+    }
+}
+
 
 /**
  * Format post data for the frontend

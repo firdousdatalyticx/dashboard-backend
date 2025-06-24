@@ -288,6 +288,7 @@ const getPosts = async (
   field,
   type,
   value,
+  interval,
   res,
   source,
   llm_mention_type
@@ -378,15 +379,35 @@ const getPosts = async (
       },
     });
   } else if (field === "llm_motivation.word_cloud_phrases") {
-    query.query.bool.must.push(
-      {
-        term: {
-          "llm_motivation.word_cloud_phrases.keyword": `${value}`,
+  const phaseCondition =
+  type === 'exhibition_days'
+    ? {
+        terms: {
+          "llm_motivation.phase.keyword": ["day1", "day2", "day3", "day4", "day5"],
         },
-      },
-      {
+      }
+    : {
         term: {
           "llm_motivation.phase.keyword": `${type}`,
+        },
+      }
+
+query.query.bool.must.push(
+  {
+    term: {
+      "llm_motivation.word_cloud_phrases.keyword": `${value}`,
+    },
+  },
+  phaseCondition
+)
+
+  }
+  else if(field==="llm_motivation.phase"){
+    query.query.bool.must.push(
+
+      {
+        term: {
+          "llm_motivation.phase": `${type}`,
         },
       }
     );
@@ -1842,6 +1863,7 @@ const mentionsChartController = {
         field,
         type,
         value,
+        interval
       } = req.query;
 
       // Check if this is the special topicId
@@ -1891,6 +1913,7 @@ const mentionsChartController = {
         field,
         type,
         value,
+        interval,
         res
       );
     } catch (error) {
@@ -3375,200 +3398,440 @@ const mentionsChartController = {
       });
     }
   },
-  llmMotivationPhase: async (req, res) => {
-    try {
-      const { fromDate, toDate, subtopicId, topicId, sentiment, source } =
-        req.body;
+  // llmMotivationPhase: async (req, res) => {
+  //   try {
+  //     const { fromDate, toDate, subtopicId, topicId, sentiment, source } =
+  //       req.body;
 
-      // Check if this is the special topicId
-      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+  //     // Check if this is the special topicId
+  //     const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-      const isScadUser = false;
-      const selectedTab = "Social";
-      let topicQueryString = await buildQueryString(
-        topicId,
-        isScadUser,
-        selectedTab
-      );
+  //     const isScadUser = false;
+  //     const selectedTab = "Social";
+  //     let topicQueryString = await buildQueryString(
+  //       topicId,
+  //       isScadUser,
+  //       selectedTab
+  //     );
 
-      // Apply special topic source filtering
-      if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+  //     // Apply special topic source filtering
+  //     if (isSpecialTopic) {
+  //       topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+  //     } else {
+  //       topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
+  //     }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+  //     // Apply special topic date range
+  //     const effectiveFromDate =
+  //       isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+  //     const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
-      // Build the main query
-      const query = {
-        size: 0,
-        query: {
+  //     // Build the main query
+  //     const query = {
+  //       size: 0,
+  //       query: {
+  //         bool: {
+  //           must: [
+  //             { query_string: { query: topicQueryString } },
+  //             {
+  //               range: {
+  //                 p_created_time: {
+  //                   gte: effectiveFromDate || "now-90d",
+  //                   lte: effectiveToDate || "now",
+  //                 },
+  //               },
+  //             },
+  //           ],
+  //           must_not: [
+  //             { term: { "llm_motivation.phase.keyword": "" } },
+  //             { term: { "llm_motivation.phase.keyword": "null" } },
+  //             {
+  //               bool: {
+  //                 must_not: {
+  //                   exists: { field: "llm_motivation.phase" },
+  //                 },
+  //               },
+  //             },
+  //           ],
+  //         },
+  //       },
+  //       aggs: {
+  //         event_types: {
+  //           terms: {
+  //             field: "llm_motivation.phase.keyword",
+  //             size: 20,
+  //             missing: "Unknown",
+  //           },
+  //           aggs: {
+  //             sources: {
+  //               terms: { field: "source.keyword", size: 30 },
+  //             },
+  //             // Add word cloud phrases aggregation
+  //             word_cloud_phrases: {
+  //               terms: {
+  //                 field: "llm_motivation.word_cloud_phrases.keyword",
+  //                 size: 100, // Adjust size based on your needs
+  //                 min_doc_count: 1,
+  //               },
+  //             },
+  //           },
+  //         },
+  //       },
+  //     };
+
+  //     // Add sentiment filter if provided
+  //     if (sentiment && sentiment !== "") {
+  //       query.query.bool.must.push({
+  //         match: {
+  //           predicted_sentiment_value: sentiment.trim(),
+  //         },
+  //       });
+  //     }
+
+  //     // Add source filter if provided
+  //     if (source && source !== "") {
+  //       query.query.bool.must.push({
+  //         term: {
+  //           "source.keyword": source.trim(),
+  //         },
+  //       });
+  //     }
+
+  //     // Add subtopic filter if provided
+  //     if (subtopicId && subtopicId !== "") {
+  //       query.query.bool.must.push({
+  //         term: {
+  //           subtopic_id: parseInt(subtopicId),
+  //         },
+  //       });
+  //     }
+
+  //     // Execute query
+  //     const result = await elasticClient.search({
+  //       index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+  //       body: query,
+  //     });
+
+  //     // Transform the aggregation results
+  //     const buckets = result.aggregations.event_types.buckets;
+  //     const totalDocs = result.hits.total.value;
+
+  //     // Map to hold merged event types
+  //     const mergedMap = new Map();
+
+  //     for (const bucket of buckets) {
+  //       const parts = bucket.key
+  //         .split("|")
+  //         .map((p) => p.trim())
+  //         .filter((p) => p && p !== "null");
+
+  //       for (const part of parts) {
+  //         const baseName = part;
+
+  //         const current = mergedMap.get(baseName) || {
+  //           name: baseName,
+  //           value: 0,
+  //           sourcesMap: new Map(),
+  //           wordCloudPhrasesMap: new Map(),
+  //         };
+
+  //         current.value += bucket.doc_count;
+
+  //         // Merge sources
+  //         for (const source of bucket.sources.buckets) {
+  //           const prevCount = current.sourcesMap.get(source.key) || 0;
+  //           current.sourcesMap.set(source.key, prevCount + source.doc_count);
+  //         }
+
+  //         // Merge word cloud phrases
+  //         for (const phrase of bucket.word_cloud_phrases.buckets) {
+  //           const prevCount = current.wordCloudPhrasesMap.get(phrase.key) || 0;
+  //           current.wordCloudPhrasesMap.set(
+  //             phrase.key,
+  //             prevCount + phrase.doc_count
+  //           );
+  //         }
+
+  //         mergedMap.set(baseName, current);
+  //       }
+  //     }
+
+  //     // Convert to array and calculate percentage
+  //     let pieData = Array.from(mergedMap.values()).map((entry) => ({
+  //       name: entry.name,
+  //       value: entry.value,
+  //       percentage:
+  //         totalDocs > 0 ? ((entry.value / totalDocs) * 100).toFixed(2) : "0.00",
+  //       sources: Array.from(entry.sourcesMap.entries()).map(
+  //         ([name, count]) => ({ name, count })
+  //       ),
+  //       wordCloudPhrases: Array.from(entry.wordCloudPhrasesMap.entries())
+  //         .map(([phrase, count]) => ({ phrase, count }))
+  //         .sort((a, b) => b.count - a.count) // Sort by count descending
+  //         .slice(0, 50), // Limit to top 50 phrases per phase
+  //     }));
+
+  //     // Sort descending and take top 6
+  //     pieData = pieData.sort((a, b) => b.value - a.value).slice(0, 6);
+
+  //     return res.status(200).json({
+  //       success: true,
+  //       data: pieData,
+  //       total: totalDocs,
+  //       // results: buckets,
+  //       query: query,
+  //     });
+  //   } catch (error) {
+  //     console.error("Error fetching event type data:", error);
+  //     return res.status(500).json({
+  //       success: false,
+  //       error: "Internal server error",
+  //       details: error.message,
+  //     });
+  //   }
+  // },
+
+
+llmMotivationPhase: async (req, res) => {
+  try {
+    const { fromDate, toDate, subtopicId, topicId, sentiment, source } = req.body;
+
+    const topicIdNum = parseInt(topicId);
+    const isSpecialTopic = topicIdNum === 2600;
+    const isTopic2604 = topicIdNum === 2604;
+    const isTopic2603 = topicIdNum === 2603;
+
+    const isScadUser = false;
+    const selectedTab = "Social";
+
+    let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
+
+    const allowedSources = isSpecialTopic
+      ? `"Twitter" OR "Facebook"`
+      : `"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web"`;
+    topicQueryString += ` AND source:(${allowedSources})`;
+
+    const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+    const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+    // Handle custom phase logic
+    let phaseFilters = null;
+    if (isTopic2604) {
+      phaseFilters = [
+        {
           bool: {
             must: [
-              { query_string: { query: topicQueryString } },
-              {
-                range: {
-                  p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
-                  },
-                },
-              },
+              { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
+              { range: { p_created_time: { gte: "2024-01-01", lte: "2024-10-13" } } },
             ],
-            must_not: [
-              { term: { "llm_motivation.phase.keyword": "" } },
-              { term: { "llm_motivation.phase.keyword": "null" } },
+          },
+        },
+        {
+          bool: {
+            must: [
               {
                 bool: {
-                  must_not: {
-                    exists: { field: "llm_motivation.phase" },
-                  },
+                  should: [
+                    { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
+                    { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
+                    { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
+                    { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
+                  ],
+                  minimum_should_match: 1,
                 },
               },
+              { range: { p_created_time: { gte: "2024-10-14", lte: "2024-10-18" } } },
             ],
           },
         },
-        aggs: {
-          event_types: {
-            terms: {
-              field: "llm_motivation.phase.keyword",
-              size: 20,
-              missing: "Unknown",
-            },
-            aggs: {
-              sources: {
-                terms: { field: "source.keyword", size: 30 },
-              },
-              // Add word cloud phrases aggregation
-              word_cloud_phrases: {
-                terms: {
-                  field: "llm_motivation.word_cloud_phrases.keyword",
-                  size: 100, // Adjust size based on your needs
-                  min_doc_count: 1,
+        {
+          bool: {
+            must: [
+              { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
+              { range: { p_created_time: { gte: "2024-10-19" } } },
+            ],
+          },
+        },
+      ];
+    } else if (isTopic2603) {
+      phaseFilters = [
+        {
+          bool: {
+            must: [
+              { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
+              { range: { p_created_time: { gte: "2023-01-30", lte: "2024-03-03" } } },
+            ],
+          },
+        },
+        {
+          bool: {
+            must: [
+              {
+                bool: {
+                  should: [
+                    { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
+                    { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
+                    { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
+                    { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
+                  ],
+                  minimum_should_match: 1,
                 },
+              },
+              { range: { p_created_time: { gte: "2024-03-04", lte: "2024-03-07" } } },
+            ],
+          },
+        },
+        {
+          bool: {
+            must: [
+              { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
+              { range: { p_created_time: { gte: "2024-03-08" } } },
+            ],
+          },
+        },
+      ];
+    }
+
+    // Main Elasticsearch query
+    const query = {
+      size: 0,
+      query: {
+        bool: {
+          must: [
+            { query_string: { query: topicQueryString } },
+            ...(phaseFilters
+              ? [{ bool: { should: phaseFilters, minimum_should_match: 1 } }]
+              : [
+                  {
+                    range: {
+                      p_created_time: {
+                        gte: effectiveFromDate || "now-90d",
+                        lte: effectiveToDate || "now",
+                      },
+                    },
+                  },
+                ]),
+          ],
+          must_not: [
+            { term: { "llm_motivation.phase.keyword": "" } },
+            { term: { "llm_motivation.phase.keyword": "null" } },
+            {
+              bool: {
+                must_not: { exists: { field: "llm_motivation.phase" } },
+              },
+            },
+          ],
+        },
+      },
+      aggs: {
+        event_types: {
+          terms: {
+            field: "llm_motivation.phase.keyword",
+            size: 20,
+            missing: "Unknown",
+          },
+          aggs: {
+            sources: {
+              terms: { field: "source.keyword", size: 30 },
+            },
+            word_cloud_phrases: {
+              terms: {
+                field: "llm_motivation.word_cloud_phrases.keyword",
+                size: 100,
+                min_doc_count: 1,
               },
             },
           },
         },
-      };
+      },
+    };
 
-      // Add sentiment filter if provided
-      if (sentiment && sentiment !== "") {
-        query.query.bool.must.push({
-          match: {
-            predicted_sentiment_value: sentiment.trim(),
-          },
-        });
-      }
-
-      // Add source filter if provided
-      if (source && source !== "") {
-        query.query.bool.must.push({
-          term: {
-            "source.keyword": source.trim(),
-          },
-        });
-      }
-
-      // Add subtopic filter if provided
-      if (subtopicId && subtopicId !== "") {
-        query.query.bool.must.push({
-          term: {
-            subtopic_id: parseInt(subtopicId),
-          },
-        });
-      }
-
-      // Execute query
-      const result = await elasticClient.search({
-        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        body: query,
-      });
-
-      // Transform the aggregation results
-      const buckets = result.aggregations.event_types.buckets;
-      const totalDocs = result.hits.total.value;
-
-      // Map to hold merged event types
-      const mergedMap = new Map();
-
-      for (const bucket of buckets) {
-        const parts = bucket.key
-          .split("|")
-          .map((p) => p.trim())
-          .filter((p) => p && p !== "null");
-
-        for (const part of parts) {
-          const baseName = part;
-
-          const current = mergedMap.get(baseName) || {
-            name: baseName,
-            value: 0,
-            sourcesMap: new Map(),
-            wordCloudPhrasesMap: new Map(),
-          };
-
-          current.value += bucket.doc_count;
-
-          // Merge sources
-          for (const source of bucket.sources.buckets) {
-            const prevCount = current.sourcesMap.get(source.key) || 0;
-            current.sourcesMap.set(source.key, prevCount + source.doc_count);
-          }
-
-          // Merge word cloud phrases
-          for (const phrase of bucket.word_cloud_phrases.buckets) {
-            const prevCount = current.wordCloudPhrasesMap.get(phrase.key) || 0;
-            current.wordCloudPhrasesMap.set(
-              phrase.key,
-              prevCount + phrase.doc_count
-            );
-          }
-
-          mergedMap.set(baseName, current);
-        }
-      }
-
-      // Convert to array and calculate percentage
-      let pieData = Array.from(mergedMap.values()).map((entry) => ({
-        name: entry.name,
-        value: entry.value,
-        percentage:
-          totalDocs > 0 ? ((entry.value / totalDocs) * 100).toFixed(2) : "0.00",
-        sources: Array.from(entry.sourcesMap.entries()).map(
-          ([name, count]) => ({ name, count })
-        ),
-        wordCloudPhrases: Array.from(entry.wordCloudPhrasesMap.entries())
-          .map(([phrase, count]) => ({ phrase, count }))
-          .sort((a, b) => b.count - a.count) // Sort by count descending
-          .slice(0, 50), // Limit to top 50 phrases per phase
-      }));
-
-      // Sort descending and take top 6
-      pieData = pieData.sort((a, b) => b.value - a.value).slice(0, 6);
-
-      return res.status(200).json({
-        success: true,
-        data: pieData,
-        total: totalDocs,
-        // results: buckets,
-        query: query,
-      });
-    } catch (error) {
-      console.error("Error fetching event type data:", error);
-      return res.status(500).json({
-        success: false,
-        error: "Internal server error",
-        details: error.message,
-      });
+    if (sentiment?.trim()) {
+      query.query.bool.must.push({ match: { predicted_sentiment_value: sentiment.trim() } });
     }
-  },
 
+    if (source?.trim()) {
+      query.query.bool.must.push({ term: { "source.keyword": source.trim() } });
+    }
 
+    if (subtopicId?.trim()) {
+      query.query.bool.must.push({ term: { subtopic_id: parseInt(subtopicId) } });
+    }
+
+    // Execute the query
+    const result = await elasticClient.search({
+      index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+      body: query,
+    });
+
+    const buckets = result.aggregations.event_types.buckets;
+    const totalDocs = result.hits.total.value;
+    const mergedMap = new Map();
+
+    for (const bucket of buckets) {
+      const parts = bucket.key
+        .split("|")
+        .map((p) => p.trim())
+        .filter((p) => p && p !== "null");
+
+      for (const part of parts) {
+        // Normalize to "exhibition_days"
+        const normalized = ["day1", "day2", "day3", "day4"].includes(part)
+          ? "exhibition_days"
+          : part;
+
+        const current = mergedMap.get(normalized) || {
+          name: normalized,
+          value: 0,
+          sourcesMap: new Map(),
+          wordCloudPhrasesMap: new Map(),
+        };
+
+        current.value += bucket.doc_count;
+
+        for (const source of bucket.sources.buckets) {
+          const prev = current.sourcesMap.get(source.key) || 0;
+          current.sourcesMap.set(source.key, prev + source.doc_count);
+        }
+
+        for (const phrase of bucket.word_cloud_phrases.buckets) {
+          const prev = current.wordCloudPhrasesMap.get(phrase.key) || 0;
+          current.wordCloudPhrasesMap.set(phrase.key, prev + phrase.doc_count);
+        }
+
+        mergedMap.set(normalized, current);
+      }
+    }
+
+    let pieData = Array.from(mergedMap.values()).map((entry) => ({
+      name: entry.name,
+      value: entry.value,
+      percentage: totalDocs > 0 ? ((entry.value / totalDocs) * 100).toFixed(2) : "0.00",
+      sources: Array.from(entry.sourcesMap.entries()).map(([name, count]) => ({ name, count })),
+      wordCloudPhrases: Array.from(entry.wordCloudPhrasesMap.entries())
+        .map(([phrase, count]) => ({ phrase, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 50),
+    }));
+
+    pieData = pieData.sort((a, b) => b.value - a.value).slice(0, 6);
+
+    return res.status(200).json({
+      success: true,
+      data: pieData,
+      total: totalDocs,
+      query,
+    });
+  } catch (error) {
+    console.error("Error fetching event type data:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      details: error.message,
+    });
+  }
+}
+,
 
 llmMotivationSentimentTrend: async (req, res) => {
   try {
@@ -3719,6 +3982,7 @@ llmMotivationSentimentTrend: async (req, res) => {
     });
   }
 },
+
   trustDimensionsEducationSystem: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =

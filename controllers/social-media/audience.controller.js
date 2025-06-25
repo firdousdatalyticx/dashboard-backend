@@ -24,7 +24,7 @@ const audienceController = {
             }
 
             const topicQueryString = buildTopicQueryString(categoryData);
-            const sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Pinterest" OR "Web" OR "Reddit")`;
+            const sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
             
             // Process filters for time range
             const filters = processFilters({

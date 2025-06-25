@@ -247,7 +247,7 @@ const getActionRequired = async (
     "youtubeContent",
     "pinterestContent",
     "redditContent",
-    "linkedinContent",
+    "linkedInContent",
     "webContent",
   ];
 
@@ -268,6 +268,12 @@ const getActionRequired = async (
         ["fakenews", "news", "blogs", "web"].includes(source.key.toLowerCase())
       ) {
         keyName = "webContent";
+      }
+
+      if (
+        ["Linkedin", "LinkedIn"].includes(source.key.toLowerCase())
+      ) {
+        keyName = "linkedInContent";
       }
 
       // ✅ Assign actual count from Elasticsearch, if available
@@ -800,7 +806,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
       // Apply special topic date range
@@ -845,7 +851,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
       // Apply special topic date range
@@ -932,6 +938,12 @@ const mentionsChartController = {
             keyName = "webContent";
           }
 
+           if (
+        ["Linkedin", "LinkedIn"].includes(source.key.toLowerCase())
+      ) {
+        keyName = "linkedinContent";
+      }
+
           // ✅ Assign actual count from Elasticsearch
           mentionData[keyName] = source.doc_count;
         });
@@ -974,7 +986,7 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         if (sources == "All") {
-          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
         } else {
           topicQueryString = `${topicQueryString} AND source:(${sources})`;
         }
@@ -1066,7 +1078,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
       // Apply special topic date range
@@ -1149,7 +1161,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
       // Apply special topic date range
@@ -1233,7 +1245,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
       // Apply special topic date range
@@ -1320,7 +1332,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
       // Apply special topic date range
@@ -1432,7 +1444,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "LinkedIn" OR "Web")`;
       }
 
       // Apply special topic date range
@@ -1551,7 +1563,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
       // Apply special topic date range
@@ -1677,7 +1689,7 @@ const mentionsChartController = {
       if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
       // Apply special topic date range

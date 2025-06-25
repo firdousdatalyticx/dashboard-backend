@@ -4320,13 +4320,31 @@ llmMotivationSentimentTrend: async (req, res) => {
       ];
     }
 
+    // Build base query filters that will be reused
+    const baseFilters = [
+      { query_string: { query: topicQueryString } },
+      ...(sentiment?.trim() ? [{ match: { predicted_sentiment_value: sentiment.trim() } }] : []),
+      ...(source?.trim() ? [{ term: { "source.keyword": source.trim() } }] : []),
+      ...(subtopicId?.trim() ? [{ term: { subtopic_id: parseInt(subtopicId) } }] : [])
+    ];
+
+    const baseMustNot = [
+      { term: { "llm_motivation.phase.keyword": "" } },
+      { term: { "llm_motivation.phase.keyword": "null" } },
+      {
+        bool: {
+          must_not: { exists: { field: "llm_motivation.phase" } },
+        },
+      },
+    ];
+
     // Main Elasticsearch query for aggregations only (no posts)
     const query = {
       size: 0,
       query: {
         bool: {
           must: [
-            { query_string: { query: topicQueryString } },
+            ...baseFilters,
             ...(phaseFilters
               ? [{ bool: { should: phaseFilters, minimum_should_match: 1 } }]
               : [
@@ -4340,15 +4358,7 @@ llmMotivationSentimentTrend: async (req, res) => {
                   },
                 ]),
           ],
-          must_not: [
-            { term: { "llm_motivation.phase.keyword": "" } },
-            { term: { "llm_motivation.phase.keyword": "null" } },
-            {
-              bool: {
-                must_not: { exists: { field: "llm_motivation.phase" } },
-              },
-            },
-          ],
+          must_not: baseMustNot,
         },
       },
       aggs: {
@@ -4470,19 +4480,6 @@ llmMotivationSentimentTrend: async (req, res) => {
         }
       },
     };
-
-    // Apply additional filters
-    if (sentiment?.trim()) {
-      query.query.bool.must.push({ match: { predicted_sentiment_value: sentiment.trim() } });
-    }
-
-    if (source?.trim()) {
-      query.query.bool.must.push({ term: { "source.keyword": source.trim() } });
-    }
-
-    if (subtopicId?.trim()) {
-      query.query.bool.must.push({ term: { subtopic_id: parseInt(subtopicId) } });
-    }
 
     // Helper function to format post data (similar to your getSentimentsAnalysis)
 const formatPostData = (hit) => {
@@ -4609,22 +4606,12 @@ const formatPostData = (hit) => {
           query: {
             bool: {
               must: [
-                { query_string: { query: topicQueryString } },
+                ...baseFilters, // Use the same base filters as aggregation
                 { range: { p_created_time: dateRange } },
                 { term: { "predicted_sentiment_value.keyword": sentimentName } },
-                ...(phaseFilter ? [phaseFilter] : []),
-                ...(source?.trim() ? [{ term: { "source.keyword": source.trim() } }] : []),
-                ...(subtopicId?.trim() ? [{ term: { subtopic_id: parseInt(subtopicId) } }] : [])
+                ...(phaseFilter ? [phaseFilter] : [])
               ],
-              must_not: [
-                { term: { "llm_motivation.phase.keyword": "" } },
-                { term: { "llm_motivation.phase.keyword": "null" } },
-                {
-                  bool: {
-                    must_not: { exists: { field: "llm_motivation.phase" } },
-                  },
-                },
-              ]
+              must_not: baseMustNot // Use the same must_not conditions
             }
           },
           sort: [{ p_created_time: { order: 'desc' } }]
@@ -4650,7 +4637,6 @@ const formatPostData = (hit) => {
 
     const totalDocs = result.hits.total.value;
     const phaseBuckets = result.aggregations.phase_breakdown.buckets;
-  //  const posts = result.hits.hits.map(hit => formatPostData(hit));
                         
     // Process the results
     const processedData = {
@@ -4691,16 +4677,27 @@ const formatPostData = (hit) => {
               const sentimentName = sentimentBucket.key;
               const sentimentCount = sentimentBucket.doc_count;
 
-              // Calculate date range for this month
+              // Calculate date range for this month - ensure it matches the aggregation exactly
               const [year, month] = bucket.key_as_string.split('-');
-              const startDate = `${year}-${month}-01`;
+              const startDate = `${year}-${month.padStart(2, '0')}-01`;
               const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-              const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+              const endDate = `${year}-${month.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+              // Use the same date range constraints as aggregation if they exist
+              let finalDateRange;
+              if (preEventDateRange) {
+                finalDateRange = {
+                  gte: startDate > preEventDateRange.gte ? startDate : preEventDateRange.gte,
+                  lte: endDate < preEventDateRange.lte ? endDate : preEventDateRange.lte
+                };
+              } else {
+                finalDateRange = { gte: startDate, lte: endDate };
+              }
 
               // Fetch posts for this sentiment
               const posts = await fetchPostsForSentiment(
                 sentimentName,
-                { gte: startDate, lte: endDate },
+                finalDateRange,
                 { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } }
               );
 
@@ -4741,10 +4738,22 @@ const formatPostData = (hit) => {
                 const sentimentName = sentimentBucket.key;
                 const sentimentCount = sentimentBucket.doc_count;
 
+                // Use exact date range for daily data with exhibition constraints
+                let finalDateRange;
+                if (exhibitionDateRange) {
+                  const currentDate = bucket.key_as_string;
+                  finalDateRange = {
+                    gte: currentDate >= exhibitionDateRange.gte ? currentDate : exhibitionDateRange.gte,
+                    lte: currentDate <= exhibitionDateRange.lte ? currentDate : exhibitionDateRange.lte
+                  };
+                } else {
+                  finalDateRange = { gte: bucket.key_as_string, lte: bucket.key_as_string };
+                }
+
                 // Fetch posts for this sentiment and day
                 const posts = await fetchPostsForSentiment(
                   sentimentName,
-                  { gte: bucket.key_as_string, lte: bucket.key_as_string },
+                  finalDateRange,
                   { match_phrase: { "llm_motivation.phase.keyword": dayPhase } }
                 );
 
@@ -4779,16 +4788,27 @@ const formatPostData = (hit) => {
               const sentimentName = sentimentBucket.key;
               const sentimentCount = sentimentBucket.doc_count;
 
-              // Calculate date range for this month
+              // Calculate date range for this month - ensure it matches the aggregation exactly
               const [year, month] = bucket.key_as_string.split('-');
-              const startDate = `${year}-${month}-01`;
+              const startDate = `${year}-${month.padStart(2, '0')}-01`;
               const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-              const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+              const endDate = `${year}-${month.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+              // Use the same date range constraints as aggregation if they exist
+              let finalDateRange;
+              if (postEventDateRange) {
+                finalDateRange = {
+                  gte: startDate > postEventDateRange.gte ? startDate : postEventDateRange.gte,
+                  lte: postEventDateRange.lte ? (endDate < postEventDateRange.lte ? endDate : postEventDateRange.lte) : endDate
+                };
+              } else {
+                finalDateRange = { gte: startDate, lte: endDate };
+              }
 
               // Fetch posts for this sentiment
               const posts = await fetchPostsForSentiment(
                 sentimentName,
-                { gte: startDate, lte: endDate },
+                finalDateRange,
                 { match_phrase: { "llm_motivation.phase.keyword": "post_event" } }
               );
 

@@ -20,12 +20,15 @@ const buildWordCloudParams = (options) => {
       gte: fromDate != null ? fromDate : "now-90d",
       lte: toDate != null ? toDate : "now",
     },
-    llm_mention_type
+    llm_mention_type,
+    topicId
   } = options;
 
 
 
   const [sortField, sortOrder] = sort.split(":");
+
+  const sourceData =   source != "All" ? source : topicId && parseInt(topicId)===2619?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
 
   // Base query structure
   const baseQuery = {
@@ -34,10 +37,7 @@ const buildWordCloudParams = (options) => {
         {
           query_string: {
             query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
-              source != "All"
-                ? source
-                : '"Twitter" OR "Facebook" OR "Instagram"'
-            })`,
+              sourceData})`,
           },
         },
         {
@@ -119,7 +119,8 @@ const buildPostsByPhraseParams = (options) => {
       gte: fromDate != null ? fromDate : "now-90d",
       lte: toDate != null ? toDate : "now",
     },
-    llm_mention_type
+    llm_mention_type,
+    topicId
   } = options;
 
   const [sortField, sortOrder] = sort.split(":");
@@ -129,6 +130,8 @@ const buildPostsByPhraseParams = (options) => {
       ? "llm_positive_points.keyword"
       : "llm_negative_points.keyword";
 
+    const sourceData =   source != "All" ? source : topicId && parseInt(topicId)===2619?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
+
   // Base query structure
   const baseQuery = {
     bool: {
@@ -136,9 +139,7 @@ const buildPostsByPhraseParams = (options) => {
         {
           query_string: {
             query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
-              source != "All"
-                ? source
-                : '"Twitter" OR "Facebook" OR "Instagram"'
+              sourceData
             })`,
           },
         },
@@ -194,7 +195,7 @@ const wordCloudController = {
    */
   getWordPhrases: async (req, res) => {
     try {
-      const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type } = req.body;
+      const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type,topicId } = req.body;
       const categoryData = req.processedCategories || {};
 
 
@@ -248,7 +249,8 @@ const wordCloudController = {
         fromDate,
         toDate,
         source,
-        llm_mention_type
+        llm_mention_type,
+        topicId
       });
 
 
@@ -281,6 +283,7 @@ const wordCloudController = {
           value: term.doc_count,
         })),
         total: posts.length,
+        query:params
         
       });
     } catch (error) {
@@ -310,7 +313,8 @@ const wordCloudController = {
         page = 1,
         size = 100,
         sort = "p_created_time:desc",
-        llm_mention_type
+        llm_mention_type,
+        topicId
       } = req.body;
 
       const categoryData = req.processedCategories || {};
@@ -375,7 +379,8 @@ const wordCloudController = {
         fromDate,
         toDate,
         source,
-        llm_mention_type
+        llm_mention_type,
+        topicId
       });
 
       const response = await elasticClient.search({
@@ -404,6 +409,7 @@ const wordCloudController = {
         total: response.hits.total.value,
         page,
         size,
+        params
       });
     } catch (error) {
       console.error("Error fetching posts by phrase:", error);

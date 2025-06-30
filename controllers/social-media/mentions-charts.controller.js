@@ -270,9 +270,7 @@ const getActionRequired = async (
         keyName = "webContent";
       }
 
-      if (
-        ["Linkedin", "LinkedIn"].includes(source.key.toLowerCase())
-      ) {
+      if (["Linkedin", "LinkedIn"].includes(source.key.toLowerCase())) {
         keyName = "linkedInContent";
       }
 
@@ -283,7 +281,7 @@ const getActionRequired = async (
     responseOutput[action.key] = actionData;
   });
 
-  return { responseOutput };
+  return { query,responseOutput };
 };
 
 const getPosts = async (
@@ -385,38 +383,39 @@ const getPosts = async (
       },
     });
   } else if (field === "llm_motivation.word_cloud_phrases") {
-  const phaseCondition =
-  type === 'exhibition_days'
-    ? {
-        terms: {
-          "llm_motivation.phase.keyword": ["day1", "day2", "day3", "day4", "day5"],
-        },
-      }
-    : {
-        term: {
-          "llm_motivation.phase.keyword": `${type}`,
-        },
-      }
+    const phaseCondition =
+      type === "exhibition_days"
+        ? {
+            terms: {
+              "llm_motivation.phase.keyword": [
+                "day1",
+                "day2",
+                "day3",
+                "day4",
+                "day5",
+              ],
+            },
+          }
+        : {
+            term: {
+              "llm_motivation.phase.keyword": `${type}`,
+            },
+          };
 
-query.query.bool.must.push(
-  {
-    term: {
-      "llm_motivation.word_cloud_phrases.keyword": `${value}`,
-    },
-  },
-  phaseCondition
-)
-
-  }
-  else if(field==="llm_motivation.phase"){
     query.query.bool.must.push(
-
       {
         term: {
-          "llm_motivation.phase": `${type}`,
+          "llm_motivation.word_cloud_phrases.keyword": `${value}`,
         },
-      }
+      },
+      phaseCondition
     );
+  } else if (field === "llm_motivation.phase") {
+    query.query.bool.must.push({
+      term: {
+        "llm_motivation.phase": `${type}`,
+      },
+    });
   } else {
     query.query.bool.must.push({
       term: { [`${field}.keyword`]: type },
@@ -626,7 +625,8 @@ query.query.bool.must.push(
       businessResponse: esData._source.business_response,
       uSource: esData._source.u_source,
       googleName: esData._source.name,
-      created_at: new Date(esData._source.p_created_time).toLocaleString(),
+      created_at: new Date(esData._source.p_created_time).toLocaleString(), 
+      p_comments_data:esData._source.p_comments_data,
     };
 
     responseArray.push(cardData);
@@ -802,8 +802,11 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
+      if (topicId && parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -847,8 +850,11 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
+      if (topicId && parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -938,11 +944,9 @@ const mentionsChartController = {
             keyName = "webContent";
           }
 
-           if (
-        ["Linkedin", "LinkedIn"].includes(source.key.toLowerCase())
-      ) {
-        keyName = "linkedinContent";
-      }
+          if (["Linkedin", "LinkedIn"].includes(source.key.toLowerCase())) {
+            keyName = "linkedinContent";
+          }
 
           // ✅ Assign actual count from Elasticsearch
           mentionData[keyName] = source.doc_count;
@@ -980,9 +984,12 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         if (sources == "All") {
@@ -1073,9 +1080,12 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -1157,8 +1167,10 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      // Apply special topic source filtering
-      if (isSpecialTopic) {
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      } else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -1241,8 +1253,12 @@ const mentionsChartController = {
         selectedTab
       );
 
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -1327,9 +1343,12 @@ const mentionsChartController = {
           query: {},
         });
       }
-
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -1439,9 +1458,10 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-
-      // Apply special topic source filtering
-      if (isSpecialTopic) {
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      } else if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "LinkedIn" OR "Web")`;
@@ -1558,9 +1578,12 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -1684,9 +1707,10 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-
-      // Apply special topic source filtering
-      if (isSpecialTopic) {
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      } else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -1875,7 +1899,7 @@ const mentionsChartController = {
         field,
         type,
         value,
-        interval
+        interval,
       } = req.query;
 
       // Check if this is the special topicId
@@ -1889,8 +1913,13 @@ const mentionsChartController = {
         selectedTab
       );
 
+      if (topicId && parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+
+      // Apply special topic source filtering
+      else if (isSpecialTopic) {
         if (source != "All") {
           // Only allow Facebook or Twitter for special topic
           if (source === "Facebook" || source === "Twitter") {
@@ -1906,7 +1935,7 @@ const mentionsChartController = {
         if (source != "All") {
           topicQueryString = `${topicQueryString} AND source:("${source}")`;
         } else {
-          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
         }
       }
 
@@ -1936,7 +1965,7 @@ const mentionsChartController = {
   typeofMentionsTo10: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
-
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1949,8 +1978,12 @@ const mentionsChartController = {
         return res.status(200).json({ responseOutput: {} });
       }
 
-      // Expanded list of sources (now fully dynamic)
-      topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram")`;
+      if (topicId && parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+      } else {
+        // Expanded list of sources (now fully dynamic)
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
+      }
 
       // **Single Aggregation Query**
       const query = {
@@ -3603,1146 +3636,1286 @@ const mentionsChartController = {
   //   }
   // },
 
-
-llmMotivationPhase: async (req, res) => {
-  try {
-    const { fromDate, toDate, subtopicId, topicId, sentiment, source } = req.body;
-
-    const topicIdNum = parseInt(topicId);
-    const isSpecialTopic = topicIdNum === 2600;
-    const isTopic2604 = topicIdNum === 2604|| topicIdNum===2602;
-    const isTopic2603 = topicIdNum === 2603 ||topicIdNum===2601;
-
-    const isScadUser = false;
-    const selectedTab = "Social";
-
-    let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
-
-    const allowedSources = isSpecialTopic
-      ? `"Twitter" OR "Facebook"`
-      : `"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web"`;
-    topicQueryString += ` AND source:(${allowedSources})`;
-
-    const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-    const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
-
-    // Handle custom phase logic
-    let phaseFilters = null;
-    if (isTopic2604) {
-      phaseFilters = [
-        {
-          bool: {
-            must: [
-              { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
-              { range: { p_created_time: { gte: "2024-01-01", lte: "2024-10-13" } } },
-            ],
-          },
-        },
-        {
-          bool: {
-            must: [
-              {
-                bool: {
-                  should: [
-                    { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
-                  ],
-                  minimum_should_match: 1,
-                },
-              },
-              { range: { p_created_time: { gte: "2024-10-14", lte: "2024-10-18" } } },
-            ],
-          },
-        },
-        {
-          bool: {
-            must: [
-              { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
-              { range: { p_created_time: { gte: "2024-10-19" } } },
-            ],
-          },
-        },
-      ];
-    } else if (isTopic2603) {
-      phaseFilters = [
-        {
-          bool: {
-            must: [
-              { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
-              { range: { p_created_time: { gte: "2023-01-30", lte: "2024-03-03" } } },
-            ],
-          },
-        },
-        {
-          bool: {
-            must: [
-              {
-                bool: {
-                  should: [
-                    { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
-                  ],
-                  minimum_should_match: 1,
-                },
-              },
-              { range: { p_created_time: { gte: "2024-03-04", lte: "2024-03-07" } } },
-            ],
-          },
-        },
-        {
-          bool: {
-            must: [
-              { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
-              { range: { p_created_time: { gte: "2024-03-08" } } },
-            ],
-          },
-        },
-      ];
-    }
-
-    // Main Elasticsearch query
-    const query = {
-      size: 0,
-      query: {
-        bool: {
-          must: [
-            { query_string: { query: topicQueryString } },
-            ...(phaseFilters
-              ? [{ bool: { should: phaseFilters, minimum_should_match: 1 } }]
-              : [
-                  {
-                    range: {
-                      p_created_time: {
-                        gte: effectiveFromDate || "now-90d",
-                        lte: effectiveToDate || "now",
-                      },
-                    },
-                  },
-                ]),
-          ],
-          must_not: [
-            { term: { "llm_motivation.phase.keyword": "" } },
-            { term: { "llm_motivation.phase.keyword": "null" } },
-            {
-              bool: {
-                must_not: { exists: { field: "llm_motivation.phase" } },
-              },
-            },
-          ],
-        },
-      },
-      aggs: {
-        event_types: {
-          terms: {
-            field: "llm_motivation.phase.keyword",
-            size: 20,
-            missing: "Unknown",
-          },
-          aggs: {
-            sources: {
-              terms: { field: "source.keyword", size: 30 },
-            },
-            word_cloud_phrases: {
-              terms: {
-                field: "llm_motivation.word_cloud_phrases.keyword",
-                size: 100,
-                min_doc_count: 1,
-              },
-            },
-          },
-        },
-      },
-    };
-
-    if (sentiment?.trim()) {
-      query.query.bool.must.push({ match: { predicted_sentiment_value: sentiment.trim() } });
-    }
-
-    if (source?.trim()) {
-      query.query.bool.must.push({ term: { "source.keyword": source.trim() } });
-    }
-
-    if (subtopicId?.trim()) {
-      query.query.bool.must.push({ term: { subtopic_id: parseInt(subtopicId) } });
-    }
-
-    // Execute the query
-    const result = await elasticClient.search({
-      index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-      body: query,
-    });
-
-    const buckets = result.aggregations.event_types.buckets;
-    const totalDocs = result.hits.total.value;
-    const mergedMap = new Map();
-
-    for (const bucket of buckets) {
-      const parts = bucket.key
-        .split("|")
-        .map((p) => p.trim())
-        .filter((p) => p && p !== "null");
-
-      for (const part of parts) {
-        // Normalize to "exhibition_days"
-        const normalized = ["day1", "day2", "day3", "day4"].includes(part)
-          ? "exhibition_days"
-          : part;
-
-        const current = mergedMap.get(normalized) || {
-          name: normalized,
-          value: 0,
-          sourcesMap: new Map(),
-          wordCloudPhrasesMap: new Map(),
-        };
-
-        current.value += bucket.doc_count;
-
-        for (const source of bucket.sources.buckets) {
-          const prev = current.sourcesMap.get(source.key) || 0;
-          current.sourcesMap.set(source.key, prev + source.doc_count);
-        }
-
-        for (const phrase of bucket.word_cloud_phrases.buckets) {
-          const prev = current.wordCloudPhrasesMap.get(phrase.key) || 0;
-          current.wordCloudPhrasesMap.set(phrase.key, prev + phrase.doc_count);
-        }
-
-        mergedMap.set(normalized, current);
-      }
-    }
-
-    let pieData = Array.from(mergedMap.values()).map((entry) => ({
-      name: entry.name,
-      value: entry.value,
-      percentage: totalDocs > 0 ? ((entry.value / totalDocs) * 100).toFixed(2) : "0.00",
-      sources: Array.from(entry.sourcesMap.entries()).map(([name, count]) => ({ name, count })),
-      wordCloudPhrases: Array.from(entry.wordCloudPhrasesMap.entries())
-        .map(([phrase, count]) => ({ phrase, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 50),
-    }));
-
-    pieData = pieData.sort((a, b) => b.value - a.value).slice(0, 6);
-
-    return res.status(200).json({
-      success: true,
-      data: pieData,
-      total: totalDocs,
-      query,
-    });
-  } catch (error) {
-    console.error("Error fetching event type data:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      details: error.message,
-    });
-  }
-}
-,
-// llmMotivationSentimentTrend: async (req, res) => {
-//   try {
-//     const { fromDate, toDate, subtopicId, topicId, sentiment, source } = req.body;
-
-//     const topicIdNum = parseInt(topicId);
-//     const isSpecialTopic = topicIdNum === 2600;
-//     const isTopic2604 = topicIdNum === 2604;
-//     const isTopic2603 = topicIdNum === 2603;
-
-//     const isScadUser = false;
-//     const selectedTab = "Social";
-
-//     let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
-
-//     const allowedSources = isSpecialTopic
-//       ? `"Twitter" OR "Facebook"`
-//       : `"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web"`;
-//     topicQueryString += ` AND source:(${allowedSources})`;
-
-//     const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-//     const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
-
-//     // Handle custom phase logic with date ranges
-//     let phaseFilters = null;
-//     let preEventDateRange = null;
-//     let exhibitionDateRange = null;
-//     let postEventDateRange = null;
-
-//     if (isTopic2604) {
-//       preEventDateRange = { gte: "2024-01-01", lte: "2024-10-13" };
-//       exhibitionDateRange = { gte: "2024-10-14", lte: "2024-10-18" };
-//       postEventDateRange = { gte: "2024-10-19" };
-      
-//       phaseFilters = [
-//         {
-//           bool: {
-//             must: [
-//               { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
-//               { range: { p_created_time: preEventDateRange } },
-//             ],
-//           },
-//         },
-//         {
-//           bool: {
-//             must: [
-//               {
-//                 bool: {
-//                   should: [
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
-//                   ],
-//                   minimum_should_match: 1,
-//                 },
-//               },
-//               { range: { p_created_time: exhibitionDateRange } },
-//             ],
-//           },
-//         },
-//         {
-//           bool: {
-//             must: [
-//               { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
-//               { range: { p_created_time: postEventDateRange } },
-//             ],
-//           },
-//         },
-//       ];
-//     } else if (isTopic2603) {
-//       preEventDateRange = { gte: "2023-01-30", lte: "2024-03-03" };
-//       exhibitionDateRange = { gte: "2024-03-04", lte: "2024-03-07" };
-//       postEventDateRange = { gte: "2024-03-08" };
-      
-//       phaseFilters = [
-//         {
-//           bool: {
-//             must: [
-//               { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
-//               { range: { p_created_time: preEventDateRange } },
-//             ],
-//           },
-//         },
-//         {
-//           bool: {
-//             must: [
-//               {
-//                 bool: {
-//                   should: [
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
-//                   ],
-//                   minimum_should_match: 1,
-//                 },
-//               },
-//               { range: { p_created_time: exhibitionDateRange } },
-//             ],
-//           },
-//         },
-//         {
-//           bool: {
-//             must: [
-//               { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
-//               { range: { p_created_time: postEventDateRange } },
-//             ],
-//           },
-//         },
-//       ];
-//     }
-
-//     // Main Elasticsearch query with phase-specific time interval aggregations
-//     const query = {
-//       size: 0,
-//       query: {
-//         bool: {
-//           must: [
-//             { query_string: { query: topicQueryString } },
-//             ...(phaseFilters
-//               ? [{ bool: { should: phaseFilters, minimum_should_match: 1 } }]
-//               : [
-//                   {
-//                     range: {
-//                       p_created_time: {
-//                         gte: effectiveFromDate || "now-90d",
-//                         lte: effectiveToDate || "now",
-//                       },
-//                     },
-//                   },
-//                 ]),
-//           ],
-//           must_not: [
-//             { term: { "llm_motivation.phase.keyword": "" } },
-//             { term: { "llm_motivation.phase.keyword": "null" } },
-//             {
-//               bool: {
-//                 must_not: { exists: { field: "llm_motivation.phase" } },
-//               },
-//             },
-//           ],
-//         },
-//       },
-//       aggs: {
-//         phase_breakdown: {
-//           terms: {
-//             field: "llm_motivation.phase.keyword",
-//             size: 20,
-//             missing: "Unknown",
-//           },
-//           aggs: {
-//             // Pre-event monthly aggregation
-//             pre_event_monthly: {
-//               filter: {
-//                 bool: {
-//                   must: [
-//                     { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
-//                     ...(preEventDateRange ? [{ range: { p_created_time: preEventDateRange } }] : [])
-//                   ]
-//                 }
-//               },
-//               aggs: {
-//                 time_intervals: {
-//                   date_histogram: {
-//                     field: 'p_created_time',
-//                     calendar_interval: '1M',
-//                     format: 'yyyy-MM',
-//                     min_doc_count: 0
-//                   },
-//                   aggs: {
-//                     sentiments: {
-//                       terms: {
-//                         field: 'predicted_sentiment_value.keyword',
-//                         size: 100,
-//                         exclude: ''
-//                       }
-//                     }
-//                   }
-//                 }
-//               }
-//             },
-//             // Exhibition days daily aggregation
-//             exhibition_daily: {
-//               filter: {
-//                 bool: {
-//                   should: [
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
-//                     { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
-//                   ],
-//                   minimum_should_match: 1
-//                 }
-//               },
-//               aggs: {
-//                 by_day: {
-//                   terms: {
-//                     field: "llm_motivation.phase.keyword",
-//                     size: 10,
-//                     include: "day[1-5]"
-//                   },
-//                   aggs: {
-//                     time_intervals: {
-//                       date_histogram: {
-//                         field: 'p_created_time',
-//                         calendar_interval: '1d',
-//                         format: 'yyyy-MM-dd',
-//                         min_doc_count: 0
-//                       },
-//                       aggs: {
-//                         sentiments: {
-//                           terms: {
-//                             field: 'predicted_sentiment_value.keyword',
-//                             size: 100,
-//                             exclude: ''
-//                           }
-//                         }
-//                       }
-//                     }
-//                   }
-//                 }
-//               }
-//             },
-//             // Post-event monthly aggregation
-//             post_event_monthly: {
-//               filter: {
-//                 bool: {
-//                   must: [
-//                     { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
-//                     ...(postEventDateRange ? [{ range: { p_created_time: postEventDateRange } }] : [])
-//                   ]
-//                 }
-//               },
-//               aggs: {
-//                 time_intervals: {
-//                   date_histogram: {
-//                     field: 'p_created_time',
-//                     calendar_interval: '1M',
-//                     format: 'yyyy-MM',
-//                     min_doc_count: 0
-//                   },
-//                   aggs: {
-//                     sentiments: {
-//                       terms: {
-//                         field: 'predicted_sentiment_value.keyword',
-//                         size: 100,
-//                         exclude: ''
-//                       }
-//                     }
-//                   }
-//                 }
-//               }
-//             }
-//           }
-//         }
-//       },
-//     };
-
-//     // Apply additional filters
-//     if (sentiment?.trim()) {
-//       query.query.bool.must.push({ match: { predicted_sentiment_value: sentiment.trim() } });
-//     }
-
-//     if (source?.trim()) {
-//       query.query.bool.must.push({ term: { "source.keyword": source.trim() } });
-//     }
-
-//     if (subtopicId?.trim()) {
-//       query.query.bool.must.push({ term: { subtopic_id: parseInt(subtopicId) } });
-//     }
-// // Execute the query
-// const result = await elasticClient.search({
-//   index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-//   body: query,
-// });
-
-// const totalDocs = result.hits.total.value;
-// const phaseBuckets = result.aggregations.phase_breakdown.buckets;
-
-// // Process the results
-// const processedData = {
-//   pre_event: {
-//     phase: "pre_event",
-//     interval_type: "monthly",
-//     time_series: []
-//   },
-//   exhibition_days: {
-//     phase: "exhibition_days",
-//     interval_type: "daily",
-//     time_series: []
-//   },
-//   post_event: {
-//     phase: "post_event",
-//     interval_type: "monthly",
-//     time_series: []
-//   }
-// };
-
-// // Process each phase bucket
-// for (const phaseBucket of phaseBuckets) {
-//   const phaseKey = phaseBucket.key;
-  
-//   // Process pre-event monthly data
-//   if (phaseKey === "pre_event" && phaseBucket.pre_event_monthly?.time_intervals?.buckets) {
-//     processedData.pre_event.time_series = phaseBucket.pre_event_monthly.time_intervals.buckets.map(bucket => ({
-//       date: bucket.key_as_string,
-//       timestamp: bucket.key,
-//       total_count: bucket.doc_count,
-//       sentiments: bucket.sentiments.buckets.map(sentimentBucket => ({
-//         sentiment: sentimentBucket.key,
-//         count: sentimentBucket.doc_count
-//       }))
-//     }));
-//   }
-
-//   // Process exhibition days daily data
-//   if ((phaseKey.startsWith("day") || phaseKey === "exhibition_days")) {
-//     if (phaseBucket.exhibition_daily?.by_day?.buckets) {
-//       const exhibitionData = [];
-//       for (const dayBucket of phaseBucket.exhibition_daily.by_day.buckets) {
-//         const dayPhase = dayBucket.key;
-//         const dayTimeSeriesData = dayBucket.time_intervals.buckets.map(bucket => ({
-//           date: bucket.key_as_string,
-//           timestamp: bucket.key,
-//           day_phase: dayPhase,
-//           total_count: bucket.doc_count,
-//           sentiments: bucket.sentiments.buckets.map(sentimentBucket => ({
-//             sentiment: sentimentBucket.key,
-//             count: sentimentBucket.doc_count
-//           }))
-//         }));
-//         exhibitionData.push(...dayTimeSeriesData);
-//       }
-//       // Merge with existing exhibition data
-//       processedData.exhibition_days.time_series = [
-//         ...processedData.exhibition_days.time_series,
-//         ...exhibitionData
-//       ].sort((a, b) => a.timestamp - b.timestamp);
-//     }
-//   }
-
-//   // Process post-event monthly data
-//   if (phaseKey === "post_event" && phaseBucket.post_event_monthly?.time_intervals?.buckets) {
-//     processedData.post_event.time_series = phaseBucket.post_event_monthly.time_intervals.buckets.map(bucket => ({
-//       date: bucket.key_as_string,
-//       timestamp: bucket.key,
-//       total_count: bucket.doc_count,
-//       sentiments: bucket.sentiments.buckets.map(sentimentBucket => ({
-//         sentiment: sentimentBucket.key,
-//         count: sentimentBucket.doc_count
-//       }))
-//     }));
-//   }
-// }
-
-// return res.status(200).json({
-//   success: true,
-//   data: processedData,
-//   total: totalDocs
-// });
-//   } catch (error) {
-//     console.error("Error fetching sentiment trend data:", error);
-//     return res.status(500).json({
-//       success: false,
-//       error: "Internal server error",
-//       details: error.message,
-//     });
-//   }
-// },
-
-
-llmMotivationSentimentTrend: async (req, res) => {
-  try {
-    const { fromDate, toDate, subtopicId, topicId, sentiment, source } = req.body;
-
-    const topicIdNum = parseInt(topicId);
-    const isSpecialTopic = topicIdNum === 2600;
-    const isTopic2604 = topicIdNum === 2604|| topicIdNum===2602;
-    const isTopic2603 = topicIdNum === 2603 ||topicIdNum===2601;
-
-    const isScadUser = false;
-    const selectedTab = "Social";
-
-    let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
-
-    const allowedSources = isSpecialTopic
-      ? `"Twitter" OR "Facebook"`
-      : `"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web"`;
-    topicQueryString += ` AND source:(${allowedSources})`;
-
-    const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-    const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
-
-    // Handle custom phase logic with date ranges
-    let phaseFilters = null;
-    let preEventDateRange = null;
-    let exhibitionDateRange = null;
-    let postEventDateRange = null;
-
-    if (isTopic2604) {
-      preEventDateRange = { gte: "2024-01-01", lte: "2024-10-13" };
-      exhibitionDateRange = { gte: "2024-10-14", lte: "2024-10-18" };
-      postEventDateRange = { gte: "2024-10-19" };
-      
-      phaseFilters = [
-        {
-          bool: {
-            must: [
-              { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
-              { range: { p_created_time: preEventDateRange } },
-            ],
-          },
-        },
-        {
-          bool: {
-            must: [
-              {
-                bool: {
-                  should: [
-                    { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
-                  ],
-                  minimum_should_match: 1,
-                },
-              },
-              { range: { p_created_time: exhibitionDateRange } },
-            ],
-          },
-        },
-        {
-          bool: {
-            must: [
-              { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
-              { range: { p_created_time: postEventDateRange } },
-            ],
-          },
-        },
-      ];
-    } else if (isTopic2603) {
-      preEventDateRange = { gte: "2023-01-30", lte: "2024-03-03" };
-      exhibitionDateRange = { gte: "2024-03-04", lte: "2024-03-07" };
-      postEventDateRange = { gte: "2024-03-08" };
-      
-      phaseFilters = [
-        {
-          bool: {
-            must: [
-              { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
-              { range: { p_created_time: preEventDateRange } },
-            ],
-          },
-        },
-        {
-          bool: {
-            must: [
-              {
-                bool: {
-                  should: [
-                    { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
-                  ],
-                  minimum_should_match: 1,
-                },
-              },
-              { range: { p_created_time: exhibitionDateRange } },
-            ],
-          },
-        },
-        {
-          bool: {
-            must: [
-              { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
-              { range: { p_created_time: postEventDateRange } },
-            ],
-          },
-        },
-      ];
-    }
-
-    // Build base query filters that will be reused
-    const baseFilters = [
-      { query_string: { query: topicQueryString } },
-      ...(sentiment?.trim() ? [{ match: { predicted_sentiment_value: sentiment.trim() } }] : []),
-      ...(source?.trim() ? [{ term: { "source.keyword": source.trim() } }] : []),
-      ...(subtopicId?.trim() ? [{ term: { subtopic_id: parseInt(subtopicId) } }] : [])
-    ];
-
-    const baseMustNot = [
-      { term: { "llm_motivation.phase.keyword": "" } },
-      { term: { "llm_motivation.phase.keyword": "null" } },
-      {
-        bool: {
-          must_not: { exists: { field: "llm_motivation.phase" } },
-        },
-      },
-    ];
-
-    // Main Elasticsearch query for aggregations only (no posts)
-    const query = {
-      size: 0,
-      query: {
-        bool: {
-          must: [
-            ...baseFilters,
-            ...(phaseFilters
-              ? [{ bool: { should: phaseFilters, minimum_should_match: 1 } }]
-              : [
-                  {
-                    range: {
-                      p_created_time: {
-                        gte: effectiveFromDate || "now-90d",
-                        lte: effectiveToDate || "now",
-                      },
-                    },
-                  },
-                ]),
-          ],
-          must_not: baseMustNot,
-        },
-      },
-      aggs: {
-        phase_breakdown: {
-          terms: {
-            field: "llm_motivation.phase.keyword",
-            size: 20,
-            exclude: "Unknown",
-            missing: "Unknown",
-          },
-          aggs: {
-            // Pre-event monthly aggregation
-            pre_event_monthly: {
-              filter: {
-                bool: {
-                  must: [
-                    { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
-                    ...(preEventDateRange ? [{ range: { p_created_time: preEventDateRange } }] : [])
-                  ]
-                }
-              },
-              aggs: {
-                time_intervals: {
-                  date_histogram: {
-                    field: 'p_created_time',
-                    calendar_interval: '1M',
-                    format: 'yyyy-MM',
-                    min_doc_count: 0
-                  },
-                  aggs: {
-                    sentiments: {
-                      terms: {
-                        field: 'predicted_sentiment_value.keyword',
-                        size: 100,
-                        exclude: 'Unknown',
-                        missing: 'Unknown'
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            // Exhibition days daily aggregation
-            exhibition_daily: {
-              filter: {
-                bool: {
-                  should: [
-                    { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
-                    { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
-                  ],
-                  minimum_should_match: 1
-                }
-              },
-              aggs: {
-                by_day: {
-                  terms: {
-                    field: "llm_motivation.phase.keyword",
-                    size: 10,
-                    include: "day[1-5]"
-                  },
-                  aggs: {
-                    time_intervals: {
-                      date_histogram: {
-                        field: 'p_created_time',
-                        calendar_interval: '1d',
-                        format: 'yyyy-MM-dd',
-                        min_doc_count: 0
-                      },
-                      aggs: {
-                        sentiments: {
-                          terms: {
-                            field: 'predicted_sentiment_value.keyword',
-                            size: 100,
-                            exclude: 'Unknown',
-                            missing: 'Unknown'
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            // Post-event monthly aggregation
-            post_event_monthly: {
-              filter: {
-                bool: {
-                  must: [
-                    { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
-                    ...(postEventDateRange ? [{ range: { p_created_time: postEventDateRange } }] : [])
-                  ]
-                }
-              },
-              aggs: {
-                time_intervals: {
-                  date_histogram: {
-                    field: 'p_created_time',
-                    calendar_interval: '1M',
-                    format: 'yyyy-MM',
-                    min_doc_count: 0
-                  },
-                  aggs: {
-                    sentiments: {
-                      terms: {
-                        field: 'predicted_sentiment_value.keyword',
-                        size: 100,
-                        exclude: 'Unknown',
-                        missing: 'Unknown'
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-    };
-
-    // Helper function to format post data (similar to your getSentimentsAnalysis)
-const formatPostData = (hit) => {
-    const source = hit._source;
-
-    // Use a default image if a profile picture is not provided
-    const profilePic = source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-    // Social metrics
-    const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
-    const following = source.u_following > 0 ? `${source.u_following}` : '';
-    const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
-    const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
-
-    // Emotion
-    const llm_emotion = source.llm_emotion ||
-        (source.source === 'GoogleMyBusiness' && source.rating
-            ? (source.rating >= 4 ? 'Supportive'
-                : source.rating <= 2 ? 'Frustrated'
-                    : 'Neutral')
-            : '');
-
-    // Clean up comments URL if available
-    const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
-        ? source.p_url.trim().replace('https: // ', 'https://')
-        : '';
-
-    const comments = `${source.p_comments}`;
-    const shares = source.p_shares > 0 ? `${source.p_shares}` : '';
-    const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : '';
-
-    const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
-    const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ''
-        ? source.p_picture_url
-        : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-    // Determine sentiment
-    let predicted_sentiment = '';
-    let predicted_category = '';
-    
-    if (source.predicted_sentiment_value)
-        predicted_sentiment = `${source.predicted_sentiment_value}`;
-    else if (source.source === 'GoogleMyBusiness' && source.rating) {
-        predicted_sentiment = source.rating >= 4 ? 'Positive'
-            : source.rating <= 2 ? 'Negative'
-                : 'Neutral';
-    }
-
-    if (source.predicted_category) predicted_category = source.predicted_category;
-
-    // Handle YouTube-specific fields
-    let youtubeVideoUrl = '';
-    let profilePicture2 = '';
-    if (source.source === 'Youtube') {
-        if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
-        else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
-    } else {
-        profilePicture2 = source.p_picture ? source.p_picture : '';
-    }
-
-    // Determine source icon based on source name
-    let sourceIcon = '';
-    const userSource = source.source;
-    if (['khaleej_times', 'Omanobserver', 'Time of oman', 'Blogs'].includes(userSource))
-        sourceIcon = 'Blog';
-    else if (userSource === 'Reddit')
-        sourceIcon = 'Reddit';
-    else if (['FakeNews', 'News'].includes(userSource))
-        sourceIcon = 'News';
-    else if (userSource === 'Tumblr')
-        sourceIcon = 'Tumblr';
-    else if (userSource === 'Vimeo')
-        sourceIcon = 'Vimeo';
-    else if (['Web', 'DeepWeb'].includes(userSource))
-        sourceIcon = 'Web';
-    else
-        sourceIcon = userSource;
-
-    // Format message text – with special handling for GoogleMaps/Tripadvisor
-    let message_text = '';
-    if (['GoogleMaps', 'Tripadvisor'].includes(source.source)) {
-        const parts = source.p_message_text.split('***|||###');
-        message_text = parts[0].replace(/\n/g, '<br>');
-    } else {
-        message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
-    }
-
-    return {
-        profilePicture: profilePic,
-        profilePicture2,
-        userFullname: source.u_fullname,
-        user_data_string: '',
-        followers,
-        following,
-        posts,
-        likes,
-        llm_emotion,
-        commentsUrl,
-        comments,
-        shares,
-        engagements,
-        content,
-        image_url: imageUrl,
-        predicted_sentiment,
-        predicted_category,
-        youtube_video_url: youtubeVideoUrl,
-        source_icon: `${source.p_url},${sourceIcon}`,
-        message_text,
-        source: source.source,
-        rating: source.rating,
-        comment: source.comment,
-        businessResponse: source.business_response,
-        uSource: source.u_source,
-        googleName: source.name,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
-    };
-};
-
-    // Helper function to fetch posts for a specific sentiment and time range
-    const fetchPostsForSentiment = async (sentimentName, dateRange, phaseFilter, maxPosts = 30) => {
-      try {
-        const postsQuery = {
-          size: maxPosts,
-          query: {
+  llmMotivationPhase: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentiment, source } =
+        req.body;
+
+      const topicIdNum = parseInt(topicId);
+      const isSpecialTopic = topicIdNum === 2600;
+      const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
+      const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      const allowedSources = isSpecialTopic
+        ? `"Twitter" OR "Facebook"`
+        : `"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web"`;
+      topicQueryString += ` AND source:(${allowedSources})`;
+
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // Handle custom phase logic
+      let phaseFilters = null;
+      if (isTopic2604) {
+        phaseFilters = [
+          {
             bool: {
               must: [
-                ...baseFilters, // Use the same base filters as aggregation
-                { range: { p_created_time: dateRange } },
-                { term: { "predicted_sentiment_value.keyword": sentimentName } },
-                ...(phaseFilter ? [phaseFilter] : [])
+                {
+                  match_phrase: { "llm_motivation.phase.keyword": "pre_event" },
+                },
+                {
+                  range: {
+                    p_created_time: { gte: "2024-01-01", lte: "2024-10-13" },
+                  },
+                },
               ],
-              must_not: baseMustNot // Use the same must_not conditions
-            }
+            },
           },
-          sort: [{ p_created_time: { order: 'desc' } }]
-        };
+          {
+            bool: {
+              must: [
+                {
+                  bool: {
+                    should: [
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day1",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day2",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day3",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day4",
+                        },
+                      },
+                    ],
+                    minimum_should_match: 1,
+                  },
+                },
+                {
+                  range: {
+                    p_created_time: { gte: "2024-10-14", lte: "2024-10-18" },
+                  },
+                },
+              ],
+            },
+          },
+          {
+            bool: {
+              must: [
+                {
+                  match_phrase: {
+                    "llm_motivation.phase.keyword": "post_event",
+                  },
+                },
+                { range: { p_created_time: { gte: "2024-10-19" } } },
+              ],
+            },
+          },
+        ];
+      } else if (isTopic2603) {
+        phaseFilters = [
+          {
+            bool: {
+              must: [
+                {
+                  match_phrase: { "llm_motivation.phase.keyword": "pre_event" },
+                },
+                {
+                  range: {
+                    p_created_time: { gte: "2023-01-30", lte: "2024-03-03" },
+                  },
+                },
+              ],
+            },
+          },
+          {
+            bool: {
+              must: [
+                {
+                  bool: {
+                    should: [
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day1",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day2",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day3",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day4",
+                        },
+                      },
+                    ],
+                    minimum_should_match: 1,
+                  },
+                },
+                {
+                  range: {
+                    p_created_time: { gte: "2024-03-04", lte: "2024-03-07" },
+                  },
+                },
+              ],
+            },
+          },
+          {
+            bool: {
+              must: [
+                {
+                  match_phrase: {
+                    "llm_motivation.phase.keyword": "post_event",
+                  },
+                },
+                { range: { p_created_time: { gte: "2024-03-08" } } },
+              ],
+            },
+          },
+        ];
+      }
 
-        const response = await elasticClient.search({
-          index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-          body: postsQuery
+      // Main Elasticsearch query
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              ...(phaseFilters
+                ? [{ bool: { should: phaseFilters, minimum_should_match: 1 } }]
+                : [
+                    {
+                      range: {
+                        p_created_time: {
+                          gte: effectiveFromDate || "now-90d",
+                          lte: effectiveToDate || "now",
+                        },
+                      },
+                    },
+                  ]),
+            ],
+            must_not: [
+              { term: { "llm_motivation.phase.keyword": "" } },
+              { term: { "llm_motivation.phase.keyword": "null" } },
+              {
+                bool: {
+                  must_not: { exists: { field: "llm_motivation.phase" } },
+                },
+              },
+            ],
+          },
+        },
+        aggs: {
+          event_types: {
+            terms: {
+              field: "llm_motivation.phase.keyword",
+              size: 20,
+              missing: "Unknown",
+            },
+            aggs: {
+              sources: {
+                terms: { field: "source.keyword", size: 30 },
+              },
+              word_cloud_phrases: {
+                terms: {
+                  field: "llm_motivation.word_cloud_phrases.keyword",
+                  size: 100,
+                  min_doc_count: 1,
+                },
+              },
+            },
+          },
+        },
+      };
+
+      if (sentiment?.trim()) {
+        query.query.bool.must.push({
+          match: { predicted_sentiment_value: sentiment.trim() },
         });
-
-        return response.hits.hits.map(hit => formatPostData(hit));
-      } catch (error) {
-        console.error(`Error fetching posts for sentiment ${sentimentName}:`, error);
-        return [];
       }
-    };
 
-    // Execute the main aggregation query
-    const result = await elasticClient.search({
-      index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-      body: query,
-    });
-
-    const totalDocs = result.hits.total.value;
-    const phaseBuckets = result.aggregations.phase_breakdown.buckets;
-                        
-    // Process the results
-    const processedData = {
-      pre_event: {
-        phase: "pre_event",
-        interval_type: "monthly",
-        time_series: []
-      },
-      exhibition_days: {
-        phase: "exhibition_days",
-        interval_type: "daily",
-        time_series: []
-      },
-      post_event: {
-        phase: "post_event",
-        interval_type: "monthly",
-        time_series: []
+      if (source?.trim()) {
+        query.query.bool.must.push({
+          term: { "source.keyword": source.trim() },
+        });
       }
-    };
 
-    // Process each phase bucket
-    for (const phaseBucket of phaseBuckets) {
-      const phaseKey = phaseBucket.key;
-      
-      // Process pre-event monthly data
-      if (phaseKey === "pre_event") {
-        if (phaseBucket.pre_event_monthly?.time_intervals?.buckets) {
-          for (const bucket of phaseBucket.pre_event_monthly.time_intervals.buckets) {
-            const timeSeriesItem = {
-              date: bucket.key_as_string,
-              timestamp: bucket.key,
-              total_count: bucket.doc_count,
-              sentiments: []
-            };
+      if (subtopicId?.trim()) {
+        query.query.bool.must.push({
+          term: { subtopic_id: parseInt(subtopicId) },
+        });
+      }
 
-            // Process each sentiment in this time bucket
-            for (const sentimentBucket of bucket.sentiments.buckets) {
-              const sentimentName = sentimentBucket.key;
-              const sentimentCount = sentimentBucket.doc_count;
+      // Execute the query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
 
-              // Calculate date range for this month - ensure it matches the aggregation exactly
-              const [year, month] = bucket.key_as_string.split('-');
-              const startDate = `${year}-${month.padStart(2, '0')}-01`;
-              const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-              const endDate = `${year}-${month.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const buckets = result.aggregations.event_types.buckets;
+      const totalDocs = result.hits.total.value;
+      const mergedMap = new Map();
 
-              // Use the same date range constraints as aggregation if they exist
-              let finalDateRange;
-              if (preEventDateRange) {
-                finalDateRange = {
-                  gte: startDate > preEventDateRange.gte ? startDate : preEventDateRange.gte,
-                  lte: endDate < preEventDateRange.lte ? endDate : preEventDateRange.lte
-                };
-              } else {
-                finalDateRange = { gte: startDate, lte: endDate };
-              }
+      for (const bucket of buckets) {
+        const parts = bucket.key
+          .split("|")
+          .map((p) => p.trim())
+          .filter((p) => p && p !== "null");
 
-              // Fetch posts for this sentiment
-              const posts = await fetchPostsForSentiment(
-                sentimentName,
-                finalDateRange,
-                { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } }
-              );
+        for (const part of parts) {
+          // Normalize to "exhibition_days"
+          const normalized = ["day1", "day2", "day3", "day4"].includes(part)
+            ? "exhibition_days"
+            : part;
 
-              timeSeriesItem.sentiments.push({
-                sentiment: sentimentName,
-                count: sentimentCount,
-                posts: posts
-              });
-            }
+          const current = mergedMap.get(normalized) || {
+            name: normalized,
+            value: 0,
+            sourcesMap: new Map(),
+            wordCloudPhrasesMap: new Map(),
+          };
 
-            processedData.pre_event.time_series.push(timeSeriesItem);
+          current.value += bucket.doc_count;
+
+          for (const source of bucket.sources.buckets) {
+            const prev = current.sourcesMap.get(source.key) || 0;
+            current.sourcesMap.set(source.key, prev + source.doc_count);
           }
+
+          for (const phrase of bucket.word_cloud_phrases.buckets) {
+            const prev = current.wordCloudPhrasesMap.get(phrase.key) || 0;
+            current.wordCloudPhrasesMap.set(
+              phrase.key,
+              prev + phrase.doc_count
+            );
+          }
+
+          mergedMap.set(normalized, current);
         }
       }
 
-      // Process exhibition days daily data
-      if (phaseKey.startsWith("day")) {
-        const exhibitionBucket = phaseBuckets.find(bucket => 
-          bucket.key.startsWith("day") && bucket.exhibition_daily?.by_day?.buckets
-        );
-        
-        if (exhibitionBucket?.exhibition_daily?.by_day?.buckets && 
-            processedData.exhibition_days.time_series.length === 0) {
-          for (const dayBucket of exhibitionBucket.exhibition_daily.by_day.buckets) {
-            const dayPhase = dayBucket.key;
-            
-            for (const bucket of dayBucket.time_intervals.buckets) {
+      let pieData = Array.from(mergedMap.values()).map((entry) => ({
+        name: entry.name,
+        value: entry.value,
+        percentage:
+          totalDocs > 0 ? ((entry.value / totalDocs) * 100).toFixed(2) : "0.00",
+        sources: Array.from(entry.sourcesMap.entries()).map(
+          ([name, count]) => ({ name, count })
+        ),
+        wordCloudPhrases: Array.from(entry.wordCloudPhrasesMap.entries())
+          .map(([phrase, count]) => ({ phrase, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 50),
+      }));
+
+      pieData = pieData.sort((a, b) => b.value - a.value).slice(0, 6);
+
+      return res.status(200).json({
+        success: true,
+        data: pieData,
+        total: totalDocs,
+        query,
+      });
+    } catch (error) {
+      console.error("Error fetching event type data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  },
+  // llmMotivationSentimentTrend: async (req, res) => {
+  //   try {
+  //     const { fromDate, toDate, subtopicId, topicId, sentiment, source } = req.body;
+
+  //     const topicIdNum = parseInt(topicId);
+  //     const isSpecialTopic = topicIdNum === 2600;
+  //     const isTopic2604 = topicIdNum === 2604;
+  //     const isTopic2603 = topicIdNum === 2603;
+
+  //     const isScadUser = false;
+  //     const selectedTab = "Social";
+
+  //     let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
+
+  //     const allowedSources = isSpecialTopic
+  //       ? `"Twitter" OR "Facebook"`
+  //       : `"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web"`;
+  //     topicQueryString += ` AND source:(${allowedSources})`;
+
+  //     const effectiveFromDate = isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+  //     const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+  //     // Handle custom phase logic with date ranges
+  //     let phaseFilters = null;
+  //     let preEventDateRange = null;
+  //     let exhibitionDateRange = null;
+  //     let postEventDateRange = null;
+
+  //     if (isTopic2604) {
+  //       preEventDateRange = { gte: "2024-01-01", lte: "2024-10-13" };
+  //       exhibitionDateRange = { gte: "2024-10-14", lte: "2024-10-18" };
+  //       postEventDateRange = { gte: "2024-10-19" };
+
+  //       phaseFilters = [
+  //         {
+  //           bool: {
+  //             must: [
+  //               { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
+  //               { range: { p_created_time: preEventDateRange } },
+  //             ],
+  //           },
+  //         },
+  //         {
+  //           bool: {
+  //             must: [
+  //               {
+  //                 bool: {
+  //                   should: [
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
+  //                   ],
+  //                   minimum_should_match: 1,
+  //                 },
+  //               },
+  //               { range: { p_created_time: exhibitionDateRange } },
+  //             ],
+  //           },
+  //         },
+  //         {
+  //           bool: {
+  //             must: [
+  //               { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
+  //               { range: { p_created_time: postEventDateRange } },
+  //             ],
+  //           },
+  //         },
+  //       ];
+  //     } else if (isTopic2603) {
+  //       preEventDateRange = { gte: "2023-01-30", lte: "2024-03-03" };
+  //       exhibitionDateRange = { gte: "2024-03-04", lte: "2024-03-07" };
+  //       postEventDateRange = { gte: "2024-03-08" };
+
+  //       phaseFilters = [
+  //         {
+  //           bool: {
+  //             must: [
+  //               { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
+  //               { range: { p_created_time: preEventDateRange } },
+  //             ],
+  //           },
+  //         },
+  //         {
+  //           bool: {
+  //             must: [
+  //               {
+  //                 bool: {
+  //                   should: [
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
+  //                   ],
+  //                   minimum_should_match: 1,
+  //                 },
+  //               },
+  //               { range: { p_created_time: exhibitionDateRange } },
+  //             ],
+  //           },
+  //         },
+  //         {
+  //           bool: {
+  //             must: [
+  //               { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
+  //               { range: { p_created_time: postEventDateRange } },
+  //             ],
+  //           },
+  //         },
+  //       ];
+  //     }
+
+  //     // Main Elasticsearch query with phase-specific time interval aggregations
+  //     const query = {
+  //       size: 0,
+  //       query: {
+  //         bool: {
+  //           must: [
+  //             { query_string: { query: topicQueryString } },
+  //             ...(phaseFilters
+  //               ? [{ bool: { should: phaseFilters, minimum_should_match: 1 } }]
+  //               : [
+  //                   {
+  //                     range: {
+  //                       p_created_time: {
+  //                         gte: effectiveFromDate || "now-90d",
+  //                         lte: effectiveToDate || "now",
+  //                       },
+  //                     },
+  //                   },
+  //                 ]),
+  //           ],
+  //           must_not: [
+  //             { term: { "llm_motivation.phase.keyword": "" } },
+  //             { term: { "llm_motivation.phase.keyword": "null" } },
+  //             {
+  //               bool: {
+  //                 must_not: { exists: { field: "llm_motivation.phase" } },
+  //               },
+  //             },
+  //           ],
+  //         },
+  //       },
+  //       aggs: {
+  //         phase_breakdown: {
+  //           terms: {
+  //             field: "llm_motivation.phase.keyword",
+  //             size: 20,
+  //             missing: "Unknown",
+  //           },
+  //           aggs: {
+  //             // Pre-event monthly aggregation
+  //             pre_event_monthly: {
+  //               filter: {
+  //                 bool: {
+  //                   must: [
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "pre_event" } },
+  //                     ...(preEventDateRange ? [{ range: { p_created_time: preEventDateRange } }] : [])
+  //                   ]
+  //                 }
+  //               },
+  //               aggs: {
+  //                 time_intervals: {
+  //                   date_histogram: {
+  //                     field: 'p_created_time',
+  //                     calendar_interval: '1M',
+  //                     format: 'yyyy-MM',
+  //                     min_doc_count: 0
+  //                   },
+  //                   aggs: {
+  //                     sentiments: {
+  //                       terms: {
+  //                         field: 'predicted_sentiment_value.keyword',
+  //                         size: 100,
+  //                         exclude: ''
+  //                       }
+  //                     }
+  //                   }
+  //                 }
+  //               }
+  //             },
+  //             // Exhibition days daily aggregation
+  //             exhibition_daily: {
+  //               filter: {
+  //                 bool: {
+  //                   should: [
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day1" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day2" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day3" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day4" } },
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "day5" } },
+  //                   ],
+  //                   minimum_should_match: 1
+  //                 }
+  //               },
+  //               aggs: {
+  //                 by_day: {
+  //                   terms: {
+  //                     field: "llm_motivation.phase.keyword",
+  //                     size: 10,
+  //                     include: "day[1-5]"
+  //                   },
+  //                   aggs: {
+  //                     time_intervals: {
+  //                       date_histogram: {
+  //                         field: 'p_created_time',
+  //                         calendar_interval: '1d',
+  //                         format: 'yyyy-MM-dd',
+  //                         min_doc_count: 0
+  //                       },
+  //                       aggs: {
+  //                         sentiments: {
+  //                           terms: {
+  //                             field: 'predicted_sentiment_value.keyword',
+  //                             size: 100,
+  //                             exclude: ''
+  //                           }
+  //                         }
+  //                       }
+  //                     }
+  //                   }
+  //                 }
+  //               }
+  //             },
+  //             // Post-event monthly aggregation
+  //             post_event_monthly: {
+  //               filter: {
+  //                 bool: {
+  //                   must: [
+  //                     { match_phrase: { "llm_motivation.phase.keyword": "post_event" } },
+  //                     ...(postEventDateRange ? [{ range: { p_created_time: postEventDateRange } }] : [])
+  //                   ]
+  //                 }
+  //               },
+  //               aggs: {
+  //                 time_intervals: {
+  //                   date_histogram: {
+  //                     field: 'p_created_time',
+  //                     calendar_interval: '1M',
+  //                     format: 'yyyy-MM',
+  //                     min_doc_count: 0
+  //                   },
+  //                   aggs: {
+  //                     sentiments: {
+  //                       terms: {
+  //                         field: 'predicted_sentiment_value.keyword',
+  //                         size: 100,
+  //                         exclude: ''
+  //                       }
+  //                     }
+  //                   }
+  //                 }
+  //               }
+  //             }
+  //           }
+  //         }
+  //       },
+  //     };
+
+  //     // Apply additional filters
+  //     if (sentiment?.trim()) {
+  //       query.query.bool.must.push({ match: { predicted_sentiment_value: sentiment.trim() } });
+  //     }
+
+  //     if (source?.trim()) {
+  //       query.query.bool.must.push({ term: { "source.keyword": source.trim() } });
+  //     }
+
+  //     if (subtopicId?.trim()) {
+  //       query.query.bool.must.push({ term: { subtopic_id: parseInt(subtopicId) } });
+  //     }
+  // // Execute the query
+  // const result = await elasticClient.search({
+  //   index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+  //   body: query,
+  // });
+
+  // const totalDocs = result.hits.total.value;
+  // const phaseBuckets = result.aggregations.phase_breakdown.buckets;
+
+  // // Process the results
+  // const processedData = {
+  //   pre_event: {
+  //     phase: "pre_event",
+  //     interval_type: "monthly",
+  //     time_series: []
+  //   },
+  //   exhibition_days: {
+  //     phase: "exhibition_days",
+  //     interval_type: "daily",
+  //     time_series: []
+  //   },
+  //   post_event: {
+  //     phase: "post_event",
+  //     interval_type: "monthly",
+  //     time_series: []
+  //   }
+  // };
+
+  // // Process each phase bucket
+  // for (const phaseBucket of phaseBuckets) {
+  //   const phaseKey = phaseBucket.key;
+
+  //   // Process pre-event monthly data
+  //   if (phaseKey === "pre_event" && phaseBucket.pre_event_monthly?.time_intervals?.buckets) {
+  //     processedData.pre_event.time_series = phaseBucket.pre_event_monthly.time_intervals.buckets.map(bucket => ({
+  //       date: bucket.key_as_string,
+  //       timestamp: bucket.key,
+  //       total_count: bucket.doc_count,
+  //       sentiments: bucket.sentiments.buckets.map(sentimentBucket => ({
+  //         sentiment: sentimentBucket.key,
+  //         count: sentimentBucket.doc_count
+  //       }))
+  //     }));
+  //   }
+
+  //   // Process exhibition days daily data
+  //   if ((phaseKey.startsWith("day") || phaseKey === "exhibition_days")) {
+  //     if (phaseBucket.exhibition_daily?.by_day?.buckets) {
+  //       const exhibitionData = [];
+  //       for (const dayBucket of phaseBucket.exhibition_daily.by_day.buckets) {
+  //         const dayPhase = dayBucket.key;
+  //         const dayTimeSeriesData = dayBucket.time_intervals.buckets.map(bucket => ({
+  //           date: bucket.key_as_string,
+  //           timestamp: bucket.key,
+  //           day_phase: dayPhase,
+  //           total_count: bucket.doc_count,
+  //           sentiments: bucket.sentiments.buckets.map(sentimentBucket => ({
+  //             sentiment: sentimentBucket.key,
+  //             count: sentimentBucket.doc_count
+  //           }))
+  //         }));
+  //         exhibitionData.push(...dayTimeSeriesData);
+  //       }
+  //       // Merge with existing exhibition data
+  //       processedData.exhibition_days.time_series = [
+  //         ...processedData.exhibition_days.time_series,
+  //         ...exhibitionData
+  //       ].sort((a, b) => a.timestamp - b.timestamp);
+  //     }
+  //   }
+
+  //   // Process post-event monthly data
+  //   if (phaseKey === "post_event" && phaseBucket.post_event_monthly?.time_intervals?.buckets) {
+  //     processedData.post_event.time_series = phaseBucket.post_event_monthly.time_intervals.buckets.map(bucket => ({
+  //       date: bucket.key_as_string,
+  //       timestamp: bucket.key,
+  //       total_count: bucket.doc_count,
+  //       sentiments: bucket.sentiments.buckets.map(sentimentBucket => ({
+  //         sentiment: sentimentBucket.key,
+  //         count: sentimentBucket.doc_count
+  //       }))
+  //     }));
+  //   }
+  // }
+
+  // return res.status(200).json({
+  //   success: true,
+  //   data: processedData,
+  //   total: totalDocs
+  // });
+  //   } catch (error) {
+  //     console.error("Error fetching sentiment trend data:", error);
+  //     return res.status(500).json({
+  //       success: false,
+  //       error: "Internal server error",
+  //       details: error.message,
+  //     });
+  //   }
+  // },
+
+  llmMotivationSentimentTrend: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentiment, source } =
+        req.body;
+
+      const topicIdNum = parseInt(topicId);
+      const isSpecialTopic = topicIdNum === 2600;
+      const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
+      const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      const allowedSources = isSpecialTopic
+        ? `"Twitter" OR "Facebook"`
+        : `"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web"`;
+      topicQueryString += ` AND source:(${allowedSources})`;
+
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // Handle custom phase logic with date ranges
+      let phaseFilters = null;
+      let preEventDateRange = null;
+      let exhibitionDateRange = null;
+      let postEventDateRange = null;
+
+      if (isTopic2604) {
+        preEventDateRange = { gte: "2024-01-01", lte: "2024-10-13" };
+        exhibitionDateRange = { gte: "2024-10-14", lte: "2024-10-18" };
+        postEventDateRange = { gte: "2024-10-19" };
+
+        phaseFilters = [
+          {
+            bool: {
+              must: [
+                {
+                  match_phrase: { "llm_motivation.phase.keyword": "pre_event" },
+                },
+                { range: { p_created_time: preEventDateRange } },
+              ],
+            },
+          },
+          {
+            bool: {
+              must: [
+                {
+                  bool: {
+                    should: [
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day1",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day2",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day3",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day4",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day5",
+                        },
+                      },
+                    ],
+                    minimum_should_match: 1,
+                  },
+                },
+                { range: { p_created_time: exhibitionDateRange } },
+              ],
+            },
+          },
+          {
+            bool: {
+              must: [
+                {
+                  match_phrase: {
+                    "llm_motivation.phase.keyword": "post_event",
+                  },
+                },
+                { range: { p_created_time: postEventDateRange } },
+              ],
+            },
+          },
+        ];
+      } else if (isTopic2603) {
+        preEventDateRange = { gte: "2023-01-30", lte: "2024-03-03" };
+        exhibitionDateRange = { gte: "2024-03-04", lte: "2024-03-07" };
+        postEventDateRange = { gte: "2024-03-08" };
+
+        phaseFilters = [
+          {
+            bool: {
+              must: [
+                {
+                  match_phrase: { "llm_motivation.phase.keyword": "pre_event" },
+                },
+                { range: { p_created_time: preEventDateRange } },
+              ],
+            },
+          },
+          {
+            bool: {
+              must: [
+                {
+                  bool: {
+                    should: [
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day1",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day2",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day3",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day4",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day5",
+                        },
+                      },
+                    ],
+                    minimum_should_match: 1,
+                  },
+                },
+                { range: { p_created_time: exhibitionDateRange } },
+              ],
+            },
+          },
+          {
+            bool: {
+              must: [
+                {
+                  match_phrase: {
+                    "llm_motivation.phase.keyword": "post_event",
+                  },
+                },
+                { range: { p_created_time: postEventDateRange } },
+              ],
+            },
+          },
+        ];
+      }
+
+      // Build base query filters that will be reused
+      const baseFilters = [
+        { query_string: { query: topicQueryString } },
+        ...(sentiment?.trim()
+          ? [{ match: { predicted_sentiment_value: sentiment.trim() } }]
+          : []),
+        ...(source?.trim()
+          ? [{ term: { "source.keyword": source.trim() } }]
+          : []),
+        ...(subtopicId?.trim()
+          ? [{ term: { subtopic_id: parseInt(subtopicId) } }]
+          : []),
+      ];
+
+      const baseMustNot = [
+        { term: { "llm_motivation.phase.keyword": "" } },
+        { term: { "llm_motivation.phase.keyword": "null" } },
+        {
+          bool: {
+            must_not: { exists: { field: "llm_motivation.phase" } },
+          },
+        },
+      ];
+
+      // Main Elasticsearch query for aggregations only (no posts)
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              ...baseFilters,
+              ...(phaseFilters
+                ? [{ bool: { should: phaseFilters, minimum_should_match: 1 } }]
+                : [
+                    {
+                      range: {
+                        p_created_time: {
+                          gte: effectiveFromDate || "now-90d",
+                          lte: effectiveToDate || "now",
+                        },
+                      },
+                    },
+                  ]),
+            ],
+            must_not: baseMustNot,
+          },
+        },
+        aggs: {
+          phase_breakdown: {
+            terms: {
+              field: "llm_motivation.phase.keyword",
+              size: 20,
+              exclude: "Unknown",
+              missing: "Unknown",
+            },
+            aggs: {
+              // Pre-event monthly aggregation
+              pre_event_monthly: {
+                filter: {
+                  bool: {
+                    must: [
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "pre_event",
+                        },
+                      },
+                      ...(preEventDateRange
+                        ? [{ range: { p_created_time: preEventDateRange } }]
+                        : []),
+                    ],
+                  },
+                },
+                aggs: {
+                  time_intervals: {
+                    date_histogram: {
+                      field: "p_created_time",
+                      calendar_interval: "1M",
+                      format: "yyyy-MM",
+                      min_doc_count: 0,
+                    },
+                    aggs: {
+                      sentiments: {
+                        terms: {
+                          field: "predicted_sentiment_value.keyword",
+                          size: 100,
+                          exclude: "Unknown",
+                          missing: "Unknown",
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              // Exhibition days daily aggregation
+              exhibition_daily: {
+                filter: {
+                  bool: {
+                    should: [
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day1",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day2",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day3",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day4",
+                        },
+                      },
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "day5",
+                        },
+                      },
+                    ],
+                    minimum_should_match: 1,
+                  },
+                },
+                aggs: {
+                  by_day: {
+                    terms: {
+                      field: "llm_motivation.phase.keyword",
+                      size: 10,
+                      include: "day[1-5]",
+                    },
+                    aggs: {
+                      time_intervals: {
+                        date_histogram: {
+                          field: "p_created_time",
+                          calendar_interval: "1d",
+                          format: "yyyy-MM-dd",
+                          min_doc_count: 0,
+                        },
+                        aggs: {
+                          sentiments: {
+                            terms: {
+                              field: "predicted_sentiment_value.keyword",
+                              size: 100,
+                              exclude: "Unknown",
+                              missing: "Unknown",
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              // Post-event monthly aggregation
+              post_event_monthly: {
+                filter: {
+                  bool: {
+                    must: [
+                      {
+                        match_phrase: {
+                          "llm_motivation.phase.keyword": "post_event",
+                        },
+                      },
+                      ...(postEventDateRange
+                        ? [{ range: { p_created_time: postEventDateRange } }]
+                        : []),
+                    ],
+                  },
+                },
+                aggs: {
+                  time_intervals: {
+                    date_histogram: {
+                      field: "p_created_time",
+                      calendar_interval: "1M",
+                      format: "yyyy-MM",
+                      min_doc_count: 0,
+                    },
+                    aggs: {
+                      sentiments: {
+                        terms: {
+                          field: "predicted_sentiment_value.keyword",
+                          size: 100,
+                          exclude: "Unknown",
+                          missing: "Unknown",
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Helper function to format post data (similar to your getSentimentsAnalysis)
+      const formatPostData = (hit) => {
+        const source = hit._source;
+
+        // Use a default image if a profile picture is not provided
+        const profilePic =
+          source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+        // Social metrics
+        const followers = source.u_followers > 0 ? `${source.u_followers}` : "";
+        const following = source.u_following > 0 ? `${source.u_following}` : "";
+        const posts = source.u_posts > 0 ? `${source.u_posts}` : "";
+        const likes = source.p_likes > 0 ? `${source.p_likes}` : "";
+
+        // Emotion
+        const llm_emotion =
+          source.llm_emotion ||
+          (source.source === "GoogleMyBusiness" && source.rating
+            ? source.rating >= 4
+              ? "Supportive"
+              : source.rating <= 2
+              ? "Frustrated"
+              : "Neutral"
+            : "");
+
+        // Clean up comments URL if available
+        const commentsUrl =
+          source.p_comments_text && source.p_comments_text.trim() !== ""
+            ? source.p_url.trim().replace("https: // ", "https://")
+            : "";
+
+        const comments = `${source.p_comments}`;
+        const shares = source.p_shares > 0 ? `${source.p_shares}` : "";
+        const engagements =
+          source.p_engagement > 0 ? `${source.p_engagement}` : "";
+
+        const content =
+          source.p_content && source.p_content.trim() !== ""
+            ? source.p_content
+            : "";
+        const imageUrl =
+          source.p_picture_url && source.p_picture_url.trim() !== ""
+            ? source.p_picture_url
+            : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+        // Determine sentiment
+        let predicted_sentiment = "";
+        let predicted_category = "";
+
+        if (source.predicted_sentiment_value)
+          predicted_sentiment = `${source.predicted_sentiment_value}`;
+        else if (source.source === "GoogleMyBusiness" && source.rating) {
+          predicted_sentiment =
+            source.rating >= 4
+              ? "Positive"
+              : source.rating <= 2
+              ? "Negative"
+              : "Neutral";
+        }
+
+        if (source.predicted_category)
+          predicted_category = source.predicted_category;
+
+        // Handle YouTube-specific fields
+        let youtubeVideoUrl = "";
+        let profilePicture2 = "";
+        if (source.source === "Youtube") {
+          if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
+          else if (source.p_id)
+            youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+        } else {
+          profilePicture2 = source.p_picture ? source.p_picture : "";
+        }
+
+        // Determine source icon based on source name
+        let sourceIcon = "";
+        const userSource = source.source;
+        if (
+          ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
+            userSource
+          )
+        )
+          sourceIcon = "Blog";
+        else if (userSource === "Reddit") sourceIcon = "Reddit";
+        else if (["FakeNews", "News"].includes(userSource)) sourceIcon = "News";
+        else if (userSource === "Tumblr") sourceIcon = "Tumblr";
+        else if (userSource === "Vimeo") sourceIcon = "Vimeo";
+        else if (["Web", "DeepWeb"].includes(userSource)) sourceIcon = "Web";
+        else sourceIcon = userSource;
+
+        // Format message text – with special handling for GoogleMaps/Tripadvisor
+        let message_text = "";
+        if (["GoogleMaps", "Tripadvisor"].includes(source.source)) {
+          const parts = source.p_message_text.split("***|||###");
+          message_text = parts[0].replace(/\n/g, "<br>");
+        } else {
+          message_text = source.p_message_text
+            ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
+            : "";
+        }
+
+        return {
+          profilePicture: profilePic,
+          profilePicture2,
+          userFullname: source.u_fullname,
+          user_data_string: "",
+          followers,
+          following,
+          posts,
+          likes,
+          llm_emotion,
+          commentsUrl,
+          comments,
+          shares,
+          engagements,
+          content,
+          image_url: imageUrl,
+          predicted_sentiment,
+          predicted_category,
+          youtube_video_url: youtubeVideoUrl,
+          source_icon: `${source.p_url},${sourceIcon}`,
+          message_text,
+          source: source.source,
+          rating: source.rating,
+          comment: source.comment,
+          businessResponse: source.business_response,
+          uSource: source.u_source,
+          googleName: source.name,
+          created_at: new Date(
+            source.p_created_time || source.created_at
+          ).toLocaleString(),
+        };
+      };
+
+      // Helper function to fetch posts for a specific sentiment and time range
+      const fetchPostsForSentiment = async (
+        sentimentName,
+        dateRange,
+        phaseFilter,
+        maxPosts = 30
+      ) => {
+        try {
+          const postsQuery = {
+            size: maxPosts,
+            query: {
+              bool: {
+                must: [
+                  ...baseFilters, // Use the same base filters as aggregation
+                  { range: { p_created_time: dateRange } },
+                  {
+                    term: {
+                      "predicted_sentiment_value.keyword": sentimentName,
+                    },
+                  },
+                  ...(phaseFilter ? [phaseFilter] : []),
+                ],
+                must_not: baseMustNot, // Use the same must_not conditions
+              },
+            },
+            sort: [{ p_created_time: { order: "desc" } }],
+          };
+
+          const response = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: postsQuery,
+          });
+
+          return response.hits.hits.map((hit) => formatPostData(hit));
+        } catch (error) {
+          console.error(
+            `Error fetching posts for sentiment ${sentimentName}:`,
+            error
+          );
+          return [];
+        }
+      };
+
+      // Execute the main aggregation query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      const totalDocs = result.hits.total.value;
+      const phaseBuckets = result.aggregations.phase_breakdown.buckets;
+
+      // Process the results
+      const processedData = {
+        pre_event: {
+          phase: "pre_event",
+          interval_type: "monthly",
+          time_series: [],
+        },
+        exhibition_days: {
+          phase: "exhibition_days",
+          interval_type: "daily",
+          time_series: [],
+        },
+        post_event: {
+          phase: "post_event",
+          interval_type: "monthly",
+          time_series: [],
+        },
+      };
+
+      // Process each phase bucket
+      for (const phaseBucket of phaseBuckets) {
+        const phaseKey = phaseBucket.key;
+
+        // Process pre-event monthly data
+        if (phaseKey === "pre_event") {
+          if (phaseBucket.pre_event_monthly?.time_intervals?.buckets) {
+            for (const bucket of phaseBucket.pre_event_monthly.time_intervals
+              .buckets) {
               const timeSeriesItem = {
                 date: bucket.key_as_string,
                 timestamp: bucket.key,
-                day_phase: dayPhase,
                 total_count: bucket.doc_count,
-                sentiments: []
+                sentiments: [],
               };
 
               // Process each sentiment in this time bucket
@@ -4750,107 +4923,222 @@ const formatPostData = (hit) => {
                 const sentimentName = sentimentBucket.key;
                 const sentimentCount = sentimentBucket.doc_count;
 
-                // Use exact date range for daily data with exhibition constraints
+                // Calculate date range for this month - ensure it matches the aggregation exactly
+                const [year, month] = bucket.key_as_string.split("-");
+                const startDate = `${year}-${month.padStart(2, "0")}-01`;
+                const lastDay = new Date(
+                  parseInt(year),
+                  parseInt(month),
+                  0
+                ).getDate();
+                const endDate = `${year}-${month.padStart(2, "0")}-${String(
+                  lastDay
+                ).padStart(2, "0")}`;
+
+                // Use the same date range constraints as aggregation if they exist
                 let finalDateRange;
-                if (exhibitionDateRange) {
-                  const currentDate = bucket.key_as_string;
+                if (preEventDateRange) {
                   finalDateRange = {
-                    gte: currentDate >= exhibitionDateRange.gte ? currentDate : exhibitionDateRange.gte,
-                    lte: currentDate <= exhibitionDateRange.lte ? currentDate : exhibitionDateRange.lte
+                    gte:
+                      startDate > preEventDateRange.gte
+                        ? startDate
+                        : preEventDateRange.gte,
+                    lte:
+                      endDate < preEventDateRange.lte
+                        ? endDate
+                        : preEventDateRange.lte,
                   };
                 } else {
-                  finalDateRange = { gte: bucket.key_as_string, lte: bucket.key_as_string };
+                  finalDateRange = { gte: startDate, lte: endDate };
                 }
 
-                // Fetch posts for this sentiment and day
+                // Fetch posts for this sentiment
                 const posts = await fetchPostsForSentiment(
                   sentimentName,
                   finalDateRange,
-                  { match_phrase: { "llm_motivation.phase.keyword": dayPhase } }
+                  {
+                    match_phrase: {
+                      "llm_motivation.phase.keyword": "pre_event",
+                    },
+                  }
                 );
 
                 timeSeriesItem.sentiments.push({
                   sentiment: sentimentName,
                   count: sentimentCount,
-                  posts: posts
+                  posts: posts,
                 });
               }
 
-              processedData.exhibition_days.time_series.push(timeSeriesItem);
+              processedData.pre_event.time_series.push(timeSeriesItem);
             }
           }
-          // Sort by timestamp
-          processedData.exhibition_days.time_series.sort((a, b) => a.timestamp - b.timestamp);
         }
-      }
 
-      // Process post-event monthly data
-      if (phaseKey === "post_event") {
-        if (phaseBucket.post_event_monthly?.time_intervals?.buckets) {
-          for (const bucket of phaseBucket.post_event_monthly.time_intervals.buckets) {
-            const timeSeriesItem = {
-              date: bucket.key_as_string,
-              timestamp: bucket.key,
-              total_count: bucket.doc_count,
-              sentiments: []
-            };
+        // Process exhibition days daily data
+        if (phaseKey.startsWith("day")) {
+          const exhibitionBucket = phaseBuckets.find(
+            (bucket) =>
+              bucket.key.startsWith("day") &&
+              bucket.exhibition_daily?.by_day?.buckets
+          );
 
-            // Process each sentiment in this time bucket
-            for (const sentimentBucket of (bucket.sentiments?.buckets || [])) {
-              const sentimentName = sentimentBucket.key;
-              const sentimentCount = sentimentBucket.doc_count;
+          if (
+            exhibitionBucket?.exhibition_daily?.by_day?.buckets &&
+            processedData.exhibition_days.time_series.length === 0
+          ) {
+            for (const dayBucket of exhibitionBucket.exhibition_daily.by_day
+              .buckets) {
+              const dayPhase = dayBucket.key;
 
-              // Calculate date range for this month - ensure it matches the aggregation exactly
-              const [year, month] = bucket.key_as_string.split('-');
-              const startDate = `${year}-${month.padStart(2, '0')}-01`;
-              const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-              const endDate = `${year}-${month.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-              // Use the same date range constraints as aggregation if they exist
-              let finalDateRange;
-              if (postEventDateRange) {
-                finalDateRange = {
-                  gte: startDate > postEventDateRange.gte ? startDate : postEventDateRange.gte,
-                  lte: postEventDateRange.lte ? (endDate < postEventDateRange.lte ? endDate : postEventDateRange.lte) : endDate
+              for (const bucket of dayBucket.time_intervals.buckets) {
+                const timeSeriesItem = {
+                  date: bucket.key_as_string,
+                  timestamp: bucket.key,
+                  day_phase: dayPhase,
+                  total_count: bucket.doc_count,
+                  sentiments: [],
                 };
-              } else {
-                finalDateRange = { gte: startDate, lte: endDate };
+
+                // Process each sentiment in this time bucket
+                for (const sentimentBucket of bucket.sentiments.buckets) {
+                  const sentimentName = sentimentBucket.key;
+                  const sentimentCount = sentimentBucket.doc_count;
+
+                  // Use exact date range for daily data with exhibition constraints
+                  let finalDateRange;
+                  if (exhibitionDateRange) {
+                    const currentDate = bucket.key_as_string;
+                    finalDateRange = {
+                      gte:
+                        currentDate >= exhibitionDateRange.gte
+                          ? currentDate
+                          : exhibitionDateRange.gte,
+                      lte:
+                        currentDate <= exhibitionDateRange.lte
+                          ? currentDate
+                          : exhibitionDateRange.lte,
+                    };
+                  } else {
+                    finalDateRange = {
+                      gte: bucket.key_as_string,
+                      lte: bucket.key_as_string,
+                    };
+                  }
+
+                  // Fetch posts for this sentiment and day
+                  const posts = await fetchPostsForSentiment(
+                    sentimentName,
+                    finalDateRange,
+                    {
+                      match_phrase: {
+                        "llm_motivation.phase.keyword": dayPhase,
+                      },
+                    }
+                  );
+
+                  timeSeriesItem.sentiments.push({
+                    sentiment: sentimentName,
+                    count: sentimentCount,
+                    posts: posts,
+                  });
+                }
+
+                processedData.exhibition_days.time_series.push(timeSeriesItem);
+              }
+            }
+            // Sort by timestamp
+            processedData.exhibition_days.time_series.sort(
+              (a, b) => a.timestamp - b.timestamp
+            );
+          }
+        }
+
+        // Process post-event monthly data
+        if (phaseKey === "post_event") {
+          if (phaseBucket.post_event_monthly?.time_intervals?.buckets) {
+            for (const bucket of phaseBucket.post_event_monthly.time_intervals
+              .buckets) {
+              const timeSeriesItem = {
+                date: bucket.key_as_string,
+                timestamp: bucket.key,
+                total_count: bucket.doc_count,
+                sentiments: [],
+              };
+
+              // Process each sentiment in this time bucket
+              for (const sentimentBucket of bucket.sentiments?.buckets || []) {
+                const sentimentName = sentimentBucket.key;
+                const sentimentCount = sentimentBucket.doc_count;
+
+                // Calculate date range for this month - ensure it matches the aggregation exactly
+                const [year, month] = bucket.key_as_string.split("-");
+                const startDate = `${year}-${month.padStart(2, "0")}-01`;
+                const lastDay = new Date(
+                  parseInt(year),
+                  parseInt(month),
+                  0
+                ).getDate();
+                const endDate = `${year}-${month.padStart(2, "0")}-${String(
+                  lastDay
+                ).padStart(2, "0")}`;
+
+                // Use the same date range constraints as aggregation if they exist
+                let finalDateRange;
+                if (postEventDateRange) {
+                  finalDateRange = {
+                    gte:
+                      startDate > postEventDateRange.gte
+                        ? startDate
+                        : postEventDateRange.gte,
+                    lte: postEventDateRange.lte
+                      ? endDate < postEventDateRange.lte
+                        ? endDate
+                        : postEventDateRange.lte
+                      : endDate,
+                  };
+                } else {
+                  finalDateRange = { gte: startDate, lte: endDate };
+                }
+
+                // Fetch posts for this sentiment
+                const posts = await fetchPostsForSentiment(
+                  sentimentName,
+                  finalDateRange,
+                  {
+                    match_phrase: {
+                      "llm_motivation.phase.keyword": "post_event",
+                    },
+                  }
+                );
+
+                timeSeriesItem.sentiments.push({
+                  sentiment: sentimentName,
+                  count: sentimentCount,
+                  posts: posts,
+                });
               }
 
-              // Fetch posts for this sentiment
-              const posts = await fetchPostsForSentiment(
-                sentimentName,
-                finalDateRange,
-                { match_phrase: { "llm_motivation.phase.keyword": "post_event" } }
-              );
-
-              timeSeriesItem.sentiments.push({
-                sentiment: sentimentName,
-                count: sentimentCount,
-                posts: posts
-              });
+              processedData.post_event.time_series.push(timeSeriesItem);
             }
-
-            processedData.post_event.time_series.push(timeSeriesItem);
           }
         }
       }
-    }
 
-    return res.status(200).json({
-      success: true,
-      data: processedData,
-      total: totalDocs
-    });
-  } catch (error) {
-    console.error("Error fetching sentiment trend data:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      details: error.message,
-    });
-  }
-},
+      return res.status(200).json({
+        success: true,
+        data: processedData,
+        total: totalDocs,
+      });
+    } catch (error) {
+      console.error("Error fetching sentiment trend data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  },
   trustDimensionsEducationSystem: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
@@ -4866,9 +5154,12 @@ const formatPostData = (hit) => {
         isScadUser,
         selectedTab
       );
-
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
@@ -4944,9 +5235,13 @@ const formatPostData = (hit) => {
         isScadUser,
         selectedTab
       );
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      }
 
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
@@ -5027,9 +5322,12 @@ const formatPostData = (hit) => {
         isScadUser,
         selectedTab
       );
-
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
+      else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;

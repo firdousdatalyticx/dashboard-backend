@@ -74,7 +74,7 @@ const distributionbyCountryPostsController = {
                         const query = buildBaseQuery({
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
-                        }, source, isSpecialTopic);
+                        }, source, isSpecialTopic,parseInt(topicId));
             
                         // Add category filters
                         addCategoryFilters(query, "all", categoryData);
@@ -327,7 +327,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 * @param {string} source - Source to filter by
 * @returns {Object} Elasticsearch query object
 */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
   const query = {
       bool: {
           must: [
@@ -358,9 +358,19 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
           ]
       }
   };
-
+if(topicId===2619){
+      query.bool.must.push({
+          bool: {
+              should: [
+                   { match_phrase: { source: "LinkedIn" } },
+                     { match_phrase: { source: "Linkedin" } },
+              ],
+              minimum_should_match: 1
+          }
+      });
+}
   // Handle special topic source filtering
-  if (isSpecialTopic) {
+ else if (isSpecialTopic) {
       query.bool.must.push({
           bool: {
               should: [
@@ -385,6 +395,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                       { match_phrase: { source: "Instagram" } },
                       { match_phrase: { source: "Youtube" } },
                       { match_phrase: { source: "LinkedIn" } },
+                     { match_phrase: { source: "Linkedin" } },
                       { match_phrase: { source: "Pinterest" } },
                       { match_phrase: { source: "Web" } },
                       { match_phrase: { source: "Reddit" } },

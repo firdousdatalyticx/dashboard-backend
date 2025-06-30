@@ -135,7 +135,7 @@ const sentimentsController = {
             const query = buildBaseQuery({
                 greaterThanTime,
                 lessThanTime
-            }, source, isSpecialTopic);
+            }, source, isSpecialTopic, parseInt(topicId));
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -399,8 +399,8 @@ llmMotivationSentimentTrend: async (req, res) => {
 
     const topicIdNum = parseInt(topicId);
     const isSpecialTopic = topicIdNum === 2600;
-    const isTopic2603 = topicIdNum === 2603;
-    const isTopic2604 = topicIdNum === 2604;
+    const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
+    const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
 
     const categoryData = req.processedCategories || {};
     if (Object.keys(categoryData).length === 0) {
@@ -436,7 +436,7 @@ llmMotivationSentimentTrend: async (req, res) => {
     const formattedMinDate = format(parseISO(greaterThanTime), formatPattern);
     const formattedMaxDate = format(parseISO(lessThanTime), formatPattern);
 
-    const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic);
+    const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic, topicIdNum);
     addCategoryFilters(query, category, categoryData);
 
     if (sentiment && sentiment !== "" && sentiment !== "All") {
@@ -1084,7 +1084,9 @@ const formatPostData = (hit) => {
         businessResponse: source.business_response,
         uSource: source.u_source,
         googleName: source.name,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+        p_comments_data:source.p_comments_data,
+
     };
 };
 
@@ -1095,7 +1097,7 @@ const formatPostData = (hit) => {
  * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
     const query = {
         bool: {
             must: [
@@ -1111,6 +1113,17 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         }
     };
 
+    if(topicIdNum===2619){
+ query.bool.must.push({
+            bool: {
+                should: [
+                   { match_phrase: { source: "LinkedIn" } },
+                         { match_phrase: { source: "Linkedin" } },
+                ],
+                minimum_should_match: 1
+            }
+        });
+    }else 
     // Handle special topic source filtering
     if (isSpecialTopic) {
         // For special topic, only allow Facebook and Twitter
@@ -1138,6 +1151,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                         { match_phrase: { source: "Instagram" } },
                         { match_phrase: { source: "Youtube" } },
                         { match_phrase: { source: "LinkedIn" } },
+                         { match_phrase: { source: "Linkedin" } },
                         { match_phrase: { source: "Pinterest" } },
                         { match_phrase: { source: "Web" } },
                         { match_phrase: { source: "Reddit" } },

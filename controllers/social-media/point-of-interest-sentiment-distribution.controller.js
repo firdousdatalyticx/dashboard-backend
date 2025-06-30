@@ -59,7 +59,12 @@ const poiSentimentDistributionController = {
  let sourceFilter =[];
             if(source=="All"){
             // Build source filter based on special topic
-             sourceFilter = isSpecialTopic ? [
+             sourceFilter = parseInt(topicId)==2619 ?
+             [
+             { match_phrase: { source: 'LinkedIn' } },
+            { match_phrase: { source: "Linkedin" } },
+            ]
+             :isSpecialTopic ? [
                 { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } }
             ] : [
@@ -273,7 +278,8 @@ const poiSentimentDistributionController = {
                                                     'comment',
                                                     'business_response',
                                                     'u_source',
-                                                    'name'
+                                                    'name',
+                                                    'p_comments_data'
                                                 ],
                                                 size: 100
                                             }
@@ -459,7 +465,9 @@ const formatPostData = (hit) => {
         businessResponse: source.business_response,
         uSource: source.u_source,
         googleName: source.name,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+        p_comments_data:source.p_comments_data,
+
     };
 };
 

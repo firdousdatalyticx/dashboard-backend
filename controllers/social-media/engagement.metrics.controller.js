@@ -245,7 +245,7 @@ const engagementController = {
               const queryRange = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic);
+            }, source, isSpecialTopic,parseInt(topicId));
 
             
             // Add caching headers to the response
@@ -263,9 +263,8 @@ const engagementController = {
                 greaterThanTime = '2023-01-01';
                 lessThanTime = '2023-04-30';
             }
-
+            console.log(filters.queryString)
             let response, graphData, totalCount;
-
             if (type === 'shares') {
                 const aggsShares = {
                     total_shares: { sum: { field: 'p_shares' } }
@@ -461,7 +460,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 * @param {string} source - Source to filter by
 * @returns {Object} Elasticsearch query object
 */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
     const query = {
         bool: {
             must: [
@@ -492,7 +491,19 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         }
     };
   
-    // Handle special topic source filtering
+    console.log("topicId",topicId)
+  // Handle special topic source filtering
+    if (topicId===2619) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                      { match_phrase: { source: "LinkedIn" } },
+                         { match_phrase: { source: "Linkedin" } },
+                ],
+                minimum_should_match: 1
+            }
+        });
+    }
     if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
@@ -518,6 +529,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                         { match_phrase: { source: "Instagram" } },
                         { match_phrase: { source: "Youtube" } },
                         { match_phrase: { source: "LinkedIn" } },
+                         { match_phrase: { source: "Linkedin" } },
                         { match_phrase: { source: "Pinterest" } },
                         { match_phrase: { source: "Web" } },
                         { match_phrase: { source: "Reddit" } },

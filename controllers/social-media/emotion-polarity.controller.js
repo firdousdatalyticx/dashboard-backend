@@ -506,7 +506,15 @@ const emotionPolarityController = {
             }
 
             // Update source filter based on special topic
-            const sourceFilter = source=="All" || source=="" ?  isSpecialTopic ? {
+            const sourceFilter = source=="All" || source=="" ? parseInt(topicId)==2619 ? {
+                bool: {
+                    should: [
+                        { match_phrase: { source: 'LinkedIn' } },
+                         { match_phrase: { source: 'Linkedin' } },
+                    ],
+                    minimum_should_match: 1
+                }
+            }:isSpecialTopic ? {
                 bool: {
                     should: [
                         { match_phrase: { source: 'Facebook' } },
@@ -909,7 +917,9 @@ const formatPostData = async (hit) => {
         message_text,
         source: source.source,
         uSource: source.u_source,
-        created_at: new Date(source.p_created_time).toLocaleString()
+        created_at: new Date(source.p_created_time).toLocaleString(),
+        p_comments_data:source.p_comments_data,
+
     };
 };
 

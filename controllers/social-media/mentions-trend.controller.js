@@ -65,7 +65,7 @@ const mentionsTrendController = {
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic);
+            }, source, isSpecialTopic,Number(req.body.topicId));
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -369,7 +369,7 @@ const mentionsTrendController = {
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source);
+            }, source,Number(req.body.topicId));
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -731,7 +731,9 @@ const formatPostData = (hit) => {
         businessResponse: source.business_response,
         uSource: source.u_source,
         googleName: source.name,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+        p_comments_data:source.p_comments_data,
+
     };
 };
 
@@ -786,7 +788,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
     const query = {
         bool: {
             must: [
@@ -808,9 +810,19 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
             ]
         }
     };
-
+     if(topicId===2619){
+        query.bool.must.push({
+            bool: {
+                should: [
+                       { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Linkedin" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
+     }
     // Handle special topic source filtering
-    if (isSpecialTopic) {
+   else if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
                 should: [

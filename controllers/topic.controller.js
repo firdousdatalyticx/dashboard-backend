@@ -1080,7 +1080,7 @@ const topicController = {
    
             
             // Determine social media sources based on special topic
-            const socialSources = isSpecialTopic ? 
+            const socialSources =topicIds.includes(2619)? ["LinkedIn","Linkedin" ]: isSpecialTopic ? 
                 ["Facebook", "Twitter"] :
              
                 ["Facebook", "Twitter", "Instagram", "Youtube", "Pinterest", "Reddit", "LinkedIn","Linkedin","TikTok", "Web"];
@@ -1093,6 +1093,7 @@ const topicController = {
                         },
                        
                     ]
+
              const goolgeMust = [
                         {
                             terms: {

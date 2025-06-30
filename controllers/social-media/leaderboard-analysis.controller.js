@@ -66,7 +66,11 @@ const leaderboardAnalysisController = {
         };
       }
             // Define source filter based on special topic
-            const sourceFilter = isSpecialTopic ? [
+            const sourceFilter =parseInt(topicId)==2619 ?
+             [
+             { match_phrase: { source: 'LinkedIn' } },
+            { match_phrase: { source: "Linkedin" } },
+            ]: isSpecialTopic ? [
                 { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } }
             ] : [
@@ -77,6 +81,7 @@ const leaderboardAnalysisController = {
                 { match_phrase: { source: 'Pinterest' } },
                 { match_phrase: { source: 'Reddit' } },
                 { match_phrase: { source: 'LinkedIn' } },
+                 { match_phrase: { source: 'Linkedin' } },
                 { match_phrase: { source: 'Web' } },
                 { match_phrase: { source: 'TikTok' } }
             ];

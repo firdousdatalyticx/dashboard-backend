@@ -43,11 +43,15 @@ const buildElasticsearchQuery = (params) => {
     click,
     isSpecialTopic = false,
     llm_mention_type,
+    topicId
   } = params;
 
   // Build query_string parts in an array
   const qsParts = [];
   if (topicQueryString) qsParts.push(topicQueryString);
+  if(topicId===2619){
+ qsParts.push('source:("LinkedIn" OR "Linkedin")');
+  }else
 
   // Source filtering – handle special topic case first
   if (isSpecialTopic) {
@@ -56,7 +60,7 @@ const buildElasticsearchQuery = (params) => {
   } else {
     // Original source filtering logic
     const allSocialSources =
-      '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")';
+      '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")';
     switch (postTypeSource) {
       case "News":
         qsParts.push('source:("FakeNews" OR "News")');
@@ -509,6 +513,8 @@ const formatPostData = async (hit) => {
     uSource: source.u_source,
     googleName: source.name,
     created_at: new Date(source.p_created_time).toLocaleString(),
+    p_comments_data:source.p_comments_data,
+    
   };
 };
 
@@ -648,6 +654,7 @@ const postsController = {
         category,
         click = "false",
         llm_mention_type,
+        type
       } = req.query;
 
       // Check if this is the special topicId
@@ -735,6 +742,7 @@ const postsController = {
         click,
         isSpecialTopic,
         llm_mention_type,
+        topicId:parseInt(topicId)
       };
 
       const esQuery = buildElasticsearchQuery(queryParams);
@@ -837,6 +845,34 @@ const postsController = {
         }
       }
 
+      if(type==="Popular Posts"){
+        esQuery.sort=[
+          {
+            "p_engagement": {
+                "order": "desc",
+                "missing": "_last"
+            }
+        },
+        {
+            "p_likes": {
+                "order": "desc",
+                "missing": "_last"
+            }
+        },
+        {
+            "p_comments": {
+                "order": "desc",
+                "missing": "_last"
+            }
+        },
+        {
+            "p_shares": {
+                "order": "desc",
+                "missing": "_last"
+            }
+        }
+      ];
+      }
       // Execute the Elasticsearch query.
       const results = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,

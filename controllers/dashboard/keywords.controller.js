@@ -227,10 +227,13 @@ const keywordsController = {
                   for (let i = 0; i < keyHashArray.length; i++) {
                     let tempQueryString = topicQueryString
             
+                    if(parseInt(topicId)==2619){
+                    tempQueryString =tempQueryString ?`${tempQueryString} AND source:("Linkedin" OR "LinkedIn")` :`source:("Linkedin" OR "LinkedIn")`
+                    }else{
                     tempQueryString = tempQueryString
-                        ? `${tempQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "All")`
-                        : `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "All")`
-
+                        ? `${tempQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "All")`
+                        : `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "All")`
+                    }
 
                    
                         
@@ -454,7 +457,8 @@ const formatPostData = (hit) => {
         businessResponse: source.business_response,
         uSource: source.u_source,
         googleName: source.name,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+         p_comments_data:source.p_comments_data,
     };
 };
 

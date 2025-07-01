@@ -218,6 +218,273 @@ const dashboardController = {
                 error: 'Failed to create dashboard'
             });
         }
+    },
+
+
+
+    // Get available graphs grouped by category
+    getAvailableGraphs: async (req, res) => {
+        try {
+            const { topicId } = req.params;
+            const userId = req.user.id;
+
+            // Verify topic ownership
+            if (topicId) {
+                const topic = await prisma.customer_topics.findFirst({
+                    where: {
+                        topic_id: parseInt(topicId),
+                        topic_user_id: userId,
+                        topic_is_deleted: { not: 'Y' }
+                    }
+                });
+
+                if (!topic) {
+                    return res.status(403).json({
+                        success: false,
+                        error: 'Topic not found or access denied'
+                    });
+                }
+            }
+
+            // Get all available graphs
+            const graphs = await prisma.available_graphs.findMany({
+                where: { is_active: true },
+                orderBy: [
+                    { category: 'asc' },
+                    { sort_order: 'asc' }
+                ]
+            });
+
+            // Get enabled graphs for this topic if topicId provided
+            let enabledGraphs = [];
+            if (topicId) {
+                enabledGraphs = await prisma.topic_enabled_graphs.findMany({
+                    where: { 
+                        topic_id: parseInt(topicId),
+                        is_enabled: true 
+                    },
+                    include: { graph: true }
+                });
+            }
+
+            // Add enabled status to each graph
+            const graphsWithStatus = graphs.map(graph => {
+                // Check if this graph is enabled for the topic
+                const isEnabled = enabledGraphs.some(eg => eg.graph_id === graph.id);
+                
+                return {
+                    ...graph,
+                    isEnabled
+                };
+            });
+
+            return res.json({
+                success: true,
+                data: graphsWithStatus
+            });
+        } catch (error) {
+            console.error('Error fetching available graphs:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to fetch available graphs'
+            });
+        }
+    },
+
+    // Update dashboard configuration for a topic
+    updateDashboardConfig: async (req, res) => {
+        try {
+            const { topicId } = req.params;
+            const userId = req.user.id;
+            const {
+                dashboard_enabled,
+                dashboard_date_range,
+                dashboard_start_date,
+                dashboard_end_date,
+                dashboard_archive_enabled,
+                dashboard_layout,
+                dashboard_theme,
+                dashboard_auto_refresh
+            } = req.body;
+
+            // Verify topic ownership
+            const topic = await prisma.customer_topics.findFirst({
+                where: {
+                    topic_id: parseInt(topicId),
+                    topic_user_id: userId,
+                    topic_is_deleted: { not: 'Y' }
+                }
+            });
+
+            if (!topic) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Topic not found or access denied'
+                });
+            }
+
+            // Update dashboard configuration
+            const updatedTopic = await prisma.customer_topics.update({
+                where: { topic_id: parseInt(topicId) },
+                data: {
+                    dashboard_enabled: dashboard_enabled || topic.dashboard_enabled,
+                    dashboard_date_range: dashboard_date_range || topic.dashboard_date_range,
+                    dashboard_start_date: dashboard_start_date ? new Date(dashboard_start_date) : topic.dashboard_start_date,
+                    dashboard_end_date: dashboard_end_date ? new Date(dashboard_end_date) : topic.dashboard_end_date,
+                    dashboard_archive_enabled: dashboard_archive_enabled || topic.dashboard_archive_enabled,
+                    dashboard_layout: dashboard_layout || topic.dashboard_layout,
+                    dashboard_theme: dashboard_theme || topic.dashboard_theme,
+                    dashboard_auto_refresh: dashboard_auto_refresh || topic.dashboard_auto_refresh,
+                    topic_updated_at: new Date()
+                }
+            });
+
+            return res.json({
+                success: true,
+                data: updatedTopic
+            });
+        } catch (error) {
+            console.error('Error updating dashboard config:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to update dashboard configuration'
+            });
+        }
+    },
+
+    // Enable/disable graphs for a topic
+    updateTopicGraphs: async (req, res) => {
+        try {
+            const { topicId } = req.params;
+            const userId = req.user.id;
+            const { enabledGraphs } = req.body; // Array of graph IDs
+
+            // Verify topic ownership
+            const topic = await prisma.customer_topics.findFirst({
+                where: {
+                    topic_id: parseInt(topicId),
+                    topic_user_id: userId,
+                    topic_is_deleted: { not: 'Y' }
+                }
+            });
+
+            if (!topic) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Topic not found or access denied'
+                });
+            }
+
+            // Validate that all provided graph IDs exist
+            if (enabledGraphs && enabledGraphs.length > 0) {
+                const validGraphs = await prisma.available_graphs.findMany({
+                    where: {
+                        id: { in: enabledGraphs },
+                        is_active: true
+                    }
+                });
+
+                if (validGraphs.length !== enabledGraphs.length) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Some graph IDs are invalid'
+                    });
+                }
+            }
+
+            // Remove all existing enabled graphs for this topic
+            await prisma.topic_enabled_graphs.deleteMany({
+                where: { topic_id: parseInt(topicId) }
+            });
+
+            // Add new enabled graphs
+            if (enabledGraphs && enabledGraphs.length > 0) {
+                const graphsToCreate = enabledGraphs.map((graphId, index) => ({
+                    topic_id: parseInt(topicId),
+                    graph_id: graphId,
+                    is_enabled: true,
+                    position_order: index
+                }));
+
+                await prisma.topic_enabled_graphs.createMany({
+                    data: graphsToCreate
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: 'Topic graphs updated successfully'
+            });
+        } catch (error) {
+            console.error('Error updating topic graphs:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to update topic graphs'
+            });
+        }
+    },
+
+    // Get dashboard configuration for a topic
+    getDashboardConfig: async (req, res) => {
+        try {
+            const { topicId } = req.params;
+            const userId = req.user.id;
+
+            // Verify topic ownership and get config
+            const topic = await prisma.customer_topics.findFirst({
+                where: {
+                    topic_id: parseInt(topicId),
+                    topic_user_id: userId,
+                    topic_is_deleted: { not: 'Y' }
+                },
+                include: {
+                    enabled_graphs: {
+                        where: { is_enabled: true },
+                        include: { graph: true },
+                        orderBy: { position_order: 'asc' }
+                    }
+                }
+            });
+
+            if (!topic) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Topic not found or access denied'
+                });
+            }
+
+            // Extract dashboard configuration
+            const dashboardConfig = {
+                topic_id: topic.topic_id,
+                topic_title: topic.topic_title,
+                dashboard_enabled: topic.dashboard_enabled,
+                dashboard_date_range: topic.dashboard_date_range,
+                dashboard_start_date: topic.dashboard_start_date,
+                dashboard_end_date: topic.dashboard_end_date,
+                dashboard_archive_enabled: topic.dashboard_archive_enabled,
+                dashboard_layout: topic.dashboard_layout,
+                dashboard_theme: topic.dashboard_theme,
+                dashboard_auto_refresh: topic.dashboard_auto_refresh,
+                enabled_graphs: topic.enabled_graphs.map(eg => ({
+                    id: eg.id,
+                    graph_id: eg.graph_id,
+                    position_order: eg.position_order,
+                    custom_title: eg.custom_title,
+                    graph: eg.graph
+                }))
+            };
+
+            return res.json({
+                success: true,
+                data: dashboardConfig
+            });
+        } catch (error) {
+            console.error('Error fetching dashboard config:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to fetch dashboard configuration'
+            });
+        }
     }
 };
 

@@ -157,7 +157,16 @@ model customer_topics {
   topic_summary_fb          String?   @db.Text
   topic_summary_insta       String?   @db.Text
   topic_industry            String?   @db.VarChar(100)
-  topic_region            String?   @db.VarChar(50)
+  topic_region              String?   @db.VarChar(50)
+  
+  // Dashboard configuration fields
+  dashboard_enabled         String?   @default("yes") @db.Char(3)
+  dashboard_date_range      String?   @db.VarChar(50) // 'last_30_days', 'last_90_days', 'custom'
+  dashboard_start_date      DateTime? @db.DateTime(0)
+  dashboard_end_date        DateTime? @db.DateTime(0)
+  
+  // Relations
+  enabled_graphs            topic_enabled_graphs[]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -543,10 +552,10 @@ model question {
 
 model reports {
   id           Int      @id @default(autoincrement())
-  title        String
   report_data  String?  @db.Text
+  title        String?
   date_created DateTime @default(now())
-  user_id       Int?
+  city         String?
 }
 
 model reports_data {
@@ -796,6 +805,7 @@ model wordcloud_data {
 }
 
 model wordcloud_cx_data {
+  wc_id                  Int      @id @default(autoincrement())
   wc_tid                 Int?
   wc_str                 Json?
   wc_str_sorted          Json?
@@ -804,7 +814,6 @@ model wordcloud_cx_data {
   wc_positive_sorted_str Json?
   wc_negative_sorted_str Json?
   wc_time                DateTime @default(now()) @db.DateTime(0)
-  wc_id                  Int      @id @default(autoincrement())
 }
 
 model zoom_meetings {
@@ -844,59 +853,137 @@ model zoom_recordings {
 }
 
 model topic_categories {
-  id             Int      @id @default(autoincrement())
-  customer_topic_id        Int
-  category_title  String
-  topic_hash_tags  String
-  topic_urls      String
-  topic_keywords String
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  customer_topic_id Int
+  category_title    String
+  topic_hash_tags   String   @db.MediumText
+  topic_urls        String   @db.MediumText
+  topic_keywords    String   @db.MediumText
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
 }
 
-
 model alerts {
-  id              Int      @id @default(autoincrement())
-  frequency       String? 
+  id              Int            @id @default(autoincrement())
+  frequency       String?
   title           String?
-  keywords        String? 
-  emails          String? 
-  sentimentTypes  String? 
-  filterBySource  String? 
+  keywords        String?
+  emails          String?
+  sentimentTypes  String?
+  filterBySource  String?
   user_id         Int?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime       @default(now())
   updatedAt       DateTime?
   lastUpdatedAt   DateTime?
-  lastUpdatedFrom DateTime?
   topicId         Int?
-  topicName       String? 
-  isDeleted       Boolean? @default(false)
+  isDeleted       Boolean?       @default(false)
+  lastUpdatedFrom DateTime?
+  topicName       String?
   notifications   notification[] @relation("AlertNotifications")
 }
 
 model notification {
- id              Int      @id @default(autoincrement())
- createdAt       DateTime? @default(now())
- alertId         Int
- alert           alerts   @relation("AlertNotifications", fields: [alertId], references: [id])
- startDate       DateTime?
- endDate         DateTime?
- type            String?
- idRead          Boolean? @default(false)
- total_mentions  Int?
+  id             Int       @id @default(autoincrement())
+  createdAt      DateTime? @default(now())
+  alertId        Int
+  startDate      DateTime?
+  endDate        DateTime?
+  type           String?
+  idRead         Boolean?  @default(false)
+  total_mentions Int?
+  alert          alerts    @relation("AlertNotifications", fields: [alertId], references: [id])
+
+  @@index([alertId], map: "notification_alertId_fkey")
 }
 
-model comparisonsanalysisreports {
-  id               Int      @id @default(autoincrement())
-  poiTitle1        String? 
-  poiTitle2        String? 
-  report_data      String?  @db.Text
-  date_created     DateTime @default(now())
-  user_id          Int?
-  topicId1         Int?
-  topicId2         Int?
-  startDate        DateTime?
-  endDate          DateTime?
-  startDate2       DateTime?
-  endDate2         DateTime?
+model comparisonsAnalysisReports {
+  id           Int      @id @default(autoincrement())
+  poiTitle1    String?
+  poiCity1     String?
+  poiTitle2    String?
+  poiCity2     String?
+  report_data  String?  @db.Text
+  date_created DateTime @default(now())
+  user_id      Int?
+  topicId1     Int?
+  topicId2     Int?
+}
+
+model google_pois_locations {
+  id                   Int                  @id @default(autoincrement())
+  polygon_id           Int
+  name                 String
+  address              String               @db.Text
+  link                 String               @db.Text
+  latitude             Float
+  longitude            Float
+  is_selected          Boolean              @default(true)
+  created_at           DateTime             @default(now())
+  updated_at           DateTime
+  google_pois_polygons google_pois_polygons @relation(fields: [polygon_id], references: [id], onDelete: Cascade)
+
+  @@index([latitude, longitude])
+  @@index([polygon_id])
+}
+
+model google_pois_polygons {
+  id                    Int                     @id @default(autoincrement())
+  dashboard_id          Int
+  polygon_id            String                  @unique
+  name                  String
+  top_left_lat          Float
+  top_left_lng          Float
+  bottom_right_lat      Float
+  bottom_right_lng      Float
+  area                  Float
+  is_valid              Boolean                 @default(true)
+  service_area          String                  @default("Abu Dhabi/Al Ain")
+  created_at            DateTime                @default(now())
+  updated_at            DateTime
+  coordinates           Json?
+  google_pois_locations google_pois_locations[]
+
+  @@index([dashboard_id])
+  @@index([polygon_id])
+}
+
+// Simplified dashboard functionality tables
+
+model available_graphs {
+  id                  Int      @id @default(autoincrement())
+  name                String   @unique @db.VarChar(100)
+  display_name        String   @db.VarChar(200)
+  description         String?  @db.Text
+  sample_image_url    String?  @db.VarChar(500)
+  category            String   @db.VarChar(100) // 'overview', 'sentiment', 'engagement', 'google', 'industry_specific'
+  graph_type          String   @db.VarChar(100) // 'bar', 'line', 'pie', 'metric_card'
+  api_endpoint        String?  @db.VarChar(255)
+  supported_sources   String?  @db.Text // comma-separated source names
+  is_premium          Boolean  @default(false)
+  is_active           Boolean  @default(true)
+  sort_order          Int?     @default(0)
+  created_at          DateTime @default(now())
+  
+  // Relations
+  enabled_in_topics   topic_enabled_graphs[]
+  
+  @@index([category, is_active, sort_order])
+}
+
+model topic_enabled_graphs {
+  id                    Int      @id @default(autoincrement())
+  topic_id              Int
+  graph_id              Int
+  is_enabled            Boolean  @default(true)
+  position_order        Int?     @default(0)
+  custom_title          String?  @db.VarChar(200)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+  
+  // Relations
+  topic                 customer_topics @relation(fields: [topic_id], references: [topic_id], onDelete: Cascade)
+  graph                 available_graphs @relation(fields: [graph_id], references: [id], onDelete: Cascade)
+  
+  @@unique([topic_id, graph_id])
+  @@index([topic_id, is_enabled, position_order])
 }

@@ -45,8 +45,23 @@ const topicController = {
                 }
             });
 
-            // Add category count to topic
+            // Get enabled graphs for this topic
+            const enabledGraphs = await prisma.topic_enabled_graphs.findMany({
+                where: {
+                    topic_id: parseInt(id),
+                    is_enabled: true
+                },
+                include: {
+                    graph: true
+                },
+                orderBy: {
+                    position_order: 'asc'
+                }
+            });
+
+            // Add category count and enabled graphs to topic
             topic.categoryCount = categoryCount;
+            topic.enabledGraphs = enabledGraphs;
 
             return res.json({
                 success: true,
@@ -77,7 +92,14 @@ const topicController = {
                 dataSources,
                 dataLocation,
                 dataLanguage,
-                logo
+                logo,
+                // Dashboard configuration fields
+                dashboard_enabled,
+                dashboard_date_range,
+                dashboard_start_date,
+                dashboard_end_date,
+                // Graph enablement
+                enabledGraphs // Array of graph IDs
             } = req.body;
 
             // Validate topic ID
@@ -142,9 +164,62 @@ const topicController = {
                     topic_data_location: dataLocation !== undefined ? dataLocation : existingTopic.topic_data_location,
                     topic_data_lang: dataLanguage !== undefined ? dataLanguage : existingTopic.topic_data_lang,
                     topic_logo: req.file ? logo_url : (logo || existingTopic.topic_logo),
+                    // Dashboard configuration updates
+                    dashboard_enabled: dashboard_enabled !== undefined ? dashboard_enabled : existingTopic.dashboard_enabled,
+                    dashboard_date_range: dashboard_date_range !== undefined ? dashboard_date_range : existingTopic.dashboard_date_range,
+                    dashboard_start_date: dashboard_start_date !== undefined ? (dashboard_start_date ? new Date(dashboard_start_date) : null) : existingTopic.dashboard_start_date,
+                    dashboard_end_date: dashboard_end_date !== undefined ? (dashboard_end_date ? new Date(dashboard_end_date) : null) : existingTopic.dashboard_end_date,
                     topic_updated_at: new Date()
                 }
             });
+
+            // Handle enabled graphs update if provided
+            if (enabledGraphs !== undefined) {
+                let parsedEnabledGraphs = enabledGraphs;
+                
+                // If enabledGraphs is a string, try to parse it as JSON
+                if (typeof enabledGraphs === 'string') {
+                    try {
+                        parsedEnabledGraphs = JSON.parse(enabledGraphs);
+                    } catch (error) {
+                        console.error('Error parsing enabledGraphs in update:', error);
+                        parsedEnabledGraphs = [];
+                    }
+                }
+
+                if (Array.isArray(parsedEnabledGraphs)) {
+                    // Remove all existing enabled graphs for this topic
+                    await prisma.topic_enabled_graphs.deleteMany({
+                        where: { topic_id: parseInt(id) }
+                    });
+
+                    // Add new enabled graphs if any
+                    if (parsedEnabledGraphs.length > 0) {
+                        console.log('Parsed enabledGraphs in update:', parsedEnabledGraphs);
+                        
+                        // Validate that all provided graph IDs exist and are active
+                        const validGraphs = await prisma.available_graphs.findMany({
+                            where: {
+                                id: { in: parsedEnabledGraphs },
+                                is_active: true
+                            }
+                        });
+
+                        if (validGraphs.length > 0) {
+                            const graphsToCreate = validGraphs.map((graph, index) => ({
+                                topic_id: parseInt(id),
+                                graph_id: graph.id,
+                                is_enabled: true,
+                                position_order: index
+                            }));
+
+                            await prisma.topic_enabled_graphs.createMany({
+                                data: graphsToCreate
+                            });
+                        }
+                    }
+                }
+            }
 
             return res.json({
                 success: true,
@@ -349,10 +424,18 @@ const topicController = {
                 selectMonitoring,
                 dataSources:selectSource,
                 selectIndustry,
-                region
+                region,
+                // Dashboard configuration fields
+                dashboard_enabled,
+                dashboard_date_range,
+                dashboard_start_date,
+                dashboard_end_date,
+                // Graph enablement
+                enabledGraphs // Array of graph IDs
             } = req.body;
 
 
+            console.log(req.body);
         
             
 
@@ -517,9 +600,54 @@ const topicController = {
                     topic_logo: logo_filename,
                     topic_industry: selectIndustry === '' ? 'Other' : selectIndustry,
                     topic_gmaps_url: googleAndTripAdviserUrl || '',
-                    topic_region: region || ''
+                    topic_region: region || '',
+                    // Dashboard configuration
+                    dashboard_enabled: dashboard_enabled || 'yes',
+                    dashboard_date_range: dashboard_date_range || 'last_30_days',
+                    dashboard_start_date: dashboard_start_date ? new Date(dashboard_start_date) : null,
+                    dashboard_end_date: dashboard_end_date ? new Date(dashboard_end_date) : null
                 }
             });
+
+            // Enable selected graphs for this topic
+            if (enabledGraphs) {
+                let parsedEnabledGraphs = enabledGraphs;
+                
+                // If enabledGraphs is a string, try to parse it as JSON
+                if (typeof enabledGraphs === 'string') {
+                    try {
+                        parsedEnabledGraphs = JSON.parse(enabledGraphs);
+                    } catch (error) {
+                        console.error('Error parsing enabledGraphs:', error);
+                        parsedEnabledGraphs = [];
+                    }
+                }
+
+                if (Array.isArray(parsedEnabledGraphs) && parsedEnabledGraphs.length > 0) {
+                    console.log('Parsed enabledGraphs:', parsedEnabledGraphs);
+                    
+                    // Validate that all provided graph IDs exist and are active
+                    const validGraphs = await prisma.available_graphs.findMany({
+                        where: {
+                            id: { in: parsedEnabledGraphs },
+                            is_active: true
+                        }
+                    });
+
+                    if (validGraphs.length > 0) {
+                        const graphsToCreate = validGraphs.map((graph, index) => ({
+                            topic_id: newTopic.topic_id,
+                            graph_id: graph.id,
+                            is_enabled: true,
+                            position_order: index
+                        }));
+
+                        await prisma.topic_enabled_graphs.createMany({
+                            data: graphsToCreate
+                        });
+                    }
+                }
+            }
 
             // Get category count (will be 0 for new topic)
             newTopic.categoryCount = 0;

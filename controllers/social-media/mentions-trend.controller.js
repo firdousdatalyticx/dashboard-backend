@@ -93,75 +93,42 @@ const mentionsTrendController = {
                 console.log("Applied sentiment filter for:", sentimentType);
             }
 
-                              // Apply LLM Mention Type filter if provided
-      if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
-          const mentionTypeFilter = {
-              bool: {
-                  should: llm_mention_type.map(type => ({
-                      match: { llm_mention_type: type }
-                  })),
-                  minimum_should_match: 1
-              }
-          };
-          query.bool.must.push(mentionTypeFilter);
-      }
+            // Apply LLM Mention Type filter if provided
+            if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+                const mentionTypeFilter = {
+                    bool: {
+                        should: llm_mention_type.map(type => ({
+                            match: { llm_mention_type: type }
+                        })),
+                        minimum_should_match: 1
+                    }
+                };
+                query.bool.must.push(mentionTypeFilter);
+            }
 
-    //   // Normalize the input
-    //   const mentionTypesArray = typeof llm_mention_type === 'string' 
-    //     ? llm_mention_type.split(',').map(s => s.trim()) 
-    //     : llm_mention_type;
-
-    //   // Apply LLM Mention Type filter if provided
-    //   if (llm_mention_type!="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
-    //     const mentionTypeFilter = {
-    //       bool: {
-    //         should: mentionTypesArray.map(type => ({
-    //           match: { llm_mention_type: type }
-    //           // If it's keyword type:
-    //           // term: { "llm_mention_type.keyword": type }
-    //         })),
-    //         minimum_should_match: 1
-    //       }
-    //     };
-
-    //     query.bool.must.push(mentionTypeFilter);
-
-    //   }
-
-            // Define aggregation for mention graph with date range filter
-            const aggsMentionGraph = {
-                '2': {
-                    date_histogram: { 
-                        field: 'p_created_time', 
-                        fixed_interval: '1d', 
-                        min_doc_count: 0,
-                        extended_bounds: {
-                            min: queryTimeRange.gte,
-                            max: queryTimeRange.lte
-                        }
-                    },
-                    aggs: {
-                        date_filter: {
-                            filter: {
-                                range: {
-                                    p_created_time: queryTimeRange
-                                }
+            // Execute aggregation query to get counts per date
+            const aggQuery = {
+                query: query,
+                size: 0,
+                aggs: {
+                    daily_counts: {
+                        date_histogram: { 
+                            field: 'p_created_time', 
+                            fixed_interval: '1d', 
+                            min_doc_count: 0,
+                            extended_bounds: {
+                                min: queryTimeRange.gte,
+                                max: queryTimeRange.lte
                             }
                         }
                     }
                 }
             };
 
-            // Build complete query with aggregations
-            const queryTemplate = {
-                query: query,
-                aggs: aggsMentionGraph
-            };
-
-            // Execute Elasticsearch query
-            const response = await elasticClient.search({
+            // Execute aggregation query
+            const aggResponse = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: queryTemplate
+                body: aggQuery
             });
 
             // Get total count using the same query
@@ -175,16 +142,16 @@ const mentionsTrendController = {
             });
             const totalCount = totalCountResponse.hits.total.value || totalCountResponse.hits.total || 0;
 
-            // Process resultsfre
+            // Process aggregation results and find max mentions
             let maxDate = '';
             let maxMentions = 0;
             const datesArray = [];
-            const datesWithPosts = [];
+            const dateCountMap = {};
 
-            const buckets = response?.aggregations['2']?.buckets || [];
+            const buckets = aggResponse?.aggregations?.daily_counts?.buckets || [];
 
             for (const bucket of buckets) {
-                const docCount = bucket.date_filter?.doc_count || 0;
+                const docCount = bucket.doc_count;
                 const keyAsString = new Date(bucket.key_as_string).toISOString().split('T')[0];
                 
                 // Only include dates within the specified range
@@ -199,112 +166,76 @@ const mentionsTrendController = {
                     }
                     
                     datesArray.push(`${keyAsString},${docCount}`);
-                    
-                    // Fetch posts for this specific date
-                    let postsForDate = [];
-                    if (docCount > 0) {
-                        try {
-                            const MAX_POSTS_PER_DATE = 10; // Limit posts per date to avoid too much data
-                            
-                            // Use the same aggregation query but add date filter and get actual documents
-                            const postsQuery = {
-                                size: Math.min(docCount, MAX_POSTS_PER_DATE),
-                                query: {
-                                    bool: {
-                                        must: [
-                                            ...query.bool.must,
-                                            {
-                                                range: {
-                                                    p_created_time: {
-                                                        gte: keyAsString,
-                                                        lt: new Date(new Date(keyAsString).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                                                    }
-                                                }
-                                            }
-                                        ],
-                                        must_not: query.bool.must_not || []
-                                    }
-                                },
-                                sort: [{ p_created_time: { order: 'desc' } }]
-                            };
-                            
-                            const postsResponse = await elasticClient.search({
-                                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                                body: postsQuery
-                            });
-                            
-                            postsForDate = postsResponse.hits.hits.map(hit => formatPostData(hit));
-                        } catch (error) {
-                            console.error(`Error fetching posts for date ${keyAsString}:`, error);
-                            postsForDate = [];
+                    dateCountMap[keyAsString] = docCount;
+                }
+            }
+
+            // Fetch posts efficiently in a single query with date aggregation
+            const postsQuery = {
+                query: query,
+                size: 0,
+                aggs: {
+                    posts_by_date: {
+                        date_histogram: {
+                            field: 'p_created_time',
+                            fixed_interval: '1d',
+                            min_doc_count: 1,
+                            extended_bounds: {
+                                min: queryTimeRange.gte,
+                                max: queryTimeRange.lte
+                            }
+                        },
+                        aggs: {
+                            top_posts: {
+                                top_hits: {
+                                    size: 15, // Limit to 15 posts per date
+                                    sort: [{ p_created_time: { order: 'desc' } }]
+                                }
+                            }
                         }
                     }
-                    
-                    // Add date with its posts
-                    datesWithPosts.push({
-                        date: keyAsString,
-                        count: docCount,
-                        posts: postsForDate
-                    });
                 }
+            };
+
+            const postsResponse = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: postsQuery
+            });
+
+            // Process posts and group by date
+            const datesWithPosts = [];
+            const postsAggBuckets = postsResponse?.aggregations?.posts_by_date?.buckets || [];
+
+            // Create a map for quick lookup
+            const postsByDateMap = {};
+            for (const bucket of postsAggBuckets) {
+                const keyAsString = new Date(bucket.key_as_string).toISOString().split('T')[0];
+                const posts = bucket.top_posts.hits.hits.map(hit => formatPostData(hit));
+                postsByDateMap[keyAsString] = posts;
+            }
+
+            // Build final dates with posts array
+            for (const dateEntry of datesArray) {
+                const [dateString, countString] = dateEntry.split(',');
+                const count = parseInt(countString);
+                
+                datesWithPosts.push({
+                    date: dateString,
+                    count: count,
+                    posts: postsByDateMap[dateString] || []
+                });
             }
 
             // Sort dates in descending order
             datesArray.sort((a, b) => new Date(b.split(',')[0]) - new Date(a.split(',')[0]));
             datesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            // Now fetch all posts for the date range and group them by date
-            try {
-                const allPostsQuery = {
-                    size: 1000, // Get more posts to distribute across dates
-                    query: query,
-                    sort: [{ p_created_time: { order: 'desc' } }]
-                };
-                
-                const allPostsResponse = await elasticClient.search({
-                    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                    body: allPostsQuery
-                });
-                
-                const allPosts = allPostsResponse.hits.hits.map(hit => formatPostData(hit));
-                
-                // Group posts by date
-                const postsByDate = {};
-                allPosts.forEach(post => {
-                    // Extract date from created_at
-                    let postDate = '';
-                    if (post.created_at) {
-                        const dateObj = new Date(post.created_at);
-                        postDate = dateObj.toISOString().split('T')[0];
-                    }
-                    
-                    if (postDate && !postsByDate[postDate]) {
-                        postsByDate[postDate] = [];
-                    }
-                    if (postDate) {
-                        postsByDate[postDate].push(post);
-                    }
-                });
-                
-                // Update datesWithPosts with actual posts
-                datesWithPosts.forEach(dateObj => {
-                    if (postsByDate[dateObj.date]) {
-                        dateObj.posts = postsByDate[dateObj.date].slice(0, 10); // Limit to 10 posts per date
-                    }
-                });
-                
-            } catch (error) {
-                console.error('Error fetching all posts for date grouping:', error);
-            }
-
             return res.status(200).json({
                 success: true,
-                // mentionsGraphData: datesArray.join('|'),
                 maxMentionData: `${maxDate},${maxMentions}`,
                 totalCount: totalCount,
                 datesWithPosts: datesWithPosts,
-                query:queryTemplate.query
-                
+                query: query
             });
 
         } catch (error) {
@@ -315,6 +246,7 @@ const mentionsTrendController = {
             });
         }
     },
+
     getMentionsTrendPost: async (req, res) => {
         try {
             const { 
@@ -397,212 +329,57 @@ const mentionsTrendController = {
                 console.log("Applied sentiment filter for:", sentimentType);
             }
 
-                    // Apply LLM Mention Type filter if provided
-      if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
-          const mentionTypeFilter = {
-              bool: {
-                  should: llm_mention_type.map(type => ({
-                      match: { llm_mention_type: type }
-                  })),
-                  minimum_should_match: 1
-              }
-          };
-          query.bool.must.push(mentionTypeFilter);
-      }
+            // Apply LLM Mention Type filter if provided
+            if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+                const mentionTypeFilter = {
+                    bool: {
+                        should: llm_mention_type.map(type => ({
+                            match: { llm_mention_type: type }
+                        })),
+                        minimum_should_match: 1
+                    }
+                };
+                query.bool.must.push(mentionTypeFilter);
+            }
 
-      // Normalize the input
-      const mentionTypesArray = typeof llm_mention_type === 'string' 
-        ? llm_mention_type.split(',').map(s => s.trim()) 
-        : llm_mention_type;
+            // Normalize the input
+            const mentionTypesArray = typeof llm_mention_type === 'string' 
+                ? llm_mention_type.split(',').map(s => s.trim()) 
+                : llm_mention_type;
 
-      // Apply LLM Mention Type filter if provided
-      if (llm_mention_type!="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
-        const mentionTypeFilter = {
-          bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
-              // If it's keyword type:
-              // term: { "llm_mention_type.keyword": type }
-            })),
-            minimum_should_match: 1
-          }
-        };
+            // Apply LLM Mention Type filter if provided
+            if (llm_mention_type!="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
+                const mentionTypeFilter = {
+                    bool: {
+                        should: mentionTypesArray.map(type => ({
+                            match: { llm_mention_type: type }
+                        })),
+                        minimum_should_match: 1
+                    }
+                };
+                query.bool.must.push(mentionTypeFilter);
+            }
 
-        query.bool.must.push(mentionTypeFilter);
-
-      }
-
-            // Define aggregation for mention graph with date range filter
-       
-            // query.bool.must.push(aggsMentionGraph);
-
-            // Build complete query with aggregations
+            // Build complete query
             const queryTemplate = {
                 query: query,
-                size:30
+                size: 30
             };
-             const responseArray = []
+            
             // Execute Elasticsearch query
             const results = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: queryTemplate
             });
 
-           for (let l = 0; l < results?.hits?.hits?.length; l++) {
-    let esData = results?.hits?.hits[l];
-    let user_data_string = "";
-    let profilePic = esData._source.u_profile_photo
-      ? esData._source.u_profile_photo
-      : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
-    let followers =
-      esData._source.u_followers > 0 ? `${esData._source.u_followers}` : "";
-    let following =
-      esData._source.u_following > 0 ? `${esData._source.u_following}` : "";
-    let posts = esData._source.u_posts > 0 ? `${esData._source.u_posts}` : "";
-    let likes = esData._source.p_likes > 0 ? `${esData._source.p_likes}` : "";
-    let llm_emotion = esData._source.llm_emotion || "";
-    let commentsUrl =
-      esData._source.p_comments_text &&
-      esData._source.p_comments_text.trim() !== ""
-        ? `${esData._source.p_url.trim().replace("https: // ", "https://")}`
-        : "";
-    let comments = `${esData._source.p_comments}`;
-    let shares =
-      esData._source.p_shares > 0 ? `${esData._source.p_shares}` : "";
-    let engagements =
-      esData._source.p_engagement > 0 ? `${esData._source.p_engagement}` : "";
-    let content =
-      esData._source.p_content && esData._source.p_content.trim() !== ""
-        ? `${esData._source.p_content}`
-        : "";
-    let imageUrl =
-      esData._source.p_picture_url && esData._source.p_picture_url.trim() !== ""
-        ? `${esData._source.p_picture_url}`
-        : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
-    let predicted_sentiment = "";
-    let predicted_category = "";
+            // Format response using the optimized formatPostData function
+            const responseArray = results?.hits?.hits?.map(hit => formatPostData(hit)) || [];
 
-    // Check if the record was manually updated, if yes, use it
-    const chk_senti = await prisma.customers_label_data.findMany({
-      where: {
-        p_id: esData._id,
-      },
-      orderBy: {
-        label_id: "desc",
-      },
-      take: 1,
-    });
-
-    if (chk_senti.length > 0) {
-      if (chk_senti[0]?.predicted_sentiment_value_requested)
-        predicted_sentiment = `${chk_senti[0]?.predicted_sentiment_value_requested}`;
-    } else if (
-      esData._source.predicted_sentiment_value &&
-      esData._source.predicted_sentiment_value !== ""
-    ) {
-      predicted_sentiment = `${esData._source.predicted_sentiment_value}`;
-    }
-
-    // Category prediction
-    if (esData._source.predicted_category) {
-      predicted_category = esData._source.predicted_category;
-    }
-    let youtubeVideoUrl = "";
-    let profilePicture2 = "";
-    //const token = await getCsrfToken()
-    if (esData._source.source === "Youtube") {
-      if (
-        esData._source.video_embed_url &&
-        esData._source.video_embed_url !== ""
-      )
-        youtubeVideoUrl = `${esData._source.video_embed_url}`;
-      else if (esData._source.p_id && esData._source.p_id !== "")
-        youtubeVideoUrl = `https://www.youtube.com/embed/${esData._source.p_id}`;
-    } else {
-      if (esData._source.p_picture) {
-        profilePicture2 = `${esData._source.p_picture}`;
-      } else {
-        profilePicture2 = "";
-      }
-    }
-    // Handle other sources if needed
-
-    let sourceIcon = "";
-
-    const userSource = esData._source.source;
-    if (
-      userSource == "khaleej_times" ||
-      userSource == "Omanobserver" ||
-      userSource == "Time of oman" ||
-      userSource == "Blogs"
-    ) {
-      sourceIcon = "Blog";
-    } else if (userSource == "Reddit") {
-      sourceIcon = "Reddit";
-    } else if (userSource == "FakeNews" || userSource == "News") {
-      sourceIcon = "News";
-    } else if (userSource == "Tumblr") {
-      sourceIcon = "Tumblr";
-    } else if (userSource == "Vimeo") {
-      sourceIcon = "Vimeo";
-    } else if (userSource == "Web" || userSource == "DeepWeb") {
-      sourceIcon = "Web";
-    } else {
-      sourceIcon = userSource;
-    }
-
-    let message_text = "";
-
-    if (
-      esData._source.source === "GoogleMaps" ||
-      esData._source.source === "Tripadvisor"
-    ) {
-      let m_text = esData._source.p_message_text.split("***|||###");
-      message_text = m_text[0].replace(/\n/g, "<br>");
-    } else {
-      message_text = esData._source.p_message_text
-        ? esData._source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
-        : "";
-    }
-
-    let cardData = {
-      profilePicture: profilePic,
-      profilePicture2: profilePicture2,
-      userFullname: esData._source.u_fullname,
-      user_data_string: user_data_string,
-      followers: followers,
-      following: following,
-      posts: posts,
-      likes: likes,
-      llm_emotion: llm_emotion,
-      commentsUrl: commentsUrl,
-      comments: comments,
-      shares: shares,
-      engagements: engagements,
-      content: content,
-      image_url: imageUrl,
-      predicted_sentiment: predicted_sentiment,
-      predicted_category: predicted_category,
-      youtube_video_url: youtubeVideoUrl,
-      source_icon: `${esData._source.p_url},${sourceIcon}`,
-      message_text: message_text,
-      source: esData._source.source,
-      rating: esData._source.rating,
-      comment: esData._source.comment,
-      businessResponse: esData._source.business_response,
-      uSource: esData._source.u_source,
-      googleName: esData._source.name,
-      created_at: new Date(esData._source.p_created_time).toLocaleString(),
-    };
-
-    responseArray.push(cardData);
-  }
-
-  return res.status(200).json({
-    success: true,
-    responseArray,
-    total: responseArray.length || 0
-  });
+            return res.status(200).json({
+                success: true,
+                responseArray,
+                total: responseArray.length || 0
+            });
 
         } catch (error) {
             console.error('Error fetching social media mentions trend data:', error);

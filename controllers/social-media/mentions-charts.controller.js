@@ -1693,7 +1693,7 @@ const mentionsChartController = {
     }
   },
 
-  languageMentions: async (req, res) => {
+  languageMentionss: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
 
@@ -1879,6 +1879,221 @@ const mentionsChartController = {
       return res.status(200).json({
         influencersCoverage,
         languages: languagesWithPosts,
+        totalCount,
+        result,
+      });
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+
+  languageMentions: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+
+      // Standard languages list for filtering
+      const standardLanguages = [
+        "English", "Mandarin", "Hindi", "Spanish", "French", "Arabic", "Bengali", "Russian",
+        "Portuguese", "Urdu", "Indonesian", "German", "Japanese", "Swahili", "Marathi",
+        "Telugu", "Turkish", "Tamil", "Vietnamese", "Korean", "Italian", "Thai", "Gujarati",
+        "Polish", "Ukrainian", "Persian", "Malayalam", "Kannada", "Romanian", "Dutch", "Greek",
+        "Czech", "Hungarian", "Hebrew", "Bulgarian", "Finnish", "Danish", "Norwegian", "Slovak",
+        "Serbian", "Croatian", "Catalan", "Punjabi", "Malay", "Pashto", "Amharic", "Sinhala",
+        "Azerbaijani", "Nepali"
+      ];
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+      if (parseInt(topicId) === 2619) {
+        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+        // Apply special topic source filtering
+      } else if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // Build base query for aggregation
+      const baseQuery = {
+        bool: {
+          must: [
+            { query_string: { query: topicQueryString } },
+            {
+              range: {
+                p_created_time: {
+                  gte: effectiveFromDate || "now-90d",
+                  lte: effectiveToDate || "now",
+                },
+              },
+            },
+          ],
+          must_not: [{ term: { "llm_language.keyword": "" } }],
+        },
+      };
+
+      if (sentimentType && sentimentType != "") {
+        baseQuery.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // **Single Aggregation Query - Updated to get top 50**
+      const aggregationQuery = {
+        size: 0,
+        query: baseQuery,
+        aggs: {
+          llm_language: {
+            terms: { 
+              field: "llm_language.keyword", 
+              size: 100  // Increased to 100 to ensure we capture top 50 standard languages
+            },
+          },
+        },
+      };
+
+      // Execute aggregation query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: aggregationQuery,
+      });
+
+      // Process aggregation results with filtering and normalization
+      let languageGroups = {};
+      let totalCount = 0;
+
+      result.aggregations.llm_language.buckets.forEach((bucket) => {
+        // Skip unknown values and non-language entries
+        if (
+          bucket.key.toLowerCase() === "unknown" ||
+          bucket.key.toLowerCase() === "education"
+        ) {
+          return;
+        }
+
+        // Normalize language names (capitalize first letter)
+        const normalizedKey =
+          bucket.key.charAt(0).toUpperCase() +
+          bucket.key.slice(1).toLowerCase();
+
+        // Only include if it's in the standard languages list
+        if (!standardLanguages.includes(normalizedKey)) {
+          return;
+        }
+
+        // Merge counts if the normalized key already exists
+        if (languageGroups[normalizedKey]) {
+          languageGroups[normalizedKey].count += bucket.doc_count;
+        } else {
+          languageGroups[normalizedKey] = {
+            name: normalizedKey,
+            count: bucket.doc_count,
+            originalKeys: [bucket.key], // Keep track of original keys for querying
+          };
+        }
+        totalCount += bucket.doc_count;
+      });
+
+      // Now fetch posts for each language
+      const languagesWithPosts = [];
+      const MAX_POSTS_PER_LANGUAGE = 10;
+
+      for (const [languageName, languageData] of Object.entries(
+        languageGroups
+      )) {
+        try {
+          // Create query for this specific language (using original keys)
+          const languageQuery = {
+            ...baseQuery,
+            bool: {
+              ...baseQuery.bool,
+              must: [
+                ...baseQuery.bool.must,
+                {
+                  terms: {
+                    "llm_language.keyword": languageData.originalKeys,
+                  },
+                },
+              ],
+            },
+          };
+
+          // Get posts for this language
+          const postsQuery = {
+            size: MAX_POSTS_PER_LANGUAGE,
+            query: languageQuery,
+            sort: [{ p_created_time: { order: "desc" } }],
+          };
+
+          const postsResponse = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: postsQuery,
+          });
+
+          // Format posts
+          const posts = postsResponse.hits.hits.map((hit) =>
+            formatPostDataForLanguage(hit)
+          );
+
+          // Calculate percentage
+          const percentage =
+            totalCount > 0
+              ? ((languageData.count / totalCount) * 100).toFixed(1)
+              : 0;
+
+          languagesWithPosts.push({
+            name: languageName,
+            count: languageData.count,
+            percentage: parseFloat(percentage),
+            posts: posts,
+          });
+        } catch (error) {
+          console.error(
+            `Error fetching posts for language ${languageName}:`,
+            error
+          );
+          // Add language data without posts if there's an error
+          const percentage =
+            totalCount > 0
+              ? ((languageData.count / totalCount) * 100).toFixed(1)
+              : 0;
+          languagesWithPosts.push({
+            name: languageName,
+            count: languageData.count,
+            percentage: parseFloat(percentage),
+            posts: [],
+          });
+        }
+      }
+
+      // Sort by count (descending) and limit to top 50
+      languagesWithPosts.sort((a, b) => b.count - a.count);
+      const top50Languages = languagesWithPosts.slice(0, 50);
+
+      // Create backward compatibility object
+      const influencersCoverage = {};
+      top50Languages.forEach((lang) => {
+        influencersCoverage[lang.name] = lang.count;
+      });
+
+      return res.status(200).json({
+        influencersCoverage,
+        languages: top50Languages,
         totalCount,
         result,
       });

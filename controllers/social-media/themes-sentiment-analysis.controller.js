@@ -226,7 +226,7 @@ sortedThemes.forEach(themeName => {
     // Fill only matching sentiment (if not 'all')
     themeData.forEach((sentimentData, sentiment) => {
         if (
-            selectedSentiment === 'all' ||
+            selectedSentiment === 'all' || selectedSentiment === '' ||
             sentiment.toLowerCase() === selectedSentiment
         ) {
             sentimentCounts[sentiment] = sentimentData;

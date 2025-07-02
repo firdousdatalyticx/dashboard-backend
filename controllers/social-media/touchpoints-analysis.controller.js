@@ -236,7 +236,7 @@ const touchpointsAnalysisController = {
 const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
     const sentiments = Object.entries(touchpoint.sentiments)
         .filter(([name, data]) => {
-            if (sentiment === 'all') return data.count > 0;
+            if (sentiment === 'All' || sentiment==="") return data.count > 0;
             return name.toLowerCase() === sentiment && data.count > 0;
         })
         .map(([sentimentName, data]) => ({
@@ -249,7 +249,7 @@ const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
 
     // Normalize sentiment access based on sentiment
     const getCount = (sentiment) =>
-        sentiment === 'all' || sentiment === sentiment.toLowerCase()
+        sentiment === 'All' || sentiment==="" || sentiment === sentiment.toLowerCase()
             ? touchpoint.sentiments[sentiment]?.count || 0
             : 0;
 

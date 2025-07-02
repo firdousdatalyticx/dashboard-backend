@@ -256,7 +256,8 @@ const themesOverTimeController = {
                 dateRange: {
                     from: effectiveGreaterThanTime,
                     to: effectiveLessThanTime
-                }
+                },
+                params
             });
 
         } catch (error) {

@@ -1113,16 +1113,21 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
         }
     };
 
-    if(topicIdNum===2619){
- query.bool.must.push({
-            bool: {
-                should: [
-                   { match_phrase: { source: "LinkedIn" } },
-                         { match_phrase: { source: "Linkedin" } },
-                ],
-                minimum_should_match: 1
-            }
-        });
+     if (source !== 'All') {
+            query.bool.must.push({
+                match_phrase: { source: source }
+            });
+    }
+    else if(topicIdNum===2619){
+       query.bool.must.push({
+              bool: {
+                  should: [
+                    { match_phrase: { source: "LinkedIn" } },
+                          { match_phrase: { source: "Linkedin" } },
+                  ],
+                  minimum_should_match: 1
+              }
+          });
     }else 
     // Handle special topic source filtering
     if (isSpecialTopic) {

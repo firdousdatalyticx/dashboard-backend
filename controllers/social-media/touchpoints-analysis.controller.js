@@ -205,31 +205,66 @@ const touchpointsAnalysisController = {
                 }
             });
 
-            // Convert maps to arrays and format for chart
-            const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
-                // Convert sentiments object to array, filtering out zero counts
-                const sentiments = Object.entries(touchpoint.sentiments)
-                    .filter(([_, data]) => data.count > 0)
-                    .map(([sentimentName, data]) => ({
-                        name: sentimentName,
-                        count: data.count,
-                        percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
-                        posts: data.posts
-                    }))
-                    .sort((a, b) => b.count - a.count); // Sort by count descending
+            // // Convert maps to arrays and format for chart
+            // const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
+            //     console.log(touchpoint.sentiments)
+            //     // Convert sentiments object to array, filtering out zero counts
+            //     const sentiments = Object.entries(touchpoint.sentiments)
+            //         .filter(([_, data]) => data.count > 0)
+            //         .map(([sentimentName, data]) => ({
+            //             name: sentimentName,
+            //             count: data.count,
+            //             percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
+            //             posts: data.posts
+            //         }))
+            //         .sort((a, b) => b.count - a.count); // Sort by count descending
 
-                return {
-                    touchpoint: touchpoint.touchpoint,
-                    sentiments: sentiments,
-                    totalCount: touchpoint.totalCount,
-                    // Add individual sentiment counts for easy chart building
-                    positive: touchpoint.sentiments['Positive']?.count || 0,
-                    negative: touchpoint.sentiments['Negative']?.count || 0,
-                    neutral: touchpoint.sentiments['Neutral']?.count || 0,
-                    distrustful: touchpoint.sentiments['Distrustful']?.count || 0,
-                    supportive: touchpoint.sentiments['Supportive']?.count || 0
-                };
-            });
+            //     return {
+            //         touchpoint: touchpoint.touchpoint,
+            //         sentiments: sentiments,
+            //         totalCount: touchpoint.totalCount,
+            //         // Add individual sentiment counts for easy chart building
+            //         positive: touchpoint.sentiments['Positive']?.count || 0,
+            //         negative: touchpoint.sentiments['Negative']?.count || 0,
+            //         neutral: touchpoint.sentiments['Neutral']?.count || 0,
+            //         distrustful: touchpoint.sentiments['Distrustful']?.count || 0,
+            //         supportive: touchpoint.sentiments['Supportive']?.count || 0
+            //     };
+            // });
+
+
+const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
+    const sentiments = Object.entries(touchpoint.sentiments)
+        .filter(([name, data]) => {
+            if (sentiment === 'all') return data.count > 0;
+            return name.toLowerCase() === sentiment && data.count > 0;
+        })
+        .map(([sentimentName, data]) => ({
+            name: sentimentName,
+            count: data.count,
+            percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
+            posts: data.posts
+        }))
+        .sort((a, b) => b.count - a.count);
+
+    // Normalize sentiment access based on sentiment
+    const getCount = (sentiment) =>
+        sentiment === 'all' || sentiment === sentiment.toLowerCase()
+            ? touchpoint.sentiments[sentiment]?.count || 0
+            : 0;
+
+    return {
+        touchpoint: touchpoint.touchpoint,
+        sentiments,
+        totalCount: touchpoint.totalCount,
+        positive: getCount('Positive'),
+        negative: getCount('Negative'),
+        neutral: getCount('Neutral'),
+        distrustful: getCount('Distrustful'),
+        supportive: getCount('Supportive')
+    };
+});
+
 
             // Sort touchpoints by total count descending (highest bars first)
             touchpointsArray.sort((a, b) => b.totalCount - a.totalCount);

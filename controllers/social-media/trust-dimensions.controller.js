@@ -248,7 +248,8 @@ const trustDimensionsController = {
             return res.json({
                 success: true,
                 trustDimensions: trustDimensionsArray,
-                totalCount: totalCount
+                totalCount: totalCount,
+                query:params
             });
 
         } catch (error) {

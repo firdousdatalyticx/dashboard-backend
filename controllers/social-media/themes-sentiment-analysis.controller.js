@@ -205,60 +205,64 @@ const themesSentimentAnalysisController = {
             console.log('Themes sentiment data:', themesSentimentMap);
 
             // Convert to chart-friendly format for stacked bar chart
-            const chartData = [];
-            const sortedThemes = Array.from(themesSentimentMap.keys()).sort();
-            const sortedSentiments = Array.from(sentimentTypes).sort();
+    const selectedSentiment = sentiment;
+const chartData = [];
+const sortedThemes = Array.from(themesSentimentMap.keys()).sort();
+const sortedSentiments = Array.from(sentimentTypes).sort();
 
-            sortedThemes.forEach(themeName => {
-                const themeData = themesSentimentMap.get(themeName);
-                const sentimentCounts = {};
-                let themeTotal = 0;
+sortedThemes.forEach(themeName => {
+    const themeData = themesSentimentMap.get(themeName);
+    const sentimentCounts = {};
+    let themeTotal = 0;
 
-                // Initialize all sentiment types with 0
-                sortedSentiments.forEach(sentiment => {
-                    sentimentCounts[sentiment] = {
-                        count: 0,
-                        posts: []
-                    };
-                });
+    // Initialize all sentiments with 0
+    sortedSentiments.forEach(sentiment => {
+        sentimentCounts[sentiment] = {
+            count: 0,
+            posts: []
+        };
+    });
 
-                // Fill in actual data
-                themeData.forEach((sentimentData, sentiment) => {
-                    sentimentCounts[sentiment] = sentimentData;
-                    themeTotal += sentimentData.count;
-                });
+    // Fill only matching sentiment (if not 'all')
+    themeData.forEach((sentimentData, sentiment) => {
+        if (
+            selectedSentiment === 'all' ||
+            sentiment.toLowerCase() === selectedSentiment
+        ) {
+            sentimentCounts[sentiment] = sentimentData;
+            themeTotal += sentimentData.count;
+        }
+    });
 
-                chartData.push({
-                    theme: themeName,
-                    sentiments: sentimentCounts,
-                    totalCount: themeTotal
-                });
-            });
+    chartData.push({
+        theme: themeName,
+        sentiments: sentimentCounts,
+        totalCount: themeTotal
+    });
+});
 
-            // Sort themes by total count descending
-            chartData.sort((a, b) => b.totalCount - a.totalCount);
+// Sort themes by total count descending
+chartData.sort((a, b) => b.totalCount - a.totalCount);
 
-            // Prepare data for stacked bar chart format
-            const stackedBarData = chartData.map(themeData => {
-                const result = {
-                    category: themeData.theme,
-                    total: themeData.totalCount
-                };
+// Prepare data for stacked bar chart
+const stackedBarData = chartData.map(themeData => {
+    const result = {
+        category: themeData.theme,
+        total: themeData.totalCount
+    };
 
-                // Add each sentiment as a separate property
-                sortedSentiments.forEach(sentiment => {
-                    result[sentiment] = themeData.sentiments[sentiment].count;
-                });
+    sortedSentiments.forEach(sentiment => {
+        result[sentiment] = themeData.sentiments[sentiment].count;
+    });
 
-                return result;
-            });
+    return result;
+});
 
-            return res.json({
-                success: true,
-                detailedData: chartData,
-              
-             
-            });
+return res.json({
+    success: true,
+    detailedData: chartData,
+    params
+});
 
         } catch (error) {
             console.error('Error fetching themes sentiment analysis data:', error);

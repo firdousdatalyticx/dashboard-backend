@@ -365,17 +365,17 @@ const getPosts = async (
   } else if (field === "migration_topics") {
     query.query.bool.must.push({
       match_phrase: {
-        migration_topics: `${type}: "${sentimentType}"`,
+        migration_topics: `${type}`,
       },
     });
-    sentimentType = null;
+    // sentimentType = null;
   } else if (field === "trust_dimensions") {
-    query.query.bool.must.push({
-      match_phrase: {
-        trust_dimensions: `${type}: "${sentimentType}"`,
-      },
-    });
-    sentimentType = null;
+  query.query.bool.must.push({
+  term: {
+    "trust_dimensions.keyword": `{"${type}": "${value}"}`,
+  },
+});
+    // sentimentType = null;
   } else if (field === "llm_core_insights.event_type") {
     query.query.bool.must.push({
       match_phrase: {
@@ -3189,7 +3189,7 @@ const mentionsChartController = {
     }
   },
 
-  migrationTopicsSummary: async (req, res) => {
+  migrationTopicsSummarye: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
         req.body;
@@ -3259,6 +3259,7 @@ const mentionsChartController = {
           },
         });
       }
+      
 
       // Execute query
       const result = await elasticClient.search({
@@ -3266,7 +3267,157 @@ const mentionsChartController = {
         body: query,
       });
 
-      return res.status(200).json({ result });
+      
+
+      return res.status(200).json({ result,query });
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+
+  migrationTopicsSummary: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
+        req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      const isScadUser = false;
+      const selectedTab = "Social";
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
+
+      // Apply special topic source filtering
+      if (isSpecialTopic) {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      } else {
+        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      }
+
+      // Apply special topic date range
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+      // **Single Aggregation Query with Overall Sentiment Filtering**
+      const query = {
+        size: 0,
+        query: {
+          bool: {
+            must: [
+              { query_string: { query: topicQueryString } },
+              {
+                range: {
+                  p_created_time: {
+                    gte: effectiveFromDate || "now-90d",
+                    lte: effectiveToDate || "now",
+                  },
+                },
+              },
+            ],
+            must_not: [
+              { term: { "migration_topics.keyword": "" } },
+              { term: { "migration_topics.keyword": "{}" } },
+            ],
+          },
+        },
+        aggs: {
+          // First aggregate by overall sentiment
+          overall_sentiment: {
+            terms: { 
+              field: "predicted_sentiment_value.keyword", 
+              size: 10 
+            },
+            aggs: {
+              // Then by migration topics within each sentiment
+              mention_types: {
+                terms: { 
+                  field: "migration_topics.keyword", 
+                  size: 10 
+                },
+                aggs: {
+                  // Finally by sources
+                  sources: {
+                    terms: { 
+                      field: "source.keyword", 
+                      size: 15 
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Apply sentiment filter if provided
+      if (sentimentType && sentimentType != "") {
+        query.query.bool.must.push({
+          match: {
+            predicted_sentiment_value: sentimentType.trim(),
+          },
+        });
+      }
+
+      // Execute query
+      const result = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: query,
+      });
+
+      // Transform the result to match your expected format
+      const transformedResult = {
+        aggregations: {
+          mention_types: {
+            doc_count_error_upper_bound: 0,
+            sum_other_doc_count: 0,
+            buckets: []
+          }
+        }
+      };
+
+      // Process the nested aggregations
+      if (result.aggregations?.overall_sentiment?.buckets) {
+        result.aggregations.overall_sentiment.buckets.forEach(sentimentBucket => {
+          const overallSentiment = sentimentBucket.key;
+          
+          if (sentimentBucket.mention_types?.buckets) {
+            sentimentBucket.mention_types.buckets.forEach(topicBucket => {
+              // Parse the migration topic JSON string
+              let migrationTopic;
+              try {
+                migrationTopic = JSON.parse(topicBucket.key);
+              } catch (e) {
+                migrationTopic = { topic: topicBucket.key };
+              }
+              
+              // Create a new key that combines topic with overall sentiment
+              const topicName = Object.keys(migrationTopic)[0] || 'unknown';
+              const newKey = `{"${topicName}": "${overallSentiment}"}`;
+              
+              transformedResult.aggregations.mention_types.buckets.push({
+                key: newKey,
+                doc_count: topicBucket.doc_count,
+                sources: topicBucket.sources || { buckets: [] }
+              });
+            });
+          }
+        });
+      }
+
+      // Sort by doc_count descending
+      transformedResult.aggregations.mention_types.buckets.sort((a, b) => b.doc_count - a.doc_count);
+
+      return res.status(200).json({ 
+        result: transformedResult, 
+        originalResult: result,
+        query 
+      });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
@@ -5139,7 +5290,7 @@ const mentionsChartController = {
       });
     }
   },
-  trustDimensionsEducationSystem: async (req, res) => {
+trustDimensionsEducationSystem: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
         req.body;
@@ -5154,6 +5305,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
+      
       if (parseInt(topicId) === 2619) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
@@ -5186,7 +5338,6 @@ const mentionsChartController = {
                 },
               },
             ],
-
             must_not: [
               { term: { "trust_dimensions.keyword": "" } },
               { term: { "trust_dimensions.keyword": "{}" } },
@@ -5195,11 +5346,23 @@ const mentionsChartController = {
         },
         aggs: {
           mention_types: {
-            terms: { field: "trust_dimensions.keyword", size: 20 },
+            terms: { 
+              field: "trust_dimensions.keyword", 
+              size: 20 
+            },
+            aggs: {
+              sources: {
+                terms: { 
+                  field: "source.keyword", 
+                  size: 15 
+                },
+              },
+            },
           },
         },
       };
 
+      // Apply sentiment filter if provided
       if (sentimentType && sentimentType != "") {
         query.query.bool.must.push({
           match: {
@@ -5214,13 +5377,13 @@ const mentionsChartController = {
         body: query,
       });
 
-      return res.status(200).json({ result });
+      return res.status(200).json({ result, query });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-  trustDimensionsEducationSystem: async (req, res) => {
+  trustDimensionsEducationSystems: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
         req.body;
@@ -5301,7 +5464,7 @@ const mentionsChartController = {
         body: query,
       });
 
-      return res.status(200).json({ result });
+      return res.status(200).json({ result,query });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
@@ -5355,13 +5518,13 @@ const mentionsChartController = {
               },
               {
                 terms: {
-                  "entity_mentions.entity_type.keyword": ["NGO", "IGO"],
+                  "entity_mentions.entity_type": ["NGO", "IGO"],
                 },
               },
             ],
             must_not: [
-              { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
+              { term: { "trust_dimensions": "" } },
+              { term: { "trust_dimensions": "{}" } },
             ],
           },
         },
@@ -5375,14 +5538,22 @@ const mentionsChartController = {
           },
         });
       }
-
+      query.size = 0; // Do not return documents, just aggregations
+      query.aggs = {
+        sentiment_counts: {
+          terms: {
+            field: "predicted_sentiment_value.keyword",
+            size: 10, // Adjust as needed
+          },
+        },
+      };
       // Execute query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: query,
       });
 
-      return res.status(200).json({ result });
+      return res.status(200).json({ result,query });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });

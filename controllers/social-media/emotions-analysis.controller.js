@@ -499,7 +499,12 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
       ],
     },
   };
-  if (topicId === 2619) {
+    if (source !== 'All') {
+            query.bool.must.push({
+                match_phrase: { source: source }
+            });
+    }
+    else if (topicId === 2619) {
     query.bool.must.push({
       bool: {
         should: [

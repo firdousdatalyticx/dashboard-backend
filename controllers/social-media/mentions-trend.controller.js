@@ -247,6 +247,189 @@ const mentionsTrendController = {
         }
     },
 
+     getMentionsOverTime: async (req, res) => {
+        try {
+            const { 
+                timeSlot,
+                fromDate,
+                toDate,
+                sentimentType,
+                source = 'All',
+                category = 'all',
+                unTopic = 'false',
+                topicId,
+                llm_mention_type
+            } = req.body;
+
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+            // Get category data from middleware
+            const categoryData = req.processedCategories || {};
+
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({
+                    success: true,
+                    error: 'No category data available',
+                    mentionsGraphData: '',
+                    maxMentionData: '0'
+                });
+            }
+
+            // Build base query for filters processing
+            const baseQueryString = buildBaseQueryString(category, categoryData);
+            
+            // Process filters (time slot, date range, sentiment)
+            const filters = processFilters({
+                sentimentType,
+                timeSlot,
+                fromDate,
+                toDate,
+                queryString: baseQueryString,
+                isSpecialTopic
+            });
+
+            // Handle special case for unTopic
+            let queryTimeRange = {
+                gte: filters.greaterThanTime,
+                lte: filters.lessThanTime
+            };
+
+            if (Number(req.body.topicId)==2473) {
+                queryTimeRange = {
+                    gte: '2023-01-01',
+                    lte: '2023-04-30'
+                };
+            }
+
+            // Build base query
+            const query = buildBaseQuery({
+                greaterThanTime: queryTimeRange.gte,
+                lessThanTime: queryTimeRange.lte
+            }, source, isSpecialTopic,Number(req.body.topicId));
+
+            // Add category filters
+            addCategoryFilters(query, category, categoryData);
+            
+            // Apply sentiment filter if provided
+            if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+                if (sentimentType.includes(',')) {
+                    // Handle multiple sentiment types
+                    const sentimentArray = sentimentType.split(',');
+                    const sentimentFilter = {
+                        bool: {
+                            should: sentimentArray.map(sentiment => ({
+                                match: { predicted_sentiment_value: sentiment.trim() }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    };
+                    query.bool.must.push(sentimentFilter);
+                } else {
+                    // Handle single sentiment type
+                    query.bool.must.push({
+                        match: { predicted_sentiment_value: sentimentType.trim() }
+                    });
+                }
+                console.log("Applied sentiment filter for:", sentimentType);
+            }
+
+            // Apply LLM Mention Type filter if provided
+            if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+                const mentionTypeFilter = {
+                    bool: {
+                        should: llm_mention_type.map(type => ({
+                            match: { llm_mention_type: type }
+                        })),
+                        minimum_should_match: 1
+                    }
+                };
+                query.bool.must.push(mentionTypeFilter);
+            }
+
+            // Execute aggregation query to get counts per date
+            const aggQuery = {
+                query: query,
+                size: 0,
+                aggs: {
+                    daily_counts: {
+                        date_histogram: { 
+                            field: 'p_created_time', 
+                            fixed_interval: '1d', 
+                            min_doc_count: 0,
+                            extended_bounds: {
+                                min: queryTimeRange.gte,
+                                max: queryTimeRange.lte
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Execute aggregation query
+            const aggResponse = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: aggQuery
+            });
+
+            // Get total count using the same query
+            const totalCountQuery = {
+                query: query,
+                size: 0
+            };
+            const totalCountResponse = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: totalCountQuery
+            });
+            const totalCount = totalCountResponse.hits.total.value || totalCountResponse.hits.total || 0;
+
+            // Process aggregation results and find max mentions
+                let maxDate = '';
+                let maxMentions = 0;
+                const datesArray = [];
+
+                const buckets = aggResponse?.aggregations?.daily_counts?.buckets || [];
+
+                for (const bucket of buckets) {
+                    const docCount = bucket.doc_count;
+                    const keyAsString = new Date(bucket.key_as_string).toISOString().split('T')[0];
+
+                    const bucketDate = new Date(keyAsString);
+                    const startDate = new Date(queryTimeRange.gte);
+                    const endDate = new Date(queryTimeRange.lte);
+
+                    if (bucketDate >= startDate && bucketDate <= endDate) {
+                        if (docCount > maxMentions) {
+                            maxMentions = docCount;
+                            maxDate = keyAsString;
+                        }
+
+                        datesArray.push({ date: keyAsString, count: docCount });
+                    }
+                }
+
+                // Sort dates in descending order
+                datesArray.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                // Return response with mentions only
+                return res.status(200).json({
+                    success: true,
+                    maxMentionData: `${maxDate},${maxMentions}`,
+                    totalCount: totalCount,
+                    datesWithPosts: datesArray, // this is your final mentions data
+                    query: query // optional for debugging
+                });
+
+
+        } catch (error) {
+            console.error('Error fetching social media mentions trend data:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    },
+
     getMentionsTrendPost: async (req, res) => {
         try {
             const { 

@@ -267,7 +267,7 @@ const dashboardController = {
                 });
             }
 
-            // Add enabled status to each graph
+            // Add enabled status to each graph and group by category
             const graphsWithStatus = graphs.map(graph => {
                 // Check if this graph is enabled for the topic
                 const isEnabled = enabledGraphs.some(eg => eg.graph_id === graph.id);
@@ -278,9 +278,31 @@ const dashboardController = {
                 };
             });
 
+            // Group graphs by category
+            const categorizedGraphs = graphsWithStatus.reduce((acc, graph) => {
+                const category = graph.category;
+                if (!acc[category]) {
+                    acc[category] = [];
+                }
+                acc[category].push(graph);
+                return acc;
+            }, {});
+
+            // Ensure categories are in the desired order
+            const orderedCategories = ['Overview', 'Sentiment', 'Emotion', 'WordCloud', 'Google'];
+            const orderedCategorizedGraphs = {};
+            
+            orderedCategories.forEach(category => {
+                if (categorizedGraphs[category]) {
+                    orderedCategorizedGraphs[category] = categorizedGraphs[category];
+                }
+            });
+
             return res.json({
                 success: true,
-                data: graphsWithStatus
+                data: {
+                    categorizedGraphs: orderedCategorizedGraphs,
+                }
             });
         } catch (error) {
             console.error('Error fetching available graphs:', error);

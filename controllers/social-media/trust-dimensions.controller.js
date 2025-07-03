@@ -814,7 +814,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
             must: [
                 {
                     range: {
-                        created_at: {
+                        p_created_time: {
                             gte: dateRange.greaterThanTime,
                             lte: dateRange.lessThanTime
                         }

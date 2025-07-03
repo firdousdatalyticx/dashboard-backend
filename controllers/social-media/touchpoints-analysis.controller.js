@@ -167,38 +167,45 @@ const touchpointsAnalysisController = {
                         // Create post details object for this post
                         const postDetails = formatPostData(hit);
                         
-                        // Process each touchpoint in the document
-                        Object.entries(touchpoints).forEach(([touchpointName, touchpointSentiment]) => {
-                            const touchpointKey = touchpointName.trim();
-                            const sentimentKey = touchpointSentiment.trim();
-                            
-                            if (!touchpointsMap.has(touchpointKey)) {
-                                touchpointsMap.set(touchpointKey, {
-                                    touchpoint: touchpointKey,
-                                    sentiments: {
-                                        'Positive': { count: 0, posts: [] },
-                                        'Negative': { count: 0, posts: [] },
-                                        'Neutral': { count: 0, posts: [] },
-                                        'Distrustful': { count: 0, posts: [] },
-                                        'Supportive': { count: 0, posts: [] }
-                                    },
-                                    totalCount: 0
-                                });
-                            }
-                            
-                            const touchpointData = touchpointsMap.get(touchpointKey);
-                            touchpointData.totalCount++;
-                            
-                            // Initialize sentiment if it doesn't exist
-                            if (!touchpointData.sentiments[sentimentKey]) {
-                                touchpointData.sentiments[sentimentKey] = { count: 0, posts: [] };
-                            }
-                            
-                            touchpointData.sentiments[sentimentKey].count++;
-                            touchpointData.sentiments[sentimentKey].posts.push(postDetails);
-                            
-                            totalCount++;
-                        });
+                      // Process each touchpoint in the document
+Object.entries(touchpoints).forEach(([touchpointName, touchpointSentiment]) => {
+    const touchpointKey = touchpointName.trim();
+    const sentimentKey = touchpointSentiment.trim();
+
+    const predictedSentiment = postDetails.predicted_sentiment?.trim().toLowerCase();
+    const touchpointSentimentLower = sentimentKey.toLowerCase();
+
+    // ✅ Only process if predicted sentiment matches touchpoint sentiment
+    if (predictedSentiment === touchpointSentimentLower) {
+        if (!touchpointsMap.has(touchpointKey)) {
+            touchpointsMap.set(touchpointKey, {
+                touchpoint: touchpointKey,
+                sentiments: {
+                    'Positive': { count: 0, posts: [] },
+                    'Negative': { count: 0, posts: [] },
+                    'Neutral': { count: 0, posts: [] },
+                    'Distrustful': { count: 0, posts: [] },
+                    'Supportive': { count: 0, posts: [] }
+                },
+                totalCount: 0
+            });
+        }
+
+        const touchpointData = touchpointsMap.get(touchpointKey);
+        touchpointData.totalCount++;
+
+        // Initialize sentiment if it doesn't exist
+        if (!touchpointData.sentiments[sentimentKey]) {
+            touchpointData.sentiments[sentimentKey] = { count: 0, posts: [] };
+        }
+
+        touchpointData.sentiments[sentimentKey].count++;
+        touchpointData.sentiments[sentimentKey].posts.push(postDetails);
+
+        totalCount++;
+    }
+});
+
                     } catch (error) {
                         console.error('Error parsing touchpoints JSON:', error, touchpointsStr);
                     }

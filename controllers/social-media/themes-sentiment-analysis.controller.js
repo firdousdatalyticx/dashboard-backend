@@ -94,6 +94,15 @@ const themesSentimentAnalysisController = {
                         }
                     });
                 }
+            }else{
+                const aggs = {
+                    sentiment_counts: {
+                    terms: {
+                        field: 'predicted_sentiment_value.keyword',
+                        size: 10
+                    }
+                    }
+                };
             }
 
             // Add category filters
@@ -106,7 +115,6 @@ const themesSentimentAnalysisController = {
                 }
             });
 
-            console.log('Themes Sentiment Analysis Query:', JSON.stringify(query, null, 2));
 
             // Execute the query to get all documents with themes_sentiments
             const params = {
@@ -154,6 +162,7 @@ const themesSentimentAnalysisController = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: params
             });
+            console.log('Themes Sentiment Analysis Query:', JSON.stringify(query, null, 2));
 
             console.log('Themes Sentiment Analysis Response hits:', response.hits.hits.length);
 
@@ -168,33 +177,42 @@ const themesSentimentAnalysisController = {
                 if (themesStr && themesStr.trim() !== '') {
                     try {
                         const themes = JSON.parse(themesStr);
+                        console.log("themes",themes)
                         
                         // Create post details object for this post
                         const postDetails = formatPostData(hit);
+                        // if(themesStr==postDetails?.predicted_sentiment){
                         
                         // Process each theme and its sentiment in the document
-                        Object.entries(themes).forEach(([themeName, themeSentiment]) => {
-                            const cleanThemeName = themeName.trim();
-                            const cleanSentiment = themeSentiment.trim();
-                            
-                            sentimentTypes.add(cleanSentiment);
-                            
-                            if (!themesSentimentMap.has(cleanThemeName)) {
-                                themesSentimentMap.set(cleanThemeName, new Map());
-                            }
-                            
-                            const themeData = themesSentimentMap.get(cleanThemeName);
-                            
-                            if (!themeData.has(cleanSentiment)) {
-                                themeData.set(cleanSentiment, { count: 0, posts: [] });
-                            }
-                            
-                            const sentimentData = themeData.get(cleanSentiment);
-                            sentimentData.count++;
-                            sentimentData.posts.push(postDetails);
-                            
-                            totalCount++;
-                        });
+                      Object.entries(themes).forEach(([themeName, themeSentiment]) => {
+    const cleanThemeName = themeName.trim();
+    const cleanSentiment = themeSentiment.trim();
+    
+    sentimentTypes.add(cleanSentiment);
+    
+    if (!themesSentimentMap.has(cleanThemeName)) {
+        themesSentimentMap.set(cleanThemeName, new Map());
+    }
+    
+    const themeData = themesSentimentMap.get(cleanThemeName);
+    
+    if (!themeData.has(cleanSentiment)) {
+        themeData.set(cleanSentiment, { count: 0, posts: [] });
+    }
+
+    const predictedSentiment = postDetails.predicted_sentiment?.trim().toLowerCase();
+    const themeSentimentLower = cleanSentiment.toLowerCase();
+
+    // ✅ Match predicted sentiment with theme sentiment
+    if (predictedSentiment === themeSentimentLower) {
+        const sentimentData = themeData.get(cleanSentiment);
+        sentimentData.count++;
+        sentimentData.posts.push(postDetails);
+        totalCount++;
+    }
+});
+
+                    // }
                     } catch (error) {
                         console.error('Error parsing themes_sentiments JSON:', error, themesStr);
                     }

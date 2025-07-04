@@ -13,7 +13,8 @@ const executeElasticSearchCount = async (params) => {
     try {
         const response = await elasticClient.count({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: params.body
+            body: params.body,
+            preference: '_local'  // Prefer local shard execution
         });
         return response;
     } catch (error) {
@@ -31,7 +32,9 @@ const executeElasticSearchQuery = async (params) => {
     try {
         const response = await elasticClient.search({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: params
+            body: params,
+            preference: '_local',  // Prefer local shard execution
+            timeout: '30s'  // Set reasonable timeout
         });
         return response;
     } catch (error) {
@@ -46,28 +49,37 @@ const executeElasticSearchQuery = async (params) => {
  * @returns {Promise<String>} Elasticsearch query string
  */
 const buildTouchpointQueryString = async (touchpointId) => {
+    // Cache the touchpoint data in memory
+    if (!buildTouchpointQueryString.cache) {
+        buildTouchpointQueryString.cache = new Map();
+    }
+
+    // Check cache first
+    const cached = buildTouchpointQueryString.cache.get(touchpointId);
+    if (cached) {
+        return cached;
+    }
+
     const touchpoint = await prisma.touch_points.findMany({
         where: { tp_id: touchpointId },
         select: { tp_keywords: true }
     });
 
     if (!touchpoint || touchpoint.length === 0 || !touchpoint[0].tp_keywords) {
+        buildTouchpointQueryString.cache.set(touchpointId, '');
         return '';
     }
 
     const keywordsArray = touchpoint[0].tp_keywords.split(',');
-    let keywordsQueryString = '';
+    const keywordsQueryString = keywordsArray
+        .map(keyword => keyword.trim())
+        .filter(keyword => keyword !== '')
+        .map(keyword => `"${keyword}"`)
+        .join(' OR ');
 
-    for (const keyword of keywordsArray) {
-        if (keyword.trim() !== '') {
-            keywordsQueryString += `"${keyword.trim()}" OR `;
-        }
-    }
-
-    // Remove the last ' OR '
-    keywordsQueryString = keywordsQueryString.slice(0, -4);
-
-    return `p_message_text:(${keywordsQueryString})`;
+    const result = keywordsQueryString ? `p_message_text:(${keywordsQueryString})` : '';
+    buildTouchpointQueryString.cache.set(touchpointId, result);
+    return result;
 };
 
 /**
@@ -76,12 +88,25 @@ const buildTouchpointQueryString = async (touchpointId) => {
  * @returns {Promise<Array>} Array of touchpoints
  */
 const getAllTouchpoints = async (subtopicId) => {
+    // Cache the touchpoints data in memory
+    if (!getAllTouchpoints.cache) {
+        getAllTouchpoints.cache = new Map();
+    }
+
+    // Check cache first
+    const cached = getAllTouchpoints.cache.get(subtopicId);
+    if (cached) {
+        return cached;
+    }
+
     const touchpoints = await prisma.cx_touch_points.findMany({
         where: { cx_tp_cx_id: subtopicId },
         select: { cx_tp_tp_id: true }
     });
 
-    return touchpoints.length > 0 ? touchpoints : [];
+    const result = touchpoints.length > 0 ? touchpoints : [];
+    getAllTouchpoints.cache.set(subtopicId, result);
+    return result;
 };
 
 /**
@@ -90,9 +115,23 @@ const getAllTouchpoints = async (subtopicId) => {
  * @returns {Promise<Array>} Touchpoint data
  */
 const getTouchpointData = async (touchpointId) => {
-    return prisma.touch_points.findMany({
+    // Cache the touchpoint data in memory
+    if (!getTouchpointData.cache) {
+        getTouchpointData.cache = new Map();
+    }
+
+    // Check cache first
+    const cached = getTouchpointData.cache.get(touchpointId);
+    if (cached) {
+        return cached;
+    }
+
+    const result = await prisma.touch_points.findMany({
         where: { tp_id: touchpointId }
     });
+
+    getTouchpointData.cache.set(touchpointId, result);
+    return result;
 };
 
 const keywordsController = {
@@ -172,7 +211,7 @@ const keywordsController = {
                     const es_data = await executeElasticSearchCount(params)
             
                     // Fetch posts for this touchpoint
-                    const MAX_POSTS_PER_KEYWORD = 30;
+                    const MAX_POSTS_PER_KEYWORD = 10;
                     const limit = Math.min(es_data.count, MAX_POSTS_PER_KEYWORD);
                     
                     let posts = [];
@@ -181,7 +220,30 @@ const keywordsController = {
                             const postsQuery = {
                                 size: limit,
                                 query: params.body.query,
-                                sort: [{ created_at: { order: 'desc' } }]
+                                sort: [{ p_created_time: { order: 'desc' } }],
+                                _source: {
+                                    includes: [
+                                        'p_content',
+                                        'p_url',
+                                        'p_picture_url',
+                                        'predicted_sentiment_value',
+                                        'source',
+                                        'u_fullname',
+                                        'p_created_time',
+                                        'created_at',
+                                        'p_engagement',
+                                        'p_likes',
+                                        'p_comments',
+                                        'p_shares',
+                                        'rating',
+                                        'comment',
+                                        'business_response',
+                                        'u_source',
+                                        'name',
+                                        'p_message_text',
+                                        'p_comments_data'
+                                    ]
+                                }
                             };
                             
                             const postsResponse = await executeElasticSearchQuery(postsQuery);
@@ -296,7 +358,7 @@ const keywordsController = {
                     const results = await executeElasticSearchCount(params)
             
                     // Fetch posts for this keyword
-                    const MAX_POSTS_PER_KEYWORD = 30;
+                    const MAX_POSTS_PER_KEYWORD = 10;
                     const limit = Math.min(results.count, MAX_POSTS_PER_KEYWORD);
                     
                     let posts = [];
@@ -305,7 +367,30 @@ const keywordsController = {
                             const postsQuery = {
                                 size: limit,
                                 query: params.body.query,
-                                sort: [{ created_at: { order: 'desc' } }]
+                                sort: [{ p_created_time: { order: 'desc' } }],
+                                _source: {
+                                    includes: [
+                                        'p_content',
+                                        'p_url',
+                                        'p_picture_url',
+                                        'predicted_sentiment_value',
+                                        'source',
+                                        'u_fullname',
+                                        'p_created_time',
+                                        'created_at',
+                                        'p_engagement',
+                                        'p_likes',
+                                        'p_comments',
+                                        'p_shares',
+                                        'rating',
+                                        'comment',
+                                        'business_response',
+                                        'u_source',
+                                        'name',
+                                        'p_message_text',
+                                        'p_comments_data'
+                                    ]
+                                }
                             };
                             
                             const postsResponse = await executeElasticSearchQuery(postsQuery);

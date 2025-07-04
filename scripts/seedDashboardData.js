@@ -26,7 +26,7 @@ async function seedDashboardData() {
                 graph_type: 'metric_card',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 1
             },
             {
@@ -77,7 +77,7 @@ async function seedDashboardData() {
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -90,7 +90,7 @@ async function seedDashboardData() {
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -103,7 +103,7 @@ async function seedDashboardData() {
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -116,7 +116,7 @@ async function seedDashboardData() {
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -129,7 +129,7 @@ async function seedDashboardData() {
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -238,7 +238,7 @@ async function seedDashboardData() {
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -251,7 +251,7 @@ async function seedDashboardData() {
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -267,7 +267,7 @@ async function seedDashboardData() {
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -277,6 +277,86 @@ async function seedDashboardData() {
                 description: 'Strength and direction of emotional reactions in mentions.',
                 sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1751616290/Emotion_Polarity_c9eptb.png',
                 category: 'Emotion',
+                graph_type: 'line_chart',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            // Google Category
+            
+            {
+                name: 'google_map',
+                display_name: 'Google Map',
+                description: 'Geographic visualization of key locations and data points.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1751627101/Google_Map_xvofsk.png',
+                category: 'Google',
+                graph_type: 'line_chart',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'kepler_map',
+                display_name: 'Kepler Map',
+                description: 'Geographic visualization of key locations and data points.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1751627178/Kepler_Map_sb6ln9.png',
+                category: 'Google',
+                graph_type: 'line_chart',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'review_trends_by_rating',
+                display_name: 'Review Trends by Rating',
+                description: 'Customer rating patterns over time.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1751627297/Review_Trends_by_Rating_cevk6w.png',
+                category: 'Google',
+                graph_type: 'line_chart',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'google_reviews_trend',
+                display_name: 'Google Reviews Trend',
+                description: 'Volume of Google reviews over time.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1751627462/Google_Reviews_Trend_lkkz7d.png',
+                category: 'Google',
+                graph_type: 'line_chart',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'google_reviews_rating',
+                display_name: 'Google Reviews Rating',
+                description: 'Distribution of star ratings from customer reviews.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1751627540/Google_Review_Rating_ssekzw.png',
+                category: 'Google',
+                graph_type: 'line_chart',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'google_reviews_keywords',
+                display_name: 'Google Reviews Keywords',
+                description: 'Most frequent phrases and themes in customer feedback.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1751627635/Google_Review_Keywords_xon4ky.png',
+                category: 'Google',
                 graph_type: 'line_chart',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',

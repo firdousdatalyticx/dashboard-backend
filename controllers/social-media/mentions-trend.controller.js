@@ -90,7 +90,6 @@ const mentionsTrendController = {
                         match: { predicted_sentiment_value: sentimentType.trim() }
                     });
                 }
-                console.log("Applied sentiment filter for:", sentimentType);
             }
 
             // Apply LLM Mention Type filter if provided
@@ -106,8 +105,8 @@ const mentionsTrendController = {
                 query.bool.must.push(mentionTypeFilter);
             }
 
-            // Execute aggregation query to get counts per date
-            const aggQuery = {
+            // Execute combined aggregation query with posts
+            const combinedQuery = {
                 query: query,
                 size: 0,
                 aggs: {
@@ -120,41 +119,67 @@ const mentionsTrendController = {
                                 min: queryTimeRange.gte,
                                 max: queryTimeRange.lte
                             }
+                        },
+                        aggs: {
+                            top_posts: {
+                                top_hits: {
+                                    size: 10,
+                                    _source: {
+                                        includes: [
+                                            'u_profile_photo',
+                                            'u_followers',
+                                            'u_following',
+                                            'u_posts',
+                                            'p_likes',
+                                            'llm_emotion',
+                                            'p_comments_text',
+                                            'p_url',
+                                            'p_comments',
+                                            'p_shares',
+                                            'p_engagement',
+                                            'p_content',
+                                            'p_picture_url',
+                                            'predicted_sentiment_value',
+                                            'predicted_category',
+                                            'source',
+                                            'rating',
+                                            'u_fullname',
+                                            'p_message_text',
+                                            'comment',
+                                            'business_response',
+                                            'u_source',
+                                            'name',
+                                            'p_created_time',
+                                            'created_at',
+                                            'p_comments_data',
+                                            'video_embed_url',
+                                            'p_id',
+                                            'p_picture'
+                                        ]
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             };
 
-            // Execute aggregation query
-            const aggResponse = await elasticClient.search({
+            // Execute combined query
+            const response = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: aggQuery
+                body: combinedQuery
             });
 
-            // Get total count using the same query
-            const totalCountQuery = {
-                query: query,
-                size: 0
-            };
-            const totalCountResponse = await elasticClient.search({
-                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: totalCountQuery
-            });
-            const totalCount = totalCountResponse.hits.total.value || totalCountResponse.hits.total || 0;
-
-            // Process aggregation results and find max mentions
+            // Process results
             let maxDate = '';
             let maxMentions = 0;
-            const datesArray = [];
-            const dateCountMap = {};
-
-            const buckets = aggResponse?.aggregations?.daily_counts?.buckets || [];
+            const datesWithPosts = [];
+            const buckets = response?.aggregations?.daily_counts?.buckets || [];
 
             for (const bucket of buckets) {
                 const docCount = bucket.doc_count;
                 const keyAsString = new Date(bucket.key_as_string).toISOString().split('T')[0];
                 
-                // Only include dates within the specified range
                 const bucketDate = new Date(keyAsString);
                 const startDate = new Date(queryTimeRange.gte);
                 const endDate = new Date(queryTimeRange.lte);
@@ -164,78 +189,24 @@ const mentionsTrendController = {
                         maxMentions = docCount;
                         maxDate = keyAsString;
                     }
+
+                    // Format posts for this bucket
+                    const posts = bucket.top_posts.hits.hits.map(hit => formatPostData(hit));
                     
-                    datesArray.push(`${keyAsString},${docCount}`);
-                    dateCountMap[keyAsString] = docCount;
+                    datesWithPosts.push({
+                        date: keyAsString,
+                        count: docCount,
+                        posts: posts
+                    });
                 }
-            }
-
-            // Fetch posts efficiently in a single query with date aggregation
-            const postsQuery = {
-                query: query,
-                size: 0,
-                aggs: {
-                    posts_by_date: {
-                        date_histogram: {
-                            field: 'p_created_time',
-                            fixed_interval: '1d',
-                            min_doc_count: 1,
-                            extended_bounds: {
-                                min: queryTimeRange.gte,
-                                max: queryTimeRange.lte
-                            }
-                        },
-                        aggs: {
-                            top_posts: {
-                                top_hits: {
-                                    size: 15, // Limit to 15 posts per date
-                                    sort: [{ p_created_time: { order: 'desc' } }]
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-
-            const postsResponse = await elasticClient.search({
-                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: postsQuery
-            });
-
-            // Process posts and group by date
-            const datesWithPosts = [];
-            const postsAggBuckets = postsResponse?.aggregations?.posts_by_date?.buckets || [];
-
-            // Create a map for quick lookup
-            const postsByDateMap = {};
-            for (const bucket of postsAggBuckets) {
-                const keyAsString = new Date(bucket.key_as_string).toISOString().split('T')[0];
-                const posts = bucket.top_posts.hits.hits.map(hit => formatPostData(hit));
-                postsByDateMap[keyAsString] = posts;
-            }
-
-            // Build final dates with posts array
-            for (const dateEntry of datesArray) {
-                const [dateString, countString] = dateEntry.split(',');
-                const count = parseInt(countString);
-                
-                datesWithPosts.push({
-                    date: dateString,
-                    count: count,
-                    posts: postsByDateMap[dateString] || []
-                });
             }
 
             // Sort dates in descending order
-            datesArray.sort((a, b) => new Date(b.split(',')[0]) - new Date(a.split(',')[0]));
             datesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             return res.status(200).json({
                 success: true,
-                maxMentionData: `${maxDate},${maxMentions}`,
-                totalCount: totalCount,
                 datesWithPosts: datesWithPosts,
-                query: query
             });
 
         } catch (error) {

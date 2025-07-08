@@ -957,6 +957,7 @@ model available_graphs {
   sample_image_url    String?  @db.VarChar(500)
   category            String   @db.VarChar(100) // 'overview', 'sentiment', 'engagement', 'google', 'industry_specific'
   graph_type          String   @db.VarChar(100) // 'bar', 'line', 'pie', 'metric_card'
+  component_enum      String?  @db.VarChar(100) // Component name for rendering
   api_endpoint        String?  @db.VarChar(255)
   supported_sources   String?  @db.Text // comma-separated source names
   is_premium          Boolean  @default(false)

@@ -99,7 +99,9 @@ const topicController = {
                 dashboard_start_date,
                 dashboard_end_date,
                 // Graph enablement
-                enabledGraphs // Array of graph IDs
+                enabledGraphs, // Array of graph IDs
+                // Premium status
+                topic_is_premium
             } = req.body;
 
             // Validate topic ID
@@ -164,6 +166,7 @@ const topicController = {
                     topic_data_location: dataLocation !== undefined ? dataLocation : existingTopic.topic_data_location,
                     topic_data_lang: dataLanguage !== undefined ? dataLanguage : existingTopic.topic_data_lang,
                     topic_logo: req.file ? logo_url : (logo || existingTopic.topic_logo),
+                    topic_is_premium: topic_is_premium !== undefined ? topic_is_premium : existingTopic.topic_is_premium,
                     // Dashboard configuration updates
                     dashboard_enabled: dashboard_enabled !== undefined ? dashboard_enabled : existingTopic.dashboard_enabled,
                     dashboard_date_range: dashboard_date_range !== undefined ? dashboard_date_range : existingTopic.dashboard_date_range,
@@ -431,7 +434,9 @@ const topicController = {
                 dashboard_start_date,
                 dashboard_end_date,
                 // Graph enablement
-                enabledGraphs // Array of graph IDs
+                enabledGraphs, // Array of graph IDs
+                // Premium status
+                topic_is_premium
             } = req.body;
 
 
@@ -594,7 +599,7 @@ const topicController = {
                     topic_data_source: data_source_str,
                     topic_data_location: data_location_str,
                     topic_data_lang: data_lang_str,
-                    topic_is_premium: 'Y',
+                    topic_is_premium: topic_is_premium || 'Y', // Use provided value or default to 'Y'
                     customer_portal: 'D24',
                     customer_sub_account_id: userId,
                     topic_logo: logo_filename,

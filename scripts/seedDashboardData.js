@@ -651,9 +651,123 @@ async function seedDashboardData() {
                 sort_order: 2
             },
 
+
+            // UNDP GRAPHS
+
             
+            {
+                name: 'environmental_hazards',
+                display_name: 'Environmental Hazards',
+                description: 'Breakdown of natural disaster impacts by hazard type.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1752141688/Environmental_Hazards_qowm5l.png',
+                category: 'Overview',
+                graph_type: 'line_chart',
+                component_enum: 'EnvironmentalHazards',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
 
 
+            {
+                name: 'aid_type',
+                display_name: 'Aid Type',
+                description: 'Distribution between local and international disaster relief assistance.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1752141778/Aid_Type_lm1las.png',
+                category: 'Overview',
+                graph_type: 'line_chart',
+                component_enum: 'AidType',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'undp_announcements',
+                display_name: 'UNDP Announcements',
+                description: 'Key disaster response communications and priority alerts.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1752141859/UNDP_Announcements_vwnfq5.png',
+                category: 'Overview',
+                graph_type: 'line_chart',
+                component_enum: 'UNDPAnnouncements',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+
+            {
+                name: 'undp_touchpoints',
+                display_name: 'UNDP Touchpoints',
+                description: 'Core disaster response and recovery focus areas.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1752141973/UNDP_Touchpoints_q6bpgh.png',
+                category: 'Overview',
+                graph_type: 'line_chart',
+                component_enum: 'UNDPTouchpoints',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'aid_requested_aid_received',
+                display_name: 'Aid Requested/Aid Received',
+                description: 'Gap analysis between needed and delivered assistance.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1752142048/Aid_Requested_Aid_Recieved_pfsgn4.png',
+                category: 'Overview',
+                graph_type: 'line_chart',
+                component_enum: 'AidRequestedAidReceived',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'touchpoints_sentiments',
+                display_name: 'Touchpoints Sentiments',
+                description: 'Sentiment response analysis across relief operations.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1752142291/Touchpoints_Sentiments_enowar.png',
+                category: 'Overview',
+                graph_type: 'line_chart',
+                component_enum: 'TouchpointsSentiments',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'touchpoints_identification',
+                display_name: 'Touchpoints Identification',
+                description: 'Frequency distribution of key intervention areas.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1752142441/Touchpoints_Identification_zk1gnx.png',
+                category: 'Overview',
+                graph_type: 'line_chart',
+                component_enum: 'TouchpointsIdentification',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
+
+            {
+                name: 'igo_entities',
+                display_name: 'IGO Entities',
+                description: 'Measures social media posts related to various IGO Entities.',
+                sample_image_url: 'https://res.cloudinary.com/dwllrmrpo/image/upload/v1752142548/IGO_Entities_uqpph8.png',
+                category: 'Overview',
+                graph_type: 'line_chart',
+                component_enum: 'IGOEntities',
+                api_endpoint: '/api/social-media/mentions-trend',
+                supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
+                is_default: true,
+                sort_order: 2
+            },
             
       
         ];

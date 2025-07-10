@@ -1,3 +1,11 @@
+const express = require('express');
+const app = express();
+const bodyParser = require('body-parser');
+
+// Configure body-parser with increased limits
+app.use(bodyParser.json({limit: '50mb'}));
+app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
+
 // Import Swagger docs
 const swaggerSchemas = require('./docs/swagger/schemas');
 const socialMediaSwagger = require('./docs/swagger/social-media');

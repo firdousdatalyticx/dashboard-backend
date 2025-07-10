@@ -27,7 +27,7 @@ async function seedDashboardData() {
                 component_enum: 'MentionsTrend',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 1
             },
             {
@@ -82,7 +82,7 @@ async function seedDashboardData() {
                 component_enum: 'MentionsType',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 2
             },
 
@@ -96,7 +96,7 @@ async function seedDashboardData() {
                 component_enum: 'AudienceSummary',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 2
             },
 
@@ -110,7 +110,7 @@ async function seedDashboardData() {
                 component_enum: 'MentionsRecurrence',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 2
             },
 
@@ -124,7 +124,7 @@ async function seedDashboardData() {
                 component_enum: 'TopInfluencers',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 2
             },
 
@@ -138,7 +138,7 @@ async function seedDashboardData() {
                 component_enum: 'InfluenceCategory',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 2
             },
 
@@ -179,7 +179,7 @@ async function seedDashboardData() {
                 component_enum: 'AudienceIntentMatrix',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -195,7 +195,7 @@ async function seedDashboardData() {
                 component_enum: 'ActionRequired',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -255,7 +255,7 @@ async function seedDashboardData() {
                 component_enum: 'SentimentDistribution',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 2
             },
 
@@ -269,7 +269,7 @@ async function seedDashboardData() {
                 component_enum: 'Leaderboard',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 2
             },
 
@@ -285,7 +285,7 @@ async function seedDashboardData() {
                 component_enum: 'EmotionAnalysis',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: false,
+                is_default: true,
                 sort_order: 2
             },
 
@@ -402,7 +402,7 @@ async function seedDashboardData() {
                 component_enum: 'TrustDimensionsAnalysis',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -416,7 +416,7 @@ async function seedDashboardData() {
                 component_enum: 'PostsOverTime',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -430,7 +430,7 @@ async function seedDashboardData() {
                 component_enum: 'DistrustfulToneByCountry',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -444,7 +444,7 @@ async function seedDashboardData() {
                 component_enum: 'ThemesBySentiment',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -458,7 +458,7 @@ async function seedDashboardData() {
                 component_enum: 'DistrustfulTrustOverTime',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -472,7 +472,7 @@ async function seedDashboardData() {
                 component_enum: 'TouchpointsBySentiment',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -486,7 +486,7 @@ async function seedDashboardData() {
                 component_enum: 'ThemesOverTime',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -500,7 +500,7 @@ async function seedDashboardData() {
                 component_enum: 'SentimentDistributionBySector',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -514,7 +514,7 @@ async function seedDashboardData() {
                 component_enum: 'MigrationTopicDistribution',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -528,7 +528,7 @@ async function seedDashboardData() {
                 component_enum: 'MentionsDistributionBySector',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -542,7 +542,7 @@ async function seedDashboardData() {
                 component_enum: 'TrustDimensionsByTone',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -559,7 +559,7 @@ async function seedDashboardData() {
                 component_enum: 'MotivationPhaseSentiments',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -573,7 +573,7 @@ async function seedDashboardData() {
                 component_enum: 'EventPhasesWordCloud',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -587,7 +587,7 @@ async function seedDashboardData() {
                 component_enum: 'EventTypePopularity',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -604,7 +604,7 @@ async function seedDashboardData() {
                 component_enum: 'InflationCategoriesAnalysis',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -619,7 +619,7 @@ async function seedDashboardData() {
                 component_enum: 'InflationBySector',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -633,7 +633,7 @@ async function seedDashboardData() {
                 component_enum: 'InflationTypeDistribution',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -647,7 +647,7 @@ async function seedDashboardData() {
                 component_enum: 'InflationPhrasesAnalysis',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -665,7 +665,7 @@ async function seedDashboardData() {
                 component_enum: 'EnvironmentalHazards',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -680,7 +680,7 @@ async function seedDashboardData() {
                 component_enum: 'AidType',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -694,7 +694,7 @@ async function seedDashboardData() {
                 component_enum: 'UNDPAnnouncements',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -709,7 +709,7 @@ async function seedDashboardData() {
                 component_enum: 'UNDPTouchpoints',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -723,7 +723,7 @@ async function seedDashboardData() {
                 component_enum: 'AidRequestedAidReceived',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -737,7 +737,7 @@ async function seedDashboardData() {
                 component_enum: 'TouchpointsSentiments',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -751,7 +751,7 @@ async function seedDashboardData() {
                 component_enum: 'TouchpointsIdentification',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -765,7 +765,7 @@ async function seedDashboardData() {
                 component_enum: 'IGOEntities',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
             
@@ -789,7 +789,7 @@ async function seedDashboardData() {
         const totalGraphsCount = await prisma.available_graphs.count();
         const defaultGraphsCount = await prisma.available_graphs.count({
             where: {
-                is_default: true
+                is_default: false
             }
         });
         

@@ -50,8 +50,8 @@
     setupChatSocket(io);
 
     // Middleware
-    app.use(express.json()); // Parse JSON request bodies
-    app.use(express.urlencoded({ extended: true })); // Parse URL-encoded data
+    app.use(express.json({limit: '50mb'})); // Parse JSON request bodies with increased limit
+    app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Parse URL-encoded data with increased limit
     app.use('/public', express.static(path.join(__dirname, 'public')));
 
     app.use(cors()); // Enable CORS for cross-origin requests

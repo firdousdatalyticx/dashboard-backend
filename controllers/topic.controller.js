@@ -101,7 +101,11 @@ const topicController = {
                 // Graph enablement
                 enabledGraphs, // Array of graph IDs
                 // Premium status
-                topic_is_premium
+                topic_is_premium,
+                // Archive configuration fields
+                topic_archive_start_date,
+                topic_archive_end_date,
+                topic_archive_interval_type
             } = req.body;
 
             // Validate topic ID
@@ -172,6 +176,10 @@ const topicController = {
                     dashboard_date_range: dashboard_date_range !== undefined ? dashboard_date_range : existingTopic.dashboard_date_range,
                     dashboard_start_date: dashboard_start_date !== undefined ? (dashboard_start_date ? new Date(dashboard_start_date) : null) : existingTopic.dashboard_start_date,
                     dashboard_end_date: dashboard_end_date !== undefined ? (dashboard_end_date ? new Date(dashboard_end_date) : null) : existingTopic.dashboard_end_date,
+                    // Archive configuration updates
+                    topic_archive_start_date: topic_archive_start_date !== undefined ? (topic_archive_start_date ? new Date(topic_archive_start_date) : null) : existingTopic.topic_archive_start_date,
+                    topic_archive_end_date: topic_archive_end_date !== undefined ? (topic_archive_end_date ? new Date(topic_archive_end_date) : null) : existingTopic.topic_archive_end_date,
+                    topic_archive_interval_type: topic_archive_interval_type !== undefined ? topic_archive_interval_type : existingTopic.topic_archive_interval_type,
                     topic_updated_at: new Date()
                 }
             });
@@ -436,7 +444,11 @@ const topicController = {
                 // Graph enablement
                 enabledGraphs, // Array of graph IDs
                 // Premium status
-                topic_is_premium
+                topic_is_premium,
+                // Archive configuration fields
+                topic_archive_start_date,
+                topic_archive_end_date,
+                topic_archive_interval_type
             } = req.body;
 
 
@@ -610,7 +622,11 @@ const topicController = {
                     dashboard_enabled: dashboard_enabled || 'yes',
                     dashboard_date_range: dashboard_date_range || 'last_30_days',
                     dashboard_start_date: dashboard_start_date ? new Date(dashboard_start_date) : null,
-                    dashboard_end_date: dashboard_end_date ? new Date(dashboard_end_date) : null
+                    dashboard_end_date: dashboard_end_date ? new Date(dashboard_end_date) : null,
+                    // Archive configuration
+                    topic_archive_start_date: topic_archive_start_date ? new Date(topic_archive_start_date) : null,
+                    topic_archive_end_date: topic_archive_end_date ? new Date(topic_archive_end_date) : null,
+                    topic_archive_interval_type: topic_archive_interval_type || null
                 }
             });
 

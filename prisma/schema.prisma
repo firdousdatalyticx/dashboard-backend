@@ -159,6 +159,11 @@ model customer_topics {
   topic_industry            String?   @db.VarChar(100)
   topic_region              String?   @db.VarChar(50)
   
+  // Archive configuration fields
+  topic_archive_start_date  DateTime? @db.DateTime(0)
+  topic_archive_end_date    DateTime? @db.DateTime(0)
+  topic_archive_interval_type String? @db.VarChar(50) // 'day', 'week', 'month'
+  
   // Dashboard configuration fields
   dashboard_enabled         String?   @default("yes") @db.Char(3)
   dashboard_date_range      String?   @db.VarChar(50) // 'last_30_days', 'last_90_days', 'custom'

@@ -4,6 +4,7 @@ const aiSummaryController = require('../../controllers/social-media/ai-summary.c
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
 const prisma = require('../../config/database');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -95,7 +96,7 @@ const prisma = require('../../config/database');
  *                   type: string
  *                   example: "Failed to generate AI summary"
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, aiSummaryController.getAiSummary);
+router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, aiSummaryController.getAiSummary);
 
 /**
  * @swagger
@@ -181,7 +182,7 @@ router.post('/', express.json(), authMiddleware, transformCategoryData, aiSummar
  *                   type: string
  *                   example: "Failed to save AI summary"
  */
-router.post('/save', express.json(), authMiddleware, aiSummaryController.saveAiSummary);
+router.post('/save', express.json(), authMiddleware, transformDataSource, aiSummaryController.saveAiSummary);
 
 /**
  * @swagger
@@ -238,6 +239,6 @@ router.post('/save', express.json(), authMiddleware, aiSummaryController.saveAiS
  *                   type: string
  *                   example: "Failed to fetch saved AI summaries"
  */
-router.get('/saved', express.json(), authMiddleware, aiSummaryController.getSavedSummaries);
+router.get('/saved', express.json(), authMiddleware, transformDataSource, aiSummaryController.getSavedSummaries);
 
 module.exports = router; 

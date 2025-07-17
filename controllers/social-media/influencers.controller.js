@@ -94,11 +94,9 @@ const influencersController = {
                 toDate,
                 sentimentType,
                 isScadUser = 'false',
-                topicId
+                topicId,
+                source = 'All'
             } = req.body;
-            
-            // Check if this is the special topicId
-            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             const categoryData = req.processedCategories || {};
 
@@ -117,7 +115,7 @@ const influencersController = {
                 toDate,
                 sentimentType,
                 queryString: topicQueryString,
-                isSpecialTopic // Pass special topic flag
+                isSpecialTopic: topicId && parseInt(topicId) === 2600
             });
             
             const finalDataArray = [];
@@ -125,36 +123,42 @@ const influencersController = {
             for (const followerType of INFLUENCER_TYPES) {
                 const { type, from, to } = followerType;
 
-                // Build source filter based on special topic
-                let sourceFilterBool;
-                if (isSpecialTopic) {
-                    sourceFilterBool = {
-                        bool: {
-                            should: [
-                                { match_phrase: { source: "Facebook" } },
-                                { match_phrase: { source: "Twitter" } }
-                            ],
-                            minimum_should_match: 1
-                        }
-                    };
+                // Build the must array for the bool query
+                const mustArray = [
+                    { query_string: { query: filters.queryString } },
+                    { exists: { field: 'u_profile_photo' } },
+                    { range: { p_created_time: { gte: filters.greaterThanTime, lte: filters.lessThanTime } } },
+                    { range: { u_followers: { gte: from, lte: to } } }
+                ];
+
+                // Add source filter
+                if (source !== 'All') {
+                    mustArray.push({
+                        match_phrase: { source: source }
+                    });
                 } else {
-                    sourceFilterBool = {
+                    // Get available data sources from middleware
+                    const availableDataSources = req.processedDataSources || [
+                        "Facebook",
+                        "Twitter", 
+                        "Instagram",
+                        "Youtube",
+                        "Pinterest",
+                        "Reddit",
+                        "LinkedIn",
+                        "Linkedin",
+                        "Web",
+                        "TikTok"
+                    ];
+
+                    mustArray.push({
                         bool: {
-                            should: [
-                                { match_phrase: { source: "Facebook" } },
-                                { match_phrase: { source: "Twitter" } },
-                                { match_phrase: { source: "Instagram" } },
-                                { match_phrase: { source: "Youtube" } },
-                                { match_phrase: { source: "Pinterest" } },
-                                { match_phrase: { source: "Reddit" } },
-                                { match_phrase: { source: "LinkedIn" } },
-                                { match_phrase: { source: "Linkedin" } },
-                                { match_phrase: { source: "Web" } },
-                                { match_phrase: { source: "TikTok" } }
-                            ],
+                            should: availableDataSources.map(source => ({
+                                match_phrase: { source: source }
+                            })),
                             minimum_should_match: 1
                         }
-                    };
+                    });
                 }
 
                 const params = {
@@ -162,13 +166,7 @@ const influencersController = {
                     body: {
                         query: {
                             bool: {
-                                must: [
-                                    { query_string: { query: filters.queryString } },
-                                    { exists: { field: 'u_profile_photo' } },
-                                    { range: { p_created_time: { gte: filters.greaterThanTime, lte: filters.lessThanTime } } },
-                                    { range: { u_followers: { gte: from, lte: to } } },
-                                    sourceFilterBool
-                                ],
+                                must: mustArray,
                                 must_not: [{ term: { 'u_profile_photo.keyword': '' } }]
                             }
                         },
@@ -255,7 +253,8 @@ const influencersController = {
                 sentimentType,
                 isScadUser = 'false', 
                 selectedTab = '',
-                topicId
+                topicId,
+                source = 'All'  // Add default source parameter
             } = req.body;
             
             // Check if this is the special topicId
@@ -285,17 +284,31 @@ const influencersController = {
 
             // Handle source filtering based on user type and selected tab
             let finalQueryString = filters.queryString;
-            if (isSpecialTopic) {
-                // For special topic, only use Facebook and Twitter
-                finalQueryString = `${finalQueryString} AND source:('"Facebook" OR "Twitter"')`;
-            } else if (isScadUser === 'true') {
-                if (selectedTab === 'GOOGLE') {
-                    finalQueryString = finalQueryString ? 
-                        `${finalQueryString} AND source:('"GoogleMyBusiness"')` :
-                        `source:('"GoogleMyBusiness"')`;
-                } else {
-                    finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
-                }
+            
+            // Get available data sources from middleware
+            const availableDataSources = req.processedDataSources || [];
+            
+            // Build source filter based on special topic
+            let sourceFilterBool;
+            if (source !== 'All') {
+                finalQueryString = `${finalQueryString} AND source:('"${source}")`;
+            } else {
+                // Use middleware sources if available, otherwise use default sources
+                const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
+                    "Twitter",
+                    "Facebook",
+                    "Instagram",
+                    "Youtube",
+                    "Pinterest",
+                    "Reddit",
+                    "LinkedIn",
+                    "Linkedin",
+                    "Web",
+                    "TikTok"
+                ];
+
+                const sourceFilter = sourcesToUse.map(source => `"${source}"`).join(' OR ');
+                finalQueryString = `${finalQueryString} AND source:(${sourceFilter})`;
             }
 
             // Execute Elasticsearch queries concurrently for each category

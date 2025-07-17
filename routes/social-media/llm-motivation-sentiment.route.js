@@ -4,7 +4,7 @@ const mentionsTrendController = require('../../controllers/social-media/mentions
 const mentionsChartController = require("../../controllers/social-media/mentions-charts.controller")
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
-const controller = require("../../controllers/social-media/sentiments-analysis.controller") 
+const transformDataSource = require('../../middleware/dataSource.middleware');
 /**
  * @swagger
  * /social-media/event-type-popularity:
@@ -21,8 +21,8 @@ const controller = require("../../controllers/social-media/sentiments-analysis.c
  *           schema:
  *             $ref: '#/components/schemas/MentionsTrendRequest'
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, mentionsChartController.llmMotivationSentimentTrend);
+router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, mentionsChartController.llmMotivationSentimentTrend);
 
-router.get('/posts', express.json(), authMiddleware, transformCategoryData, mentionsChartController.mentionsPost);
+router.get('/posts', express.json(), authMiddleware, transformCategoryData, transformDataSource, mentionsChartController.mentionsPost);
 
 module.exports = router; 

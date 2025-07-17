@@ -383,7 +383,6 @@ const formatPostData = (hit) => {
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
  * @param {string} source - Source to filter by
- * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @returns {Object} Elasticsearch query object
  */
 function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
@@ -402,6 +401,37 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         }
     };
 
+    // Get available data sources from middleware
+    const availableDataSources = req.processedDataSources || [];
+
+    // Handle source filtering
+    if (source !== 'All') {
+        query.bool.must.push({
+            match_phrase: { source: source }
+        });
+    } else {
+        // Use middleware sources if available, otherwise use default sources
+        const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
+            "Facebook",
+            "Twitter",
+            "Instagram",
+            "Youtube",
+            "LinkedIn",
+            "Pinterest",
+            "Web",
+            "Reddit",
+            "TikTok"
+        ];
+
+        query.bool.must.push({
+            bool: {
+                should: sourcesToUse.map(source => ({
+                    match_phrase: { source: source }
+                })),
+                minimum_should_match: 1
+            }
+        });
+    }
 
     return query;
 }

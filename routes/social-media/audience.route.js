@@ -3,6 +3,7 @@ const router = express.Router();
 const audienceController = require('../../controllers/social-media/audience.controller');
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -20,7 +21,7 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/AudienceActiveRequest'
  */
-router.post('/active-audience', express.json(), authMiddleware, transformCategoryData, audienceController.getAudience);
+router.post('/active-audience', express.json(), authMiddleware, transformCategoryData, transformDataSource, audienceController.getAudience);
 
 /**
  * @swagger
@@ -38,7 +39,7 @@ router.post('/active-audience', express.json(), authMiddleware, transformCategor
  *           schema:
  *             $ref: '#/components/schemas/AudienceCountryRequest'
  */
-router.post('/distribution-by-country', express.json(), authMiddleware, transformCategoryData, audienceController.getAudienceDistributionByCountry);
+router.post('/distribution-by-country', express.json(), authMiddleware, transformCategoryData, transformDataSource, audienceController.getAudienceDistributionByCountry);
 
 module.exports = router; 
 

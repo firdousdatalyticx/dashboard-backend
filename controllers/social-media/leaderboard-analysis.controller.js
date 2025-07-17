@@ -65,21 +65,33 @@ const leaderboardAnalysisController = {
           lte: toDate,
         };
       }
-            // Define source filter based on special topic
-            const sourceFilter = isSpecialTopic ? [
-                { match_phrase: { source: 'Facebook' } },
-                { match_phrase: { source: 'Twitter' } }
-            ] : [
-                { match_phrase: { source: 'Facebook' } },
-                { match_phrase: { source: 'Twitter' } },
-                { match_phrase: { source: 'Instagram' } },
-                { match_phrase: { source: 'Youtube' } },
-                { match_phrase: { source: 'Pinterest' } },
-                { match_phrase: { source: 'Reddit' } },
-                { match_phrase: { source: 'LinkedIn' } },
-                { match_phrase: { source: 'Web' } },
-                { match_phrase: { source: 'TikTok' } }
-            ];
+            // Define source filter based on source parameter
+            let sourceFilter;
+            if (source !== 'All') {
+                sourceFilter = [
+                    { match_phrase: { source: source } }
+                ];
+            } else {
+                // Get available data sources from middleware
+                const availableDataSources = req.processedDataSources || [];
+                
+                // Use middleware sources if available, otherwise use default sources
+                const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
+                    "Facebook",
+                    "Twitter", 
+                    "Instagram",
+                    "Youtube",
+                    "Pinterest",
+                    "Reddit",
+                    "LinkedIn",
+                    "Web",
+                    "TikTok"
+                ];
+
+                sourceFilter = sourcesToUse.map(source => ({
+                    match_phrase: { source: source }
+                }));
+            }
 
             // Split categories into valid and empty ones
             const allCategories = Object.entries(categoryData);

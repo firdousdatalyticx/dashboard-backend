@@ -4,10 +4,11 @@ const entitiesController = require('../../controllers/social-media/entities.cont
 const authMiddleware = require('../../middleware/auth.middleware');
 // const transformCategoryData = require('../../middleware/categoryTransform.middleware');
 const mentionsChartController = require('../../controllers/social-media/mentions-charts.controller');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 // Support both POST and GET for better compatibility with different client implementations
 // router.post('/', express.json(), authMiddleware, transformCategoryData, entitiesController.getEntities);
 
-router.post('/',express.json(), authMiddleware, mentionsChartController.entities)
-router.get('/posts',express.json(), authMiddleware, mentionsChartController.mentionsPost)
+router.post('/',express.json(), authMiddleware, transformDataSource, mentionsChartController.entities)
+router.get('/posts',express.json(), authMiddleware, transformDataSource, mentionsChartController.mentionsPost)
 module.exports = router; 

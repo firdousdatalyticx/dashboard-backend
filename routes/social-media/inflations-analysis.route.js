@@ -3,6 +3,7 @@ const router = express.Router();
 const inflationController = require('../../controllers/social-media/inflations-analysis.controller');
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -20,6 +21,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/InflationsAnalysisRequest'
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, inflationController.getinflationAnalysis);
+router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, inflationController.getinflationAnalysis);
 
 module.exports = router; 

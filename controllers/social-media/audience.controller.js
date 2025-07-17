@@ -12,10 +12,12 @@ const audienceController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                records = 20 
+                records = 20,
+                source = 'All'
             } = req.body;
             
             const categoryData = req.processedCategories || {};
+            const availableDataSources = req.processedDataSources || [];
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ 
@@ -24,7 +26,6 @@ const audienceController = {
             }
 
             const topicQueryString = buildTopicQueryString(categoryData);
-            const sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
             
             // Process filters for time range
             const filters = processFilters({
@@ -35,35 +36,18 @@ const audienceController = {
                 queryString: topicQueryString
             });
 
+            // Build base query with source handling
+            const query = buildBaseQuery(filters, source, false, availableDataSources);
+
+            // Add category filters
+            addCategoryFilters(query, 'all', categoryData);
+
             const params = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: {
                     from: 0,
                     size: 0,
-                    query: {
-                        bool: {
-                            must: [
-                                {
-                                    query_string: {
-                                        query: `${topicQueryString} ${sourcesQuery}`,
-                                        analyze_wildcard: true,
-                                        default_operator: 'AND'
-                                    }
-                                },
-                                { exists: { field: 'u_profile_photo' } },
-                                { exists: { field: 'u_followers' } },
-                                {
-                                    range: {
-                                        p_created_time: {
-                                            gte: filters.greaterThanTime,
-                                            lte: filters.lessThanTime
-                                        }
-                                    }
-                                }
-                            ],
-                            must_not: [{ term: { 'u_profile_photo.keyword': '' } }]
-                        }
-                    },
+                    query: query,
                     aggs: {
                         group_by_user: {
                             terms: {
@@ -149,6 +133,7 @@ const audienceController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             const categoryData = req.processedCategories || {};
+            const availableDataSources = req.processedDataSources || [];
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ 
@@ -190,8 +175,8 @@ const audienceController = {
                 };
             }
 
-            // Build base query with special source handling
-            const query = buildBaseQuery(queryTimeRange, source, isSpecialTopic);
+            // Build base query with source handling
+            const query = buildBaseQuery(queryTimeRange, source, isSpecialTopic, availableDataSources);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -372,10 +357,11 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
  * @param {string} source - Source to filter by
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
+ * @param {Array} availableDataSources - Array of available data sources from middleware
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
-
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableDataSources = []) {
     const query = {
         bool: {
             must: [
@@ -387,7 +373,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
                         }
                     }
                 },
-                  {
+                {
                     range: {
                         created_at: {
                             gte: dateRange.greaterThanTime,
@@ -406,41 +392,38 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         }
     };
 
-    // Handle special topic source filtering
-    if (isSpecialTopic) {
+    // Add source filter
+    if (source !== 'All') {
+        query.bool.must.push({
+            match_phrase: { source: source }
+        });
+    } else if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
         query.bool.must.push({
             bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } }
-                ],
+                should: availableDataSources.map(source => ({
+                    match_phrase: { source: source }
+                })),
                 minimum_should_match: 1
             }
         });
     } else {
-        // Add source filter if a specific source is selected
-        if (source !== 'All') {
-            query.bool.must.push({
-                match_phrase: { source: source }
-            });
-        } else {
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        }
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
     }
 
     return query;

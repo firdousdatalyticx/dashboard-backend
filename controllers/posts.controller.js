@@ -43,20 +43,15 @@ const buildElasticsearchQuery = (params) => {
     click,
     isSpecialTopic = false,
     llm_mention_type,
+    req // Add req parameter to access middleware data
   } = params;
 
   // Build query_string parts in an array
   const qsParts = [];
   if (topicQueryString) qsParts.push(topicQueryString);
 
-  // Source filtering – handle special topic case first
-  if (isSpecialTopic) {
-    // For special topic, only allow Facebook and Twitter
-    qsParts.push('source:("Facebook" OR "Twitter")');
-  } else {
-    // Original source filtering logic
-    const allSocialSources =
-      '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "TikTok")';
+  // Source filtering - handle specific sources first
+  if (postTypeSource !== 'All' && postTypeSource !== undefined) {
     switch (postTypeSource) {
       case "News":
         qsParts.push('source:("FakeNews" OR "News")');
@@ -71,26 +66,28 @@ const buildElasticsearchQuery = (params) => {
       case "GoogleMyBusiness":
         qsParts.push('source:("GoogleMyBusiness")');
         break;
-      case "All":
-        if (isScadUser === "true") {
-          qsParts.push(
-            selectedTab === "GOOGLE"
-              ? 'source:("GoogleMyBusiness")'
-              : `source:${allSocialSources}`
-          );
-        }
-        break;
       default:
-        if (postTypeSource && postTypeSource !== "undefined")
-          qsParts.push(`source:("${postTypeSource}")`);
+        qsParts.push(`source:("${postTypeSource}")`);
     }
-
-    // For non-GoogleMyBusiness sources, ensure all social sources are covered if needed
-    if (
-      postTypeSource !== "GoogleMyBusiness" &&
-      !["News", "YouTube", "Videos", "Web"].includes(postTypeSource)
-    ) {
-      qsParts.push(`source:${allSocialSources}`);
+  } else {
+    // Get available data sources from middleware
+    const availableDataSources = req?.processedDataSources || [];
+    console.log('Available data sources from middleware:', availableDataSources);
+    
+    // For special topic, only use Facebook and Twitter
+    if (isSpecialTopic) {
+      qsParts.push('source:("Facebook" OR "Twitter")');
+    } else if (isScadUser === "true" && selectedTab === "GOOGLE") {
+      qsParts.push('source:("GoogleMyBusiness")');
+    } else {
+      // Use exactly what's in the middleware, no fallback
+      if (availableDataSources.length > 0) {
+        const sourceFilter = availableDataSources.map(source => `"${source}"`).join(' OR ');
+        qsParts.push(`source:(${sourceFilter})`);
+        console.log('Applied source filter:', `source:(${sourceFilter})`);
+      } else {
+        console.log('Warning: No data sources available from middleware');
+      }
     }
   }
 
@@ -650,6 +647,13 @@ const postsController = {
         llm_mention_type,
       } = req.query;
 
+      console.log('Request query parameters:', {
+        topicId,
+        postTypeSource,
+        postType,
+        processedDataSources: req.processedDataSources
+      });
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
@@ -735,9 +739,12 @@ const postsController = {
         click,
         isSpecialTopic,
         llm_mention_type,
+        req // Pass the request object to access middleware data
       };
 
       const esQuery = buildElasticsearchQuery(queryParams);
+      
+      console.log('Final Elasticsearch query:', JSON.stringify(esQuery, null, 2));
 
       // Apply category filters if needed (for social media sources).
       const isSocialMedia =

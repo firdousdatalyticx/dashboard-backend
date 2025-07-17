@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const leaderboardAnalysisController = require('../../controllers/social-media/leaderboard-analysis.controller');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -19,6 +20,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/LeaderboardAnalysisRequest'
  */
-router.post('/', express.json(), transformCategoryData, leaderboardAnalysisController.getLeaderboardAnalysis);
+router.post('/', express.json(), transformCategoryData, transformDataSource, leaderboardAnalysisController.getLeaderboardAnalysis);
 
 module.exports = router; 

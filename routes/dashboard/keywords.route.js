@@ -3,6 +3,7 @@ const router = express.Router();
 const keywordsController = require('../../controllers/dashboard/keywords.controller');
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -20,6 +21,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/KeywordsChartRequest'
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, keywordsController.getNewKeywordsChart);
+router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, keywordsController.getNewKeywordsChart);
 
 module.exports = router; 

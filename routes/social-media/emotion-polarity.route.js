@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const emotionPolarityController = require('../../controllers/social-media/emotion-polarity.controller');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -19,6 +20,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/EmotionPolarityRequest'
  */
-router.post('/', express.json(), transformCategoryData, emotionPolarityController.getEmotionPolarity);
+router.post('/', express.json(), transformCategoryData, transformDataSource, emotionPolarityController.getEmotionPolarity);
 
 module.exports = router; 

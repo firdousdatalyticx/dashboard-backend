@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mentionsGraphController = require('../../controllers/social-media/mentions-graph.controller');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -19,6 +20,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/MentionsGraphRequest'
  */
-router.post('/', transformCategoryData, mentionsGraphController.getMentionsGraph);
+router.post('/', transformCategoryData, transformDataSource, mentionsGraphController.getMentionsGraph);
 
 module.exports = router; 

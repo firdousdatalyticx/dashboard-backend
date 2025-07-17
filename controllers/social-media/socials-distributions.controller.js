@@ -11,23 +11,35 @@ const socialsDistributionsController = {
                 toDate,
                 sentimentType,
                 category = 'all',
-                source = 'All',
+                sources = 'All',
                 unTopic='false',
-                topicId,
-                llm_mention_type
+                llm_mention_type,
+          
             } = req.body;
+            const source = sources;
 
-            console.log(fromDate, toDate);
-            
-            // Check if this is the special topicId
-            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-            
+            const availableDataSources = req.processedDataSources || [];
+
+            // Log middleware data for debugging
+            console.log('Middleware data sources:', availableDataSources);
+            console.log('Requested sources:', sources);
+
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
 
             // If there's nothing to search for, return zero counts
             if (Object.keys(categoryData).length === 0) {
-                return res.json({});
+                return res.json({
+                    Facebook: 0,
+                    Twitter: 0,
+                    Instagram: 0,
+                    Youtube: 0,
+                    Pinterest: 0,
+                    Reddit: 0,
+                    LinkedIn: 0,
+                    Web: 0,
+                    totalCount: 0
+                });
             }
 
               // Build base query for filters processing
@@ -39,8 +51,7 @@ const socialsDistributionsController = {
                             timeSlot,
                             fromDate,
                             toDate,
-                            queryString: baseQueryString,
-                            isSpecialTopic // Pass special topic flag
+                            queryString: baseQueryString
                         });
             
                         // Handle special case for unTopic
@@ -48,51 +59,73 @@ const socialsDistributionsController = {
                             gte: filters.greaterThanTime,
                             lte: filters.lessThanTime
                         };
-
-                        if (Number(topicId) == 2473) {
+            
+                        if (unTopic === 'true') {
                             queryTimeRange = {
                                 gte: '2023-01-01',
                                 lte: '2023-04-30'
                             };
                         }
             
-        
-                        // Build base query
+                        // Build base query with middleware source filtering
                         const query = buildBaseQuery({
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
-                        }, source, isSpecialTopic);
+                        }, source, availableDataSources);
             
                         // Add category filters
                         addCategoryFilters(query, category, categoryData);
                         
                         // Apply sentiment filter if provided
                         if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
-                            if (sentimentType.includes(',')) {
-                                // Handle multiple sentiment types
-                                const sentimentArray = sentimentType.split(',');
-                                const sentimentFilter = {
-                                    bool: {
-                                        should: sentimentArray.map(sentiment => ({
-                                            match: { predicted_sentiment_value: sentiment.trim() }
-                                        })),
-                                        minimum_should_match: 1
-                                    }
-                                };
-                                query.bool.must.push(sentimentFilter);
-                            } else {
-                                // Handle single sentiment type
-                                query.bool.must.push({
-                                    match: { predicted_sentiment_value: sentimentType.trim() }
-                                });
+                            let sentimentArray = [];
+                            if (typeof sentimentType === 'string' && sentimentType.includes(',')) {
+                                sentimentArray = sentimentType.split(',').map(s => s.trim()).filter(s => s);
+                            } else if (typeof sentimentType === 'string') {
+                                sentimentArray = [sentimentType.trim()];
+                            } else if (Array.isArray(sentimentType)) {
+                                sentimentArray = sentimentType;
+                            }
+
+                            if (sentimentArray.length > 0) {
+                                if (sentimentArray.length === 1) {
+                                    query.bool.must.push({
+                                        match: { predicted_sentiment_value: sentimentArray[0] }
+                                    });
+                                } else {
+                                    const sentimentFilter = {
+                                        bool: {
+                                            should: sentimentArray.map(sentiment => ({
+                                                match: { predicted_sentiment_value: sentiment }
+                                            })),
+                                            minimum_should_match: 1
+                                        }
+                                    };
+                                    query.bool.must.push(sentimentFilter);
+                                }
                             }
                         }
 
-                        // Apply LLM Mention Type filter if provided (sync with mentions-trend)
-                        if (llm_mention_type && llm_mention_type !== "" && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+                          // Apply LLM Mention Type filter if provided (skip if 'All')
+                if (llm_mention_type && llm_mention_type !== '' && llm_mention_type !== 'All') {
+                    let mentionTypes = [];
+                    if (typeof llm_mention_type === 'string' && llm_mention_type.includes(',')) {
+                        mentionTypes = llm_mention_type.split(',').map(type => type.trim()).filter(type => type && type !== 'All');
+                    } else if (typeof llm_mention_type === 'string') {
+                        mentionTypes = [llm_mention_type.trim()];
+                    } else if (Array.isArray(llm_mention_type)) {
+                        mentionTypes = llm_mention_type.filter(type => type && type !== 'All');
+                    }
+                    
+                    if (mentionTypes.length > 0) {
+                        if (mentionTypes.length === 1) {
+                            query.bool.must.push({
+                                match: { llm_mention_type: mentionTypes[0] }
+                            });
+                        } else {
                             const mentionTypeFilter = {
                                 bool: {
-                                    should: llm_mention_type.map(type => ({
+                                    should: mentionTypes.map(type => ({
                                         match: { llm_mention_type: type }
                                     })),
                                     minimum_should_match: 1
@@ -100,25 +133,9 @@ const socialsDistributionsController = {
                             };
                             query.bool.must.push(mentionTypeFilter);
                         }
+                    }
+                }
 
-                        // Normalize the input for string-based llm_mention_type
-                        const mentionTypesArray = typeof llm_mention_type === 'string' 
-                            ? llm_mention_type.split(',').map(s => s.trim()) 
-                            : llm_mention_type;
-
-                        // Apply LLM Mention Type filter if provided (handle string input)
-                        if (llm_mention_type && llm_mention_type !== "" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
-                            const mentionTypeFilter = {
-                                bool: {
-                                    should: mentionTypesArray.map(type => ({
-                                        match: { llm_mention_type: type }
-                                    })),
-                                    minimum_should_match: 1
-                                }
-                            };
-                            query.bool.must.push(mentionTypeFilter);
-                        }
-          
             // Now create the aggregation query with the same base query
             const aggQuery = {
                 query: query,
@@ -140,49 +157,49 @@ const socialsDistributionsController = {
                 body: aggQuery
             });
 
-            // Get total count using the same query (for comparison with mentions-trend)
-            const totalCountQuery = {
-                query: query,
-                size: 0
-            };
-            const totalCountResponse = await elasticClient.search({
-                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: totalCountQuery
-            });
-            const totalCount = totalCountResponse.hits.total.value || totalCountResponse.hits.total || 0;
-
             // Extract the aggregation buckets
             const buckets = aggResponse.aggregations.source_counts.buckets;
-            const sourceCounts = buckets.reduce((acc, bucket) => {
+            const sourceCounts = {};
+            
+            for (const bucket of buckets) {
                 // Only include sources with count > 0
                 if (bucket.doc_count > 0) {
-                    acc[bucket.key] = bucket.doc_count;
-                }
-                return acc;
-            }, {});
+                    const sourceName = bucket.key;
+                    const sourceCount = bucket.doc_count;
+                    
+                    // Fetch posts for this source
+                    const postsQuery = {
+                        ...query,
+                        bool: {
+                            ...query.bool,
+                            must: [
+                                ...query.bool.must,
+                                { match_phrase: { 'source.keyword': sourceName } }
+                            ]
+                        }
+                    };
 
-            // Merge LinkedIn variants into a single count
-            const finalSourceCounts = {};
-            let linkedinCount = 0;
+                    const postsResponse = await elasticClient.search({
+                        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                        body: {
+                            size: Math.min(sourceCount, 30),
+                            query: postsQuery,
+                            sort: [{ created_at: { order: 'desc' } }]
+                        }
+                    });
 
-            for (const [source, count] of Object.entries(sourceCounts)) {
-                if (source === 'LinkedIn' || source === 'Linkedin') {
-                    linkedinCount += count;
-                } else {
-                    finalSourceCounts[source] = count;
+                    sourceCounts[sourceName] = {
+                        count: sourceCount,
+                        posts: postsResponse.hits.hits.map(formatPostData)
+                    };
                 }
             }
 
-            // Add combined LinkedIn count if there are any
-            if (linkedinCount > 0) {
-                finalSourceCounts['LinkedIn'] = linkedinCount;
-            }
+            // No need to include platforms with zero counts anymore
+            // or add totalCount to the response
 
-            // Return counts with total for comparison
-            return res.json({
-                ...finalSourceCounts,
-                // totalCount: totalCount
-            });
+            // Return counts
+            return res.json(sourceCounts);
         } catch (error) {
             console.error('Error fetching social media distributions:', error);
             return res.status(500).json({ 
@@ -192,6 +209,46 @@ const socialsDistributionsController = {
         }
     }
 };
+
+/**
+ * Extract terms from category data
+ * @param {string} selectedCategory - Category to filter by
+ * @param {Object} categoryData - Category data
+ * @returns {Array} Array of terms
+ */
+function extractTermsFromCategoryData(selectedCategory, categoryData) {
+    const allTerms = [];
+    
+    if (selectedCategory === 'all') {
+        // Combine all keywords, hashtags, and urls from all categories
+        Object.values(categoryData).forEach(data => {
+            if (data.keywords && data.keywords.length > 0) {
+                allTerms.push(...data.keywords);
+            }
+            if (data.hashtags && data.hashtags.length > 0) {
+                allTerms.push(...data.hashtags);
+            }
+            if (data.urls && data.urls.length > 0) {
+                allTerms.push(...data.urls);
+            }
+        });
+    } else if (categoryData[selectedCategory]) {
+        const data = categoryData[selectedCategory];
+        if (data.keywords && data.keywords.length > 0) {
+            allTerms.push(...data.keywords);
+        }
+        if (data.hashtags && data.hashtags.length > 0) {
+            allTerms.push(...data.hashtags);
+        }
+        if (data.urls && data.urls.length > 0) {
+            allTerms.push(...data.urls);
+        }
+    }
+    
+    // Remove duplicates and falsy values
+    return [...new Set(allTerms)].filter(Boolean);
+}
+
 
 /**
  * Build a base query string from category data for filters processing
@@ -242,12 +299,21 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
  * @param {string} source - Source to filter by
+ * @param {Array} availableDataSources - Array of available data sources from middleware
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, availableDataSources = []) {
     const query = {
         bool: {
             must: [
+                {
+                    range: {
+                        created_at: {
+                            gte: dateRange.greaterThanTime,
+                            lte: dateRange.lessThanTime
+                        }
+                    }
+                },
                 {
                     range: {
                         p_created_time: {
@@ -267,42 +333,59 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         }
     };
 
-    // Handle special topic source filtering
-    if (isSpecialTopic) {
-        query.bool.must.push({
-            bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } }
-                ],
-                minimum_should_match: 1
-            }
-        });
-    } else {
-        // Add source filter if a specific source is selected
-        if (source !== 'All') {
+    // Add source filter
+    if (source !== 'All') {
+        let sourceArray = [];
+        if (typeof source === 'string' && source.includes(',')) {
+            sourceArray = source.split(',').map(s => s.trim()).filter(s => s);
+        } else if (typeof source === 'string') {
+            sourceArray = [source.trim()];
+        } else if (Array.isArray(source)) {
+            sourceArray = source;
+        }
+
+        if (sourceArray.length === 1) {
             query.bool.must.push({
-                match_phrase: { source: source }
+                match_phrase: { source: sourceArray[0] }
             });
-        } else {
+        } else if (sourceArray.length > 1) {
             query.bool.must.push({
                 bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "Linkedin" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
+                    should: sourceArray.map(s => ({ match_phrase: { source: s } })),
                     minimum_should_match: 1
                 }
             });
         }
+    } else if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
+        console.log('Using middleware data sources for filtering:', availableDataSources);
+        query.bool.must.push({
+            bool: {
+                should: availableDataSources.map(source => ({
+                    match_phrase: { source: source }
+                })),
+                minimum_should_match: 1
+            }
+        });
+    } else {
+        // Fallback to default sources if no middleware data
+        console.log('No middleware data sources available, using default sources');
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
     }
 
     return query;
@@ -399,6 +482,91 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             });
         }
     }
+}
+
+/**
+ * Format post data for response
+ */
+function formatPostData(hit) {
+    const s = hit._source;
+    const profilePic = s.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    const followers = s.u_followers > 0 ? `${s.u_followers}` : "";
+    const following = s.u_following > 0 ? `${s.u_following}` : "";
+    const posts = s.u_posts > 0 ? `${s.u_posts}` : "";
+    const likes = s.p_likes > 0 ? `${s.p_likes}` : "";
+
+    const llm_emotion = s.llm_emotion || 
+        (s.source === "GoogleMyBusiness" && s.rating
+            ? s.rating >= 4 ? "Supportive" : s.rating <= 2 ? "Frustrated" : "Neutral"
+            : "");
+
+    const commentsUrl = s.p_comments_text && s.p_comments_text.trim()
+        ? s.p_url.trim().replace("https: // ", "https://") : "";
+
+    const comments = `${s.p_comments}`;
+    const shares = s.p_shares > 0 ? `${s.p_shares}` : "";
+    const engagements = s.p_engagement > 0 ? `${s.p_engagement}` : "";
+
+    const content = s.p_content?.trim() || "";
+    const imageUrl = s.p_picture_url?.trim() || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    let predicted_sentiment = s.predicted_sentiment_value || "";
+    if (!predicted_sentiment && s.source === "GoogleMyBusiness" && s.rating) {
+        predicted_sentiment = s.rating >= 4 ? "Positive" : s.rating <= 2 ? "Negative" : "Neutral";
+    }
+
+    const predicted_category = s.predicted_category || "";
+
+    let youtubeVideoUrl = "";
+    let profilePicture2 = "";
+    if (s.source === "Youtube") {
+        youtubeVideoUrl = s.video_embed_url ? s.video_embed_url : 
+            s.p_id ? `https://www.youtube.com/embed/${s.p_id}` : "";
+    } else {
+        profilePicture2 = s.p_picture || "";
+    }
+
+    const sourceIcon = ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(s.source) ? "Blog" :
+        ["Reddit"].includes(s.source) ? "Reddit" :
+        ["FakeNews", "News"].includes(s.source) ? "News" :
+        ["Tumblr"].includes(s.source) ? "Tumblr" :
+        ["Vimeo"].includes(s.source) ? "Vimeo" :
+        ["Web", "DeepWeb"].includes(s.source) ? "Web" : s.source;
+
+    const message_text = ["GoogleMaps", "Tripadvisor"].includes(s.source)
+        ? s.p_message_text.split("***|||###")[0].replace(/\n/g, "<br>")
+        : (s.p_message_text || "").replace(/<\/?[^>]+(>|$)/g, "");
+
+    return {
+        profilePicture: profilePic,
+        profilePicture2,
+        userFullname: s.u_fullname,
+        user_data_string: "",
+        followers,
+        following,
+        posts,
+        likes,
+        llm_emotion,
+        commentsUrl,
+        comments,
+        shares,
+        engagements,
+        content,
+        image_url: imageUrl,
+        predicted_sentiment,
+        predicted_category,
+        youtube_video_url: youtubeVideoUrl,
+        source_icon: `${s.p_url},${sourceIcon}`,
+        message_text,
+        source: s.source,
+        rating: s.rating,
+        comment: s.comment,
+        businessResponse: s.business_response,
+        uSource: s.u_source,
+        googleName: s.name,
+        created_at: new Date(s.created_at).toLocaleString(),
+    };
 }
 
 module.exports = socialsDistributionsController;

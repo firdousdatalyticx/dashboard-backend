@@ -23,9 +23,30 @@ const buildWordCloudParams = (options) => {
     llm_mention_type
   } = options;
 
-
-
   const [sortField, sortOrder] = sort.split(":");
+
+  // Get available data sources from middleware
+  const availableDataSources = req.processedDataSources || [];
+
+  // Build source filter string
+  let sourceFilter;
+  if (source !== "All") {
+    sourceFilter = source;
+  } else {
+    // Use middleware sources if available, otherwise use default sources
+    const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
+      "Twitter",
+      "Facebook",
+      "Instagram",
+      "Youtube",
+      "Pinterest",
+      "LinkedIn",
+      "Web",
+      "Reddit",
+      "TikTok"
+    ];
+    sourceFilter = sourcesToUse.map(s => `"${s}"`).join(" OR ");
+  }
 
   // Base query structure
   const baseQuery = {
@@ -33,11 +54,7 @@ const buildWordCloudParams = (options) => {
       must: [
         {
           query_string: {
-            query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
-              source != "All"
-                ? source
-                : '"Twitter" OR "Facebook" OR "Instagram"'
-            })`,
+            query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${sourceFilter})`,
           },
         },
         {
@@ -49,19 +66,19 @@ const buildWordCloudParams = (options) => {
     },
   };
 
-
-          // Apply LLM Mention Type filter if provided
-if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+  // Apply LLM Mention Type filter if provided
+  if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
     const mentionTypeFilter = {
-        bool: {
-            should: llm_mention_type.map(type => ({
-                match: { llm_mention_type: type }
-            })),
-            minimum_should_match: 1
-        }
+      bool: {
+        should: llm_mention_type.map(type => ({
+          match: { llm_mention_type: type }
+        })),
+        minimum_should_match: 1
+      }
     };
     baseQuery.bool.must.push(mentionTypeFilter);
-}
+  }
+
   // Add sentiment specific conditions
   if (sentimentType === "positive") {
     baseQuery.bool.must[0].query_string.query +=
@@ -124,6 +141,29 @@ const buildPostsByPhraseParams = (options) => {
 
   const [sortField, sortOrder] = sort.split(":");
 
+  // Get available data sources from middleware
+  const availableDataSources = req.processedDataSources || [];
+
+  // Build source filter string
+  let sourceFilter;
+  if (source !== "All") {
+    sourceFilter = source;
+  } else {
+    // Use middleware sources if available, otherwise use default sources
+    const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
+      "Twitter",
+      "Facebook",
+      "Instagram",
+      "Youtube",
+      "Pinterest",
+      "LinkedIn",
+      "Web",
+      "Reddit",
+      "TikTok"
+    ];
+    sourceFilter = sourcesToUse.map(s => `"${s}"`).join(" OR ");
+  }
+
   let phraseField =
     sentimentType === "positive"
       ? "llm_positive_points.keyword"
@@ -135,11 +175,7 @@ const buildPostsByPhraseParams = (options) => {
       must: [
         {
           query_string: {
-            query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
-              source != "All"
-                ? source
-                : '"Twitter" OR "Facebook" OR "Instagram"'
-            })`,
+            query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${sourceFilter})`,
           },
         },
         {
@@ -151,17 +187,17 @@ const buildPostsByPhraseParams = (options) => {
     },
   };
   
-    // Apply LLM Mention Type filter if provided
+  // Apply LLM Mention Type filter if provided
   if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
-      const mentionTypeFilter = {
-          bool: {
-              should: llm_mention_type.map(type => ({
-                  match: { llm_mention_type: type }
-              })),
-              minimum_should_match: 1
-          }
-      };
-      baseQuery.bool.must.push(mentionTypeFilter);
+    const mentionTypeFilter = {
+      bool: {
+        should: llm_mention_type.map(type => ({
+          match: { llm_mention_type: type }
+        })),
+        minimum_should_match: 1
+      }
+    };
+    baseQuery.bool.must.push(mentionTypeFilter);
   }
 
   // Add sentiment specific conditions

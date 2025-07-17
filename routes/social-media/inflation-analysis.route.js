@@ -3,6 +3,7 @@ const router = express.Router();
 const inflationAnalysisController = require('../../controllers/social-media/inflation-analysis.controller');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
 const authMiddleware = require('../../middleware/auth.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -111,7 +112,7 @@ const authMiddleware = require('../../middleware/auth.middleware');
  *                 error:
  *                   type: string
  */
-router.post('/',  transformCategoryData, inflationAnalysisController.getInflationAnalysis);
+router.post('/',  transformCategoryData, transformDataSource, inflationAnalysisController.getInflationAnalysis);
 
 /**
  * @swagger
@@ -185,7 +186,7 @@ router.post('/',  transformCategoryData, inflationAnalysisController.getInflatio
  *                 error:
  *                   type: string
  */
-router.post('/trigger-phrase-stats', transformCategoryData, inflationAnalysisController.getInflationTriggerPhraseStats);
+router.post('/trigger-phrase-stats', transformCategoryData, transformDataSource, inflationAnalysisController.getInflationTriggerPhraseStats);
 
 /**
  * @swagger
@@ -349,6 +350,6 @@ router.post('/trigger-phrase-stats', transformCategoryData, inflationAnalysisCon
  *                   type: string
  *                   description: Detailed error message
  */
-router.post('/type-distribution', transformCategoryData, inflationAnalysisController.getInflationTypeDistribution);
+router.post('/type-distribution', transformCategoryData, transformDataSource, inflationAnalysisController.getInflationTypeDistribution);
 
 module.exports = router; 

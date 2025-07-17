@@ -442,6 +442,7 @@ const emotionPolarityController = {
     getEmotionPolarity: async (req, res) => {
         try {
             const categoryData = req.processedCategories || {};
+            const availableDataSources = req.processedDataSources || [];
             
             // Get request parameters
             const params = req.method === 'POST' ? req.body : req.query;
@@ -456,9 +457,6 @@ const emotionPolarityController = {
                 timeSlot,
                 toDate
             } = params;
-            
-            // Check if this is the special topicId
-            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             const topicQueryString = buildTopicQueryString(categoryData);
 
@@ -505,39 +503,39 @@ const emotionPolarityController = {
                 };
             }
 
-            // Update source filter based on special topic
-            const sourceFilter = source=="All" || source=="" ?  isSpecialTopic ? {
-                bool: {
-                    should: [
-                        { match_phrase: { source: 'Facebook' } },
-                        { match_phrase: { source: 'Twitter' } }
-                    ],
-                    minimum_should_match: 1
-                }
-            } : {
-                bool: {
-                    should: [
-                        { match_phrase: { source: 'Facebook' } },
-                        { match_phrase: { source: 'Twitter' } },
-                        { match_phrase: { source: 'Instagram' } },
-                        { match_phrase: { source: 'Youtube' } },
-                        { match_phrase: { source: 'Pinterest' } },
-                        { match_phrase: { source: 'Reddit' } },
-                        { match_phrase: { source: 'LinkedIn' } },
-                         { match_phrase: { source: 'Linkedin' } },
-                        { match_phrase: { source: 'Web' } },
-                        { match_phrase: { source: 'TikTok' } }
-                    ],
-                    minimum_should_match: 1
-                }
-            } : {
-                bool: {
-                    should: [
-                        { match_phrase: { source: source } },
-                    ],
-                    minimum_should_match: 1
-                }
-            };
+            // Update source filter based on middleware data sources
+            let sourceFilter;
+            if (source !== 'All') {
+                sourceFilter = {
+                    match_phrase: { source: source }
+                };
+            } else if (availableDataSources && availableDataSources.length > 0) {
+                sourceFilter = {
+                    bool: {
+                        should: availableDataSources.map(source => ({
+                            match_phrase: { source: source }
+                        })),
+                        minimum_should_match: 1
+                    }
+                };
+            } else {
+                sourceFilter = {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "Facebook" } },
+                            { match_phrase: { source: "Twitter" } },
+                            { match_phrase: { source: "Instagram" } },
+                            { match_phrase: { source: "Youtube" } },
+                            { match_phrase: { source: "LinkedIn" } },
+                            { match_phrase: { source: "Pinterest" } },
+                            { match_phrase: { source: "Web" } },
+                            { match_phrase: { source: "Reddit" } },
+                            { match_phrase: { source: "TikTok" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
+            }
 
             // Build the main query filters array
             const queryFilters = [sourceFilter];

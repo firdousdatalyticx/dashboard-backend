@@ -3,6 +3,7 @@ const router = express.Router();
 const socialsDistributionsController = require('../../controllers/social-media/socials-distributions.controller');
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -28,6 +29,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           example:
  *             topicId: "254"
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getDistributions);
+router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, socialsDistributionsController.getDistributions);
 
 module.exports = router; 

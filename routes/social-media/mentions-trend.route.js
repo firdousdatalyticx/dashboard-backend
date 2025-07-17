@@ -3,6 +3,7 @@ const router = express.Router();
 const mentionsTrendController = require('../../controllers/social-media/mentions-trend.controller');
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -20,8 +21,8 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/MentionsTrendRequest'
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrend);
+router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, mentionsTrendController.getMentionsTrend);
 
-router.get('/posts', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendPost);
+router.get('/posts', express.json(), authMiddleware, transformCategoryData,transformDataSource, mentionsTrendController.getMentionsTrendPost);
 
 module.exports = router; 

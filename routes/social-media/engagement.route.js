@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const engagementController = require('../../controllers/social-media/engagement.metrics.controller');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -19,6 +20,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/EngagementMetricsRequest'
  */
-router.post('/', express.json(), transformCategoryData, engagementController.getEngagementMetrics);
+router.post('/', express.json(), transformCategoryData, transformDataSource, engagementController.getEngagementMetrics);
 
 module.exports = router; 

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const poiSentimentDistributionController = require('../../controllers/social-media/point-of-interest-sentiment-distribution.controller');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -19,6 +20,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/PoiSentimentDistributionRequest'
  */
-router.post('/', express.json(), transformCategoryData, poiSentimentDistributionController.getDistribution);
+router.post('/', express.json(), transformCategoryData, transformDataSource, poiSentimentDistributionController.getDistribution);
 
 module.exports = router; 

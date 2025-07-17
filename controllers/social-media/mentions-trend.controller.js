@@ -20,6 +20,7 @@ const mentionsTrendController = {
                 topicId,
                 llm_mention_type
             } = req.body;
+            const availableDataSources = req.processedDataSources || [];
 
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -61,11 +62,11 @@ const mentionsTrendController = {
                 };
             }
 
-            // Build base query
+            // Build base query with available data sources
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic);
+            }, source, isSpecialTopic, availableDataSources);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -786,7 +787,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableDataSources = []) {
     const query = {
         bool: {
             must: [
@@ -826,7 +827,18 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
             query.bool.must.push({
                 match_phrase: { source: source }
             });
+        } else if (availableDataSources && availableDataSources.length > 0) {
+            // Use available data sources if present
+            query.bool.must.push({
+                bool: {
+                    should: availableDataSources.map(source => ({
+                        match_phrase: { source: source }
+                    })),
+                    minimum_should_match: 1
+                }
+            });
         } else {
+            // Fallback to default sources if no available sources
             query.bool.must.push({
                 bool: {
                     should: [

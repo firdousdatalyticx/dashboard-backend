@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const processCategories = require('../../middleware/categoryTransform.middleware');
 const themesSentimentAnalysisController = require('../../controllers/social-media/themes-sentiment-analysis.controller');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -44,6 +45,6 @@ const themesSentimentAnalysisController = require('../../controllers/social-medi
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/', processCategories, themesSentimentAnalysisController.getThemesSentimentAnalysis);
+router.post('/', processCategories, transformDataSource, themesSentimentAnalysisController.getThemesSentimentAnalysis);
 
 module.exports = router; 

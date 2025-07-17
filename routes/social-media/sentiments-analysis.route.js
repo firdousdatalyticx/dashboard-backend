@@ -4,6 +4,7 @@ const sentimentsController = require('../../controllers/social-media/sentiments-
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
 const sentimentsMultipleCategoriesController = require('../../controllers/social-media/categories-sentiments-analysis-counts.controller');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -21,9 +22,9 @@ const sentimentsMultipleCategoriesController = require('../../controllers/social
  *           schema:
  *             $ref: '#/components/schemas/SentimentsAnalysisRequest'
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, sentimentsController.getSentimentsAnalysis);
-router.post('/sentiments/multiple-categories',express.json(), authMiddleware, transformCategoryData, sentimentsMultipleCategoriesController.getMultipleCategoriesSentimentCountsOptimized);
-router.get('/sentiments/multiple-categories/posts',express.json(), authMiddleware, transformCategoryData, sentimentsMultipleCategoriesController.getMultipleCategoriesSentimentCountsOptimizedPost);
+router.post('/', express.json(), authMiddleware, transformCategoryData,transformDataSource, sentimentsController.getSentimentsAnalysis);
+router.post('/sentiments/multiple-categories',express.json(), authMiddleware, transformCategoryData,transformDataSource, sentimentsMultipleCategoriesController.getMultipleCategoriesSentimentCountsOptimized);
+router.get('/sentiments/multiple-categories/posts',express.json(), authMiddleware, transformCategoryData,transformDataSource, sentimentsMultipleCategoriesController.getMultipleCategoriesSentimentCountsOptimizedPost);
 
 
 module.exports = router; 

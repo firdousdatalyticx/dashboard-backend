@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const wordCloudController = require('../../controllers/social-media/word-cloud.controller');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -19,7 +20,7 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/WordCloudPhrasesRequest'
  */
-router.post('/phrases', express.json(), transformCategoryData, wordCloudController.getWordPhrases);
+router.post('/phrases', express.json(), transformCategoryData, transformDataSource, wordCloudController.getWordPhrases);
 
 /**
  * @swagger
@@ -37,6 +38,6 @@ router.post('/phrases', express.json(), transformCategoryData, wordCloudControll
  *           schema:
  *             $ref: '#/components/schemas/WordCloudPostsRequest'
  */
-router.post('/posts', express.json(), transformCategoryData, wordCloudController.getPostsByPhrase);
+router.post('/posts', express.json(), transformCategoryData, transformDataSource, wordCloudController.getPostsByPhrase);
 
 module.exports = router; 

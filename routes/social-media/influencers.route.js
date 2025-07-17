@@ -3,6 +3,7 @@ const router = express.Router();
 const influencersController = require('../../controllers/social-media/influencers.controller');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
 const mentionsChartController = require("../../controllers/social-media/mentions-charts.controller")
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -28,7 +29,7 @@ const mentionsChartController = require("../../controllers/social-media/mentions
  *           example:
  *             topicId: "254"
  */
-router.post('/', express.json(), transformCategoryData, influencersController.getInfluencers);
+router.post('/', express.json(), transformCategoryData, transformDataSource, influencersController.getInfluencers);
 
 /**
  * @swagger
@@ -54,9 +55,9 @@ router.post('/', express.json(), transformCategoryData, influencersController.ge
  *           example:
  *             topicId: "254"
  */
-router.post('/categories', express.json(), transformCategoryData, influencersController.getInfluencerCategories);
+router.post('/categories', express.json(), transformCategoryData, transformDataSource, influencersController.getInfluencerCategories);
 // router.get('/categories/posts', express.json(), mentionsChartController.mentionsPost);
-router.get('/categories/posts', express.json(),  transformCategoryData, influencersController.getInfluencerPost);
+router.get('/categories/posts', express.json(),  transformCategoryData, transformDataSource, influencersController.getInfluencerPost);
 
 
 module.exports = router; 

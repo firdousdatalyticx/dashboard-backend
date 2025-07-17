@@ -5,6 +5,7 @@ const authMiddleware = require('../middleware/auth.middleware');
 const transformCategoryData = require('../middleware/categoryTransform.middleware');
 const extractGoogleUrls = require('../middleware/google-urls.middleware');
 const distributionbyCountryPostsController = require("../controllers/social-media/distributionbyCountryPosts")
+const transformDataSource = require('../middleware/dataSource.middleware');
 /**
  * @swagger
  * tags:
@@ -25,8 +26,8 @@ const distributionbyCountryPostsController = require("../controllers/social-medi
  *     security:
  *       - bearerAuth: []
  */
-router.get('/', authMiddleware, transformCategoryData, extractGoogleUrls, postsController.getPosts);
+router.get('/', authMiddleware, transformCategoryData, transformDataSource, extractGoogleUrls, postsController.getPosts);
 
-router.get('/audience/distribution-by-country', authMiddleware, transformCategoryData, distributionbyCountryPostsController.getDistributionbyCountryPosts);
+router.get('/audience/distribution-by-country', authMiddleware, transformCategoryData, transformDataSource, distributionbyCountryPostsController.getDistributionbyCountryPosts);
 
 module.exports = router; 

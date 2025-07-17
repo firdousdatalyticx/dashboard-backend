@@ -445,41 +445,43 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         }
     };
 
-    // Handle special topic source filtering
-    if (isSpecialTopic) {
+    // Get available data sources from middleware
+    const availableDataSources = req.processedDataSources || [];
+
+    // Handle source filtering
+    if (source !== 'All') {
+        // If specific source selected, use that
+        query.bool.must.push({
+            match_phrase: { source: source }
+        });
+    } else if (availableDataSources.length > 0) {
+        // If middleware provides sources, use those
         query.bool.must.push({
             bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } }
-                ],
+                should: availableDataSources.map(source => ({
+                    match_phrase: { source: source }
+                })),
                 minimum_should_match: 1
             }
         });
     } else {
-        // Add source filter if a specific source is selected
-        if (source !== 'All') {
-            query.bool.must.push({
-                match_phrase: { source: source }
-            });
-        } else {
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        }
+        // Default to standard 9 sources if no middleware sources
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
     }
 
     return query;

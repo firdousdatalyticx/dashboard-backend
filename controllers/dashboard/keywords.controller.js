@@ -116,61 +116,73 @@ const keywordsController = {
                 sentimentType
             } = req.body;
 
-                const isScadUser="true";
-                const selectedTab ="";
-                let topicQueryString = ''
-                let responseArray= []
+            const isScadUser="true";
+            const selectedTab ="";
+            let topicQueryString = ''
+            let responseArray= []
             
-                if (subtopicId) {
-                  const all_touchpoints = await getAllTouchpoints(Number(subtopicId))
+            // Get available data sources from middleware
+            const availableDataSources = req.processedDataSources || [];
+            console.log('Available data sources from middleware:', availableDataSources);
             
-                  for (let i = 0; i < all_touchpoints.length; i++) {
+            // Build source filter string
+            let sourceFilterString = '';
+            if (source !== 'All') {
+                sourceFilterString = `source:("${source}")`;
+            } else if (availableDataSources.length > 0) {
+                const sourceFilter = availableDataSources.map(source => `"${source}"`).join(' OR ');
+                sourceFilterString = `source:(${sourceFilter})`;
+                console.log('Applied source filter:', sourceFilterString);
+            }
+        
+            if (subtopicId) {
+                const all_touchpoints = await getAllTouchpoints(Number(subtopicId))
+        
+                for (let i = 0; i < all_touchpoints.length; i++) {
                     const tp_id = all_touchpoints[i].cx_tp_tp_id
-            
+        
                     const tp_data = await getTouchpointData(tp_id)
-                    const tp_es_query_string = await buildTouchPointQueryString(tp_id)
-            
+                    const tp_es_query_string = await buildTouchpointQueryString(tp_id)
+        
                     let tempQueryString = topicQueryString
-            
-                   
-                    ? `${tempQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "All")`
-                    : `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "All")`
+        
+                    // Apply source filtering
+                    tempQueryString = tempQueryString
+                        ? `${tempQueryString} AND ${sourceFilterString}`
+                        : sourceFilterString
 
-
-            
                     const params = {
-                      body: {
-                        query: {
-                          bool: {
-                            must: [
-                              {
-                                query_string: {
-                                  query: `${tempQueryString} AND ${tp_es_query_string}`
+                        body: {
+                            query: {
+                                bool: {
+                                    must: [
+                                        {
+                                            query_string: {
+                                                query: `${tempQueryString} AND ${tp_es_query_string}`
+                                            }
+                                        },
+                                        {
+                                            range: {
+                                                p_created_time: {
+                                                    gte: fromDate||'now-90d',
+                                                    lte: toDate||'now'
+                                                }
+                                            }
+                                        }
+                                    ]
                                 }
-                              },
-                              {
-                                range: {
-                                  p_created_time: {
-                                    gte: fromDate||'now-90d',
-                                    lte: toDate||'now'
-                                  }
-                                }
-                              }
-                            ]
-                          }
+                            }
                         }
-                      }
                     }
-            
+        
                     if (sentimentType) {
                         params.body.query.bool.must.push({
-                        match: { predicted_sentiment_value: sentimentType.trim() }
+                            match: { predicted_sentiment_value: sentimentType.trim() }
                         })
                     }
-                 
 
                     const es_data = await executeElasticSearchCount(params)
-            
+        
                     // Fetch posts for this touchpoint
                     const MAX_POSTS_PER_KEYWORD = 30;
                     const limit = Math.min(es_data.count, MAX_POSTS_PER_KEYWORD);
@@ -227,13 +239,11 @@ const keywordsController = {
                   for (let i = 0; i < keyHashArray.length; i++) {
                     let tempQueryString = topicQueryString
             
+                    // Apply source filtering
                     tempQueryString = tempQueryString
-                        ? `${tempQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "All")`
-                        : `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "All")`
+                        ? `${tempQueryString} AND ${sourceFilterString}`
+                        : sourceFilterString
 
-
-                   
-                        
                     if (unTopic === 'true') {
                       tempQueryString = `${tempQueryString} AND un_keywords:("Yes")`
                     }

@@ -56,30 +56,33 @@ const poiSentimentDistributionController = {
             if (validCategories.length === 0) {
                 return res.json({ distribution: [] });
             }
- let sourceFilter =[];
-            if(source=="All"){
-            // Build source filter based on special topic
-             sourceFilter = isSpecialTopic ? [
-                { match_phrase: { source: 'Facebook' } },
-                { match_phrase: { source: 'Twitter' } }
-            ] : [
-                { match_phrase: { source: 'Facebook' } },
-                { match_phrase: { source: 'Twitter' } },
-                { match_phrase: { source: 'Instagram' } },
-                { match_phrase: { source: 'Youtube' } },
-                { match_phrase: { source: 'Pinterest' } },
-                { match_phrase: { source: 'Reddit' } },
-                { match_phrase: { source: 'LinkedIn' } },
-                  { match_phrase: { source: "Linkedin" } },
-                { match_phrase: { source: 'Web' } },
-                { match_phrase: { source: 'TikTok' } }
-            ];
+            let sourceFilter = [];
+            if (source !== "All") {
+                sourceFilter = [
+                    { match_phrase: { source: source } }
+                ];
+            } else {
+                // Get available data sources from middleware
+                const availableDataSources = req.processedDataSources || [];
+                
+                // Use middleware sources if available, otherwise use default sources
+                const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
+                    "Facebook",
+                    "Twitter", 
+                    "Instagram",
+                    "Youtube",
+                    "Pinterest",
+                    "Reddit",
+                    "LinkedIn",
+                    "Linkedin",
+                    "Web",
+                    "TikTok"
+                ];
 
-        }else{
-             sourceFilter = [
-                { match_phrase: { source: source } }
-             ]
-        }
+                sourceFilter = sourcesToUse.map(source => ({
+                    match_phrase: { source: source }
+                }));
+            }
             // Build ElasticSearch query with only valid categories
             const params = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,

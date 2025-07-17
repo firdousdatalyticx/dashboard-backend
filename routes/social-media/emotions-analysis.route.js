@@ -3,6 +3,7 @@ const router = express.Router();
 const emotionsController = require('../../controllers/social-media/emotions-analysis.controller');
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
+const transformDataSource = require('../../middleware/dataSource.middleware');
 
 /**
  * @swagger
@@ -20,6 +21,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *           schema:
  *             $ref: '#/components/schemas/EmotionsAnalysisRequest'
  */
-router.post('/', express.json(), authMiddleware, transformCategoryData, emotionsController.getEmotionsAnalysis);
+router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, emotionsController.getEmotionsAnalysis);
 
 module.exports = router; 

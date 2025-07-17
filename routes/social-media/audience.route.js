@@ -40,5 +40,10 @@ router.post('/active-audience', express.json(), authMiddleware, transformCategor
  */
 router.post('/distribution-by-country', express.json(), authMiddleware, transformCategoryData, audienceController.getAudienceDistributionByCountry);
 
+
+router.post('/commenter-engagement-breakdown', express.json(), authMiddleware, transformCategoryData, audienceController.getCommenterEngagementBreakdown);
+router.post('/commenter-engagement-by-seniority', express.json(), authMiddleware, transformCategoryData, audienceController.getCommenterEngagementBySeniority);
+router.post('/comment-audience-trend', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceTrend);
+
 module.exports = router; 
 

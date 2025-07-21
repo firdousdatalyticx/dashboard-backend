@@ -170,6 +170,12 @@ model customer_topics {
   dashboard_start_date      DateTime? @db.DateTime(0)
   dashboard_end_date        DateTime? @db.DateTime(0)
   
+  // Archive data configuration
+  enable_archive_data       Boolean?  @default(false)
+  
+  // Allowed sources configuration
+  allowed_sources           Json?     // Array of strings for allowed data sources
+  
   // Relations
   enabled_graphs            topic_enabled_graphs[]
 }

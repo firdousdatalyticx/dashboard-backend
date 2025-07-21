@@ -15,6 +15,7 @@ const comparisonAnalysisSwagger = require('./comparison-analysis.swagger');
 const alertsSwagger = require('./alerts.swagger');
 const middlewareSwagger = require('./middleware.swagger');
 const dashboardSwagger = require('./dashboard');
+const adminSwagger = require('./admin.swagger');
 
 /**
  * Recursively loads all .swagger.js files from a directory
@@ -54,7 +55,8 @@ const paths = {
   ...reportsSwagger,
   ...comparisonAnalysisSwagger,
   ...alertsSwagger,
-  ...middlewareSwagger
+  ...middlewareSwagger,
+  ...adminSwagger
 };
 
 // Log loaded swagger paths for debugging

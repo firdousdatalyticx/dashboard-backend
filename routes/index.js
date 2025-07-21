@@ -20,6 +20,7 @@ const postsRoutes = require('./posts.route');
 const aiSummaryRoutes = require('./social-media/ai-summary.route');
 const googleLocationReviewsRoutes = require('./google/location-reviews.route');
 const elasticRoutes= require("./elastic.route");
+const adminRoutes = require('./admin');
 
 // Mount routes
 router.use('/auth', authRoutes);
@@ -40,6 +41,7 @@ router.use('/posts', postsRoutes);
 router.use('/social-media/ai-summary', aiSummaryRoutes);
 router.use('/google/location-reviews', googleLocationReviewsRoutes);
 router.use('/elastic-search', elasticRoutes);
+router.use('/admin', adminRoutes);
 // Base route for API health check
 router.get('/', (req, res) => {
     res.json({

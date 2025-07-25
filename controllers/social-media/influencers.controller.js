@@ -455,6 +455,15 @@ const influencersController = {
       );
 
       const responseArray = [];
+      // Gather all filter terms
+      let allFilterTerms = [];
+      if (categoryData) {
+        Object.values(categoryData).forEach((data) => {
+          if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+          if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+          if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+        });
+      }
       for (let l = 0; l < results?.hits?.hits?.length; l++) {
         let esData = results?.hits?.hits[l];
         let user_data_string = "";
@@ -606,7 +615,44 @@ const influencersController = {
           googleName: esData._source.name,
           created_at: new Date(esData._source.p_created_time).toLocaleString(),
         };
-
+        const textFields = [
+          esData._source.p_message_text,
+          esData._source.p_message,
+          esData._source.keywords,
+          esData._source.title,
+          esData._source.hashtags,
+          esData._source.u_source,
+          esData._source.p_url,
+          esData._source.u_fullname
+        ];
+        cardData.matched_terms = allFilterTerms.filter(term => {
+          const termLower = term.toLowerCase();
+          
+          return textFields.some(field => {
+            if (!field) return false;
+            
+            if (Array.isArray(field)) {
+              return field.some(f => {
+                if (!f || typeof f !== 'string') return false;
+                const fLower = f.toLowerCase();
+                // Check exact match, contains match, and word boundary match
+                return fLower === termLower || 
+                       fLower.includes(termLower) ||
+                       new RegExp(`\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(fLower);
+              });
+            }
+            
+            if (typeof field === 'string') {
+              const fieldLower = field.toLowerCase();
+              // Check exact match, contains match, and word boundary match
+              return fieldLower === termLower || 
+                     fieldLower.includes(termLower) ||
+                     new RegExp(`\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(fieldLower);
+            }
+            
+            return false;
+          });
+        });
         responseArray.push(cardData);
       }
 

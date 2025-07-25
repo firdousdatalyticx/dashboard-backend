@@ -642,6 +642,16 @@ const emotionPolarityController = {
                 };
             });
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
             // Now fetch posts for each top emotion
             const emotionsWithPostsPromises = topEmotions.map(async emotionBucket => {
                 const emotionName = emotionBucket.key;
@@ -674,7 +684,33 @@ const emotionPolarityController = {
                 };
                 
                 // Get all posts for this emotion
-                const allPosts = await fetchAllPostsForEmotion(emotionQuery, parseInt(maxPostsPerEmotion, 10));
+                const allPostsRaw = await fetchAllPostsForEmotion(emotionQuery, parseInt(maxPostsPerEmotion, 10));
+                // Add matched_terms to each post
+                const allPosts = allPostsRaw.map(post => {
+                    const textFields = [
+                        post.message_text,
+                        post.content,
+                        post.keywords,
+                        post.title,
+                        post.hashtags,
+                        post.uSource,
+                        post.source,
+                        post.p_url,
+                        post.userFullname
+                    ];
+                    return {
+                        ...post,
+                        matched_terms: allFilterTerms.filter(term =>
+                            textFields.some(field => {
+                                if (!field) return false;
+                                if (Array.isArray(field)) {
+                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                }
+                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                            })
+                        )
+                    };
+                });
                 
                 // Skip emotions with no posts if skipEmptyEmotions is true
                 if (skipEmptyEmotions && allPosts.length === 0) {

@@ -365,6 +365,16 @@ const audienceController = {
         queryString: topicQueryString,
       });
 
+      // Gather all filter terms
+      let allFilterTerms = [];
+      if (categoryData) {
+        Object.values(categoryData).forEach((data) => {
+          if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+          if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+          if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+        });
+      }
+
       // Optimized query to only get the fields we need
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -431,7 +441,7 @@ const audienceController = {
       };
 
       const results = await elasticClient.search(params);
-      const posts = results.hits.hits.map((hit) => formatPostData(hit));
+      const posts = results.hits.hits.map((hit) => formatPostData(hit, allFilterTerms));
       const datewiseCommentCount = {};
       const datewisePostCount = {};
 
@@ -1405,7 +1415,7 @@ const audienceController = {
  * @param {Object} hit - Elasticsearch document hit
  * @returns {Object} Formatted post data
  */
-const formatPostData = (hit) => {
+const formatPostData = (hit, allFilterTerms = []) => {
   const source = hit._source;
 
   // Use a default image if a profile picture is not provided
@@ -1501,6 +1511,27 @@ const formatPostData = (hit) => {
       : "";
   }
 
+  // Find matched terms
+  const textFields = [
+    source.p_message_text,
+    source.p_message,
+    source.keywords,
+    source.title,
+    source.hashtags,
+    source.u_source,
+    source.p_url,
+    source.u_fullname
+  ];
+  const matched_terms = allFilterTerms.filter(term =>
+    textFields.some(field => {
+      if (!field) return false;
+      if (Array.isArray(field)) {
+        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+      }
+      return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+    })
+  );
+
   return {
     profilePicture: profilePic,
     profilePicture2,
@@ -1532,6 +1563,7 @@ const formatPostData = (hit) => {
       source.p_created_time || source.created_at
     ).toLocaleString(),
     p_comments_data: source.p_comments_data,
+    matched_terms,
   };
 };
 

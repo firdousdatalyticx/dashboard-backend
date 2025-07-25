@@ -411,6 +411,61 @@ const keywordsController = {
             
                 // Sort array by key_count descending
                 responseArray.sort((a, b) => b.key_count - a.key_count)
+                // Gather all filter terms from req.processedCategories
+                let allFilterTerms = [];
+                if (req.processedCategories) {
+                  Object.values(req.processedCategories).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                  });
+                }
+
+                // After posts are fetched for each keyword/touchpoint, add matched_terms to each post
+                responseArray.forEach(item => {
+                  item.posts = item.posts.map(post => {
+                    const textFields = [
+                      post.p_message_text,
+                      post.p_message,
+                      post.keywords,
+                      post.title,
+                      post.hashtags,
+                      post.u_source,
+                      post.p_url,
+                      post.u_fullname
+                    ];
+                    let matched = Array.isArray(allFilterTerms) && allFilterTerms.length > 0 ? allFilterTerms.filter(term =>
+                      textFields.some(field => {
+                        if (!field) return false;
+                        if (Array.isArray(field)) {
+                          return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                        }
+                        return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                      })
+                    ) : [];
+                    // If for some reason no term is found, do a secondary check (should not happen if ES query is correct)
+                    if (matched.length === 0 && allFilterTerms.length > 0) {
+                      for (const term of allFilterTerms) {
+                        for (const field of textFields) {
+                          if (!field) continue;
+                          if (Array.isArray(field)) {
+                            if (field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()))) {
+                              matched.push(term);
+                              break;
+                            }
+                          } else if (typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase())) {
+                            matched.push(term);
+                            break;
+                          }
+                        }
+                      }
+                      // Remove duplicates
+                      matched = [...new Set(matched)];
+                    }
+                    post.matched_terms = matched;
+                    return post;
+                  });
+                });
             
                 return res.status(200).json({ success: true, responseArray })
 

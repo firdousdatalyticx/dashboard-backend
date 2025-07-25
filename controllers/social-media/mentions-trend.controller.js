@@ -204,6 +204,48 @@ const mentionsTrendController = {
             // Sort dates in descending order
             datesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+            // For each post in datesWithPosts, add matched_terms
+            if (datesWithPosts && Array.isArray(datesWithPosts)) {
+                datesWithPosts.forEach(dateObj => {
+                    if (dateObj.posts && Array.isArray(dateObj.posts)) {
+                        dateObj.posts = dateObj.posts.map(post => {
+                            const textFields = [
+                                post.message_text,
+                                post.content,
+                                post.keywords,
+                                post.title,
+                                post.hashtags,
+                                post.uSource,
+                                post.source,
+                                post.p_url,
+                                post.userFullname
+                            ];
+                            return {
+                                ...post,
+                                matched_terms: allFilterTerms.filter(term =>
+                                    textFields.some(field => {
+                                        if (!field) return false;
+                                        if (Array.isArray(field)) {
+                                            return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                        }
+                                        return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                    })
+                                )
+                            };
+                        });
+                    }
+                });
+            }
+
             return res.status(200).json({
                 success: true,
                 datesWithPosts: datesWithPosts,
@@ -528,6 +570,44 @@ const mentionsTrendController = {
 
             // Format response using the optimized formatPostData function
             const responseArray = results?.hits?.hits?.map(hit => formatPostData(hit)) || [];
+
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+            // For each post in responseArray, add matched_terms
+            if (responseArray && Array.isArray(responseArray)) {
+                responseArray.forEach((post, idx) => {
+                    const textFields = [
+                        post.message_text,
+                        post.content,
+                        post.keywords,
+                        post.title,
+                        post.hashtags,
+                        post.uSource,
+                        post.source,
+                        post.p_url,
+                        post.userFullname
+                    ];
+                    responseArray[idx] = {
+                        ...post,
+                        matched_terms: allFilterTerms.filter(term =>
+                            textFields.some(field => {
+                                if (!field) return false;
+                                if (Array.isArray(field)) {
+                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                }
+                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                            })
+                        )
+                    };
+                });
+            }
 
             return res.status(200).json({
                 success: true,

@@ -248,6 +248,53 @@ const themesOverTimeController = {
             // Sort themes by total count descending
             themesData.sort((a, b) => b.totalCount - a.totalCount);
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
+            // For each post in themesData[].data[].posts, add matched_terms
+            if (themesData && Array.isArray(themesData)) {
+                themesData.forEach(themeObj => {
+                    if (themeObj.data && Array.isArray(themeObj.data)) {
+                        themeObj.data.forEach(dataObj => {
+                            if (dataObj.posts && Array.isArray(dataObj.posts)) {
+                                dataObj.posts = dataObj.posts.map(post => {
+                                    const textFields = [
+                                        post.message_text,
+                                        post.content,
+                                        post.keywords,
+                                        post.title,
+                                        post.hashtags,
+                                        post.uSource,
+                                        post.source,
+                                        post.p_url,
+                                        post.userFullname
+                                    ];
+                                    return {
+                                        ...post,
+                                        matched_terms: allFilterTerms.filter(term =>
+                                            textFields.some(field => {
+                                                if (!field) return false;
+                                                if (Array.isArray(field)) {
+                                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                                }
+                                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                            })
+                                        )
+                                    };
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+
             return res.json({
                 success: true,
                 themes: themesData,

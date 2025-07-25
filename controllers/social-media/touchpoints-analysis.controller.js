@@ -279,6 +279,53 @@ const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
             // Limit to top 10 touchpoints
             const top10Touchpoints = touchpointsArray.slice(0, 15);
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
+            // For each post in touchpointsArray[].sentiments[].posts, add matched_terms
+            if (touchpointsArray && Array.isArray(touchpointsArray)) {
+                touchpointsArray.forEach(tpObj => {
+                    if (tpObj.sentiments && Array.isArray(tpObj.sentiments)) {
+                        tpObj.sentiments.forEach(sentimentObj => {
+                            if (sentimentObj.posts && Array.isArray(sentimentObj.posts)) {
+                                sentimentObj.posts = sentimentObj.posts.map(post => {
+                                    const textFields = [
+                                        post.message_text,
+                                        post.content,
+                                        post.keywords,
+                                        post.title,
+                                        post.hashtags,
+                                        post.uSource,
+                                        post.source,
+                                        post.p_url,
+                                        post.userFullname
+                                    ];
+                                    return {
+                                        ...post,
+                                        matched_terms: allFilterTerms.filter(term =>
+                                            textFields.some(field => {
+                                                if (!field) return false;
+                                                if (Array.isArray(field)) {
+                                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                                }
+                                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                            })
+                                        )
+                                    };
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+
             return res.json({
                 success: true,
                 touchpointsAnalysis: top10Touchpoints,

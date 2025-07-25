@@ -313,6 +313,36 @@ const inflationAnalysisController = {
                                 created_at: new Date(source.p_created_time).toLocaleString()
                             };
                             
+                            // Gather all filter terms
+                            let allFilterTerms = [];
+                            if (categoryData) {
+                                Object.values(categoryData).forEach((data) => {
+                                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                                });
+                            }
+                            // When creating postDetails, add matched_terms
+                            const textFields = [
+                                source.p_message_text,
+                                source.p_message,
+                                source.keywords,
+                                source.title,
+                                source.hashtags,
+                                source.u_source,
+                                source.p_url,
+                                source.u_fullname
+                            ];
+                            postDetails.matched_terms = allFilterTerms.filter(term =>
+                                textFields.some(field => {
+                                    if (!field) return false;
+                                    if (Array.isArray(field)) {
+                                        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                    }
+                                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                })
+                            );
+
                             // Process each phrase in the inflation_trigger_phrases array
                             if (Array.isArray(inflationData.inflation_trigger_phrases)) {
                                 inflationData.inflation_trigger_phrases.forEach(phrase => {
@@ -708,6 +738,36 @@ const inflationAnalysisController = {
                                 created_at: new Date(source.p_created_time).toLocaleString()
                             };
                             
+                            // Gather all filter terms
+                            let allFilterTerms = [];
+                            if (categoryData) {
+                                Object.values(categoryData).forEach((data) => {
+                                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                                });
+                            }
+                            // When creating postDetails, add matched_terms
+                            const textFields = [
+                                source.p_message_text,
+                                source.p_message,
+                                source.keywords,
+                                source.title,
+                                source.hashtags,
+                                source.u_source,
+                                source.p_url,
+                                source.u_fullname
+                            ];
+                            postDetails.matched_terms = allFilterTerms.filter(term =>
+                                textFields.some(field => {
+                                    if (!field) return false;
+                                    if (Array.isArray(field)) {
+                                        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                    }
+                                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                })
+                            );
+
                             // Process each sector in the inflation_affected_sectors array
                             if (Array.isArray(inflationData.inflation_affected_sectors)) {
                                 inflationData.inflation_affected_sectors.forEach(sector => {
@@ -1061,6 +1121,36 @@ const inflationAnalysisController = {
                                 created_at: new Date(source.p_created_time).toLocaleString()
                             };
                             
+                            // Gather all filter terms
+                            let allFilterTerms = [];
+                            if (categoryData) {
+                                Object.values(categoryData).forEach((data) => {
+                                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                                });
+                            }
+                            // When creating postDetails, add matched_terms
+                            const textFields = [
+                                source.p_message_text,
+                                source.p_message,
+                                source.keywords,
+                                source.title,
+                                source.hashtags,
+                                source.u_source,
+                                source.p_url,
+                                source.u_fullname
+                            ];
+                            postDetails.matched_terms = allFilterTerms.filter(term =>
+                                textFields.some(field => {
+                                    if (!field) return false;
+                                    if (Array.isArray(field)) {
+                                        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                    }
+                                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                })
+                            );
+
                             // Process inflation types
                             if (Array.isArray(inflationData.inflation_type)) {
                                 inflationData.inflation_type.forEach(type => {

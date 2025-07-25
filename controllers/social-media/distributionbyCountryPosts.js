@@ -124,6 +124,15 @@ const distributionbyCountryPostsController = {
         // Execute the Elasticsearch query.
         const results = await elasticClient.search(params);
         const responseArray =[];
+        // Gather all filter terms
+        let allFilterTerms = [];
+        if (categoryData) {
+          Object.values(categoryData).forEach((data) => {
+            if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+            if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+            if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+          });
+        }
         for (let l = 0; l < results?.hits?.hits?.length; l++) {
             let esData = results?.hits?.hits[l]
             let user_data_string = ''
@@ -254,7 +263,26 @@ const distributionbyCountryPostsController = {
               googleName: esData._source.name,
               created_at: new Date(esData._source.p_created_time).toLocaleString()
             }
-    
+            // Add matched_terms
+            const textFields = [
+              esData._source.p_message_text,
+              esData._source.p_message,
+              esData._source.keywords,
+              esData._source.title,
+              esData._source.hashtags,
+              esData._source.u_source,
+              esData._source.p_url,
+              esData._source.u_fullname
+            ];
+            cardData.matched_terms = allFilterTerms.filter(term =>
+              textFields.some(field => {
+                if (!field) return false;
+                if (Array.isArray(field)) {
+                  return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                }
+                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+              })
+            );
             responseArray.push(cardData)
           }
   

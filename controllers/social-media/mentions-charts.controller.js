@@ -295,8 +295,11 @@ const getPosts = async (
   interval,
   res,
   source,
-  llm_mention_type
+  llm_mention_type,
+  req
 ) => {
+
+
   const query = {
     size: 30,
     query: {
@@ -632,6 +635,44 @@ const getPosts = async (
     responseArray.push(cardData);
   }
 
+  // Gather all filter terms from processedCategories (if available), just like in mentions-trend
+  let allFilterTerms = [];
+  if (req && req.processedCategories) {
+    Object.values(req.processedCategories).forEach((data) => {
+      if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+      if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+      if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+    });
+  }
+  // For each post in responseArray, add matched_terms
+  if (responseArray && Array.isArray(responseArray)) {
+    responseArray.forEach((post, idx) => {
+      const textFields = [
+        post.message_text,
+        post.content,
+        post.keywords,
+        post.title,
+        post.hashtags,
+        post.uSource,
+        post.source,
+        post.p_url,
+        post.userFullname
+      ];
+      responseArray[idx] = {
+        ...post,
+        matched_terms: allFilterTerms.filter(term =>
+          textFields.some(field => {
+            if (!field) return false;
+            if (Array.isArray(field)) {
+              return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+            }
+            return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+          })
+        )
+      };
+    });
+  }
+
   if (value && value > 0 && results?.hits?.hits?.length > parseInt(value)) {
     responseArray = responseArray.slice(0, parseInt(value));
   }
@@ -669,7 +710,20 @@ function getFrequency(fromDate, toDate) {
  * @param {Object} hit - Elasticsearch document hit
  * @returns {Object} Formatted post data
  */
-const formatPostDataForLanguage = (hit) => {
+const formatPostDataForLanguage = (hit, req) => {
+
+
+  let allFilterTerms = [];
+  if (req && req.processedCategories) {
+    Object.values(req.processedCategories).forEach((data) => {
+      if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+      if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+      if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+    });
+  } else {
+    allFilterTerms = [];
+  } 
+
   const source = hit._source;
 
   // Use a default image if a profile picture is not provided
@@ -1854,7 +1908,7 @@ const mentionsChartController = {
 
           // Format posts
           const posts = postsResponse.hits.hits.map((hit) =>
-            formatPostDataForLanguage(hit)
+            formatPostDataForLanguage(hit, req)
           );
 
           // Calculate percentage
@@ -1977,7 +2031,10 @@ const mentionsChartController = {
         type,
         value,
         interval,
-        res
+        res,
+        source,
+        undefined, // llm_mention_type
+        req // <-- Pass req here
       );
     } catch (error) {
       console.error("Error fetching data:", error);

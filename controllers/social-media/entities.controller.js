@@ -129,7 +129,6 @@ const entitiesController = {
                         match: { predicted_sentiment_value: sentimentType.trim() }
                     });
                 }
-                console.log("Applied sentiment filter for:", sentimentType);
             }
             
             // For compatibility with posts controller
@@ -168,7 +167,6 @@ const entitiesController = {
             };
 
             // Log query for debugging
-            console.log('Entities query:', JSON.stringify(esParams));
 
             const response = await elasticClient.search({   
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -182,6 +180,15 @@ const entitiesController = {
             const intLimit = parseInt(limit, 10);
             const intMaxPostsPerEntity = parseInt(maxPostsPerEntity, 10);
             
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
             // Process entities one at a time to ensure consistency 
             for (const entity of entityBuckets) {
                 // Skip processing more entities once we've reached our limit
@@ -207,7 +214,33 @@ const entitiesController = {
                 };
                 
                 // Get all matching posts for this entity
-                const allPosts = await fetchAllPostsForEntity(entityPostsQuery, intMaxPostsPerEntity);
+                const allPostsRaw = await fetchAllPostsForEntity(entityPostsQuery, intMaxPostsPerEntity);
+                // Add matched_terms to each post
+                const allPosts = allPostsRaw.map(post => {
+                    const textFields = [
+                        post.message_text,
+                        post.content,
+                        post.keywords,
+                        post.title,
+                        post.hashtags,
+                        post.uSource,
+                        post.source,
+                        post.p_url,
+                        post.userFullname
+                    ];
+                    return {
+                        ...post,
+                        matched_terms: allFilterTerms.filter(term =>
+                            textFields.some(field => {
+                                if (!field) return false;
+                                if (Array.isArray(field)) {
+                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                }
+                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                            })
+                        )
+                    };
+                });
                 
                 // Skip entities with no posts
                 if (allPosts.length === 0) {

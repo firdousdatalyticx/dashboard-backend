@@ -276,6 +276,53 @@ const stackedBarData = chartData.map(themeData => {
     return result;
 });
 
+// Gather all filter terms
+let allFilterTerms = [];
+if (categoryData) {
+    Object.values(categoryData).forEach((data) => {
+        if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+        if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+        if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+    });
+}
+
+// For each post in chartData[].sentiments[].posts, add matched_terms
+if (chartData && Array.isArray(chartData)) {
+    chartData.forEach(themeObj => {
+        if (themeObj.sentiments && typeof themeObj.sentiments === 'object') {
+            Object.values(themeObj.sentiments).forEach(sentimentObj => {
+                if (sentimentObj.posts && Array.isArray(sentimentObj.posts)) {
+                    sentimentObj.posts = sentimentObj.posts.map(post => {
+                        const textFields = [
+                            post.message_text,
+                            post.content,
+                            post.keywords,
+                            post.title,
+                            post.hashtags,
+                            post.uSource,
+                            post.source,
+                            post.p_url,
+                            post.userFullname
+                        ];
+                        return {
+                            ...post,
+                            matched_terms: allFilterTerms.filter(term =>
+                                textFields.some(field => {
+                                    if (!field) return false;
+                                    if (Array.isArray(field)) {
+                                        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                    }
+                                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                })
+                            )
+                        };
+                    });
+                }
+            });
+        }
+    });
+}
+
 return res.json({
     success: true,
     detailedData: chartData,

@@ -175,7 +175,6 @@ const buildElasticsearchQuery = (params) => {
   // Add emotion filter
   if (emotion && emotion !== "undefined" && emotion !== "null") {
     if (postTypeSource === "GoogleMyBusiness") {
-      console.log("emotion", emotion);
     } else {
       // Use a should query that supports both exact and partial matching
       must.push({
@@ -190,7 +189,6 @@ const buildElasticsearchQuery = (params) => {
           minimum_should_match: 1,
         },
       });
-      console.log("Applied emotion filter for:", emotion);
     }
   }
 
@@ -213,13 +211,11 @@ const buildElasticsearchQuery = (params) => {
         },
       };
       must.push(sentimentFilter);
-      console.log("Applied sentiment filter for:", sentiment);
     } else {
       // Handle single sentiment type
       must.push({
         term: { "predicted_sentiment_value.keyword": sentiment.trim() },
       });
-      console.log("Applied sentiment filter for:", sentiment);
     }
   } else if (sentiment && sentiment != "") {
     must.push({
@@ -767,15 +763,11 @@ const postsController = {
       if (isSocialMedia && topicId && Object.keys(categoryData).length > 0) {
         if (category && category !== "all") {
           // If a specific category is selected, apply that filter
-          console.log(`Applying specific category filter for ${category}`);
           addCategoryFilters(esQuery.query, category, categoryData);
         } else {
           // If no specific category is selected but we have category data from topicId,
           // apply a combined filter from all categories
-          console.log(
-            `Applying combined category filters for topicId: ${topicId}`
-          );
-
+         
           const categoryKeys = Object.keys(categoryData);
           if (categoryKeys.length > 0) {
             const shouldClauses = [];

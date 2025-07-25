@@ -337,6 +337,53 @@ const poiSentimentDistributionController = {
                 })
             );
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
+            // For each post in sentiments[].posts, add matched_terms
+            if (distribution && Array.isArray(distribution)) {
+                distribution.forEach(categoryObj => {
+                    if (categoryObj.sentiments && Array.isArray(categoryObj.sentiments)) {
+                        categoryObj.sentiments.forEach(sentimentObj => {
+                            if (sentimentObj.posts && Array.isArray(sentimentObj.posts)) {
+                                sentimentObj.posts = sentimentObj.posts.map(post => {
+                                    const textFields = [
+                                        post.message_text,
+                                        post.content,
+                                        post.keywords,
+                                        post.title,
+                                        post.hashtags,
+                                        post.uSource,
+                                        post.source,
+                                        post.p_url,
+                                        post.userFullname
+                                    ];
+                                    return {
+                                        ...post,
+                                        matched_terms: allFilterTerms.filter(term =>
+                                            textFields.some(field => {
+                                                if (!field) return false;
+                                                if (Array.isArray(field)) {
+                                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                                }
+                                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                            })
+                                        )
+                                    };
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+
             return res.json({ distribution,params });
         } catch (error) {
             console.error('Error fetching POI sentiment distribution:', error);

@@ -520,7 +520,6 @@ const topicCategoriesController = {
                 const topicUrls = urls.join(', ');
                 const topicKeywords = keywords.join(', ');
                 const topicHashTags = hashtags.join(', ');
-                console.log(categoryTitle, urls, keywords, hashtags);
                 // Insert data into the database
                 await prisma.topic_categories.create({
                     data: {

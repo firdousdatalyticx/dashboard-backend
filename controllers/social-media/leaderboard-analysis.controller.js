@@ -324,7 +324,7 @@ const leaderboardAnalysisController = {
                             minimum_should_match: 1
                         }
                     };
-                    query.bool.must.push(sentimentFilter);
+                    params.body.query.bool.must.push(sentimentFilter);
                 } else {
                     // Handle single sentiment type
                     params.body.query.bool.must.push({
@@ -347,6 +347,15 @@ const leaderboardAnalysisController = {
                 }
             const result = await elasticClient.search(params);
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
             let leaderboard = Object.entries(result.aggregations?.categories?.buckets || {}).map(
                 ([category, data]) => {
                     const sentiments = data.sentiments.buckets;
@@ -389,18 +398,37 @@ const leaderboardAnalysisController = {
                             }));
                             return mergeArraysByDate(acc, trends);
                         }, []),
-                        sampleReviews: data.sentiments.buckets.reduce((acc, sentiment) => {
-                            return [
-                                ...acc,
-                                ...sentiment.sample_reviews.hits.hits.map((review) => ({
-                                    message: review._source.p_message,
-                                    date: review._source.created_at,
-                                    sentiment: review._source.predicted_sentiment_value,
-                                    keywords: review._source.keywords,
-                                    relevanceScore: review._score
-                                }))
-                            ];
-                        }, [])
+                        sampleReviews: data.sentiments.buckets
+                            .reduce((acc, sentiment) => {
+                                return [
+                                    ...acc,
+                                    ...sentiment.sample_reviews.hits.hits.map((review) => {
+                                        const textFields = [
+                                            review._source.p_message,
+                                            review._source.p_message_text,
+                                            review._source.keywords,
+                                            review._source.title,
+                                            review._source.hashtags,
+                                            review._source.u_source,
+                                            review._source.p_url,
+                                            review._source.u_fullname
+                                        ];
+                                        return {
+                                            ...review._source,
+                                            relevanceScore: review._score,
+                                            matched_terms: allFilterTerms.filter(term =>
+                                                textFields.some(field => {
+                                                    if (!field) return false;
+                                                    if (Array.isArray(field)) {
+                                                        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                                    }
+                                                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                                })
+                                            )
+                                        };
+                                    })
+                                ];
+                            }, [])
                     };
                 }
             );

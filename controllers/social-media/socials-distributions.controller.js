@@ -166,6 +166,21 @@ const socialsDistributionsController = {
             let linkedinCount = 0;
             const sourcePostsPromises = [];
 
+            // 1. Gather all terms used for filtering
+            let allFilterTerms = [];
+            if (category === 'all') {
+                Object.values(categoryData).forEach(data => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            } else if (categoryData[category]) {
+                const data = categoryData[category];
+                if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+            }
+
             // First, merge LinkedIn variants and prepare post fetching
             for (const [source, count] of Object.entries(sourceCounts)) {
                 if (source === 'LinkedIn' || source === 'Linkedin') {
@@ -173,7 +188,7 @@ const socialsDistributionsController = {
                 } else {
                     finalSourceCounts[source] = count;
                     // Add promise to fetch posts for this source
-                    sourcePostsPromises.push(fetchPostsForSource(source, query, 30));
+                    sourcePostsPromises.push(fetchPostsForSource(source, query, 30, allFilterTerms));
                 }
             }
 
@@ -181,7 +196,7 @@ const socialsDistributionsController = {
             if (linkedinCount > 0) {
                 finalSourceCounts['LinkedIn'] = linkedinCount;
                 // Fetch posts for LinkedIn (including both variants)
-                sourcePostsPromises.push(fetchPostsForLinkedIn(query, 30));
+                sourcePostsPromises.push(fetchPostsForLinkedIn(query, 30, allFilterTerms));
             }
 
             // Wait for all post fetching to complete
@@ -444,7 +459,7 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
  * @param {number} maxPosts - Maximum number of posts to fetch
  * @returns {Array} Array of formatted posts
  */
-async function fetchPostsForSource(sourceName, baseQuery, maxPosts = 30) {
+async function fetchPostsForSource(sourceName, baseQuery, maxPosts = 30, allFilterTerms = []) {
     try {
         const sourceQuery = {
             bool: {
@@ -469,7 +484,7 @@ async function fetchPostsForSource(sourceName, baseQuery, maxPosts = 30) {
             body: postsQuery
         });
 
-        return response.hits.hits.map(hit => formatPostData(hit));
+        return response.hits.hits.map(hit => formatPostData(hit, allFilterTerms));
     } catch (error) {
         console.error(`Error fetching posts for source ${sourceName}:`, error);
         return [];
@@ -482,7 +497,7 @@ async function fetchPostsForSource(sourceName, baseQuery, maxPosts = 30) {
  * @param {number} maxPosts - Maximum number of posts to fetch
  * @returns {Array} Array of formatted posts
  */
-async function fetchPostsForLinkedIn(baseQuery, maxPosts = 30) {
+async function fetchPostsForLinkedIn(baseQuery, maxPosts = 30, allFilterTerms = []) {
     try {
         const linkedInQuery = {
             bool: {
@@ -513,7 +528,7 @@ async function fetchPostsForLinkedIn(baseQuery, maxPosts = 30) {
             body: postsQuery
         });
 
-        return response.hits.hits.map(hit => formatPostData(hit));
+        return response.hits.hits.map(hit => formatPostData(hit, allFilterTerms));
     } catch (error) {
         console.error('Error fetching posts for LinkedIn:', error);
         return [];
@@ -525,7 +540,7 @@ async function fetchPostsForLinkedIn(baseQuery, maxPosts = 30) {
  * @param {Object} hit - Elasticsearch document hit
  * @returns {Object} Formatted post data
  */
-const formatPostData = (hit) => {
+const formatPostData = (hit, allFilterTerms = []) => {
     const source = hit._source;
 
     // Use a default image if a profile picture is not provided
@@ -610,6 +625,27 @@ const formatPostData = (hit) => {
         message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
     }
 
+    // Find matched terms
+    const textFields = [
+        source.p_message_text,
+        source.p_message,
+        source.keywords,
+        source.title,
+        source.hashtags,
+        source.u_source,
+        source.p_url,
+        source.u_fullname
+    ];
+    const matched_terms = allFilterTerms.filter(term =>
+        textFields.some(field => {
+            if (!field) return false;
+            if (Array.isArray(field)) {
+                return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+            }
+            return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+        })
+    );
+
     return {
         profilePicture: profilePic,
         profilePicture2,
@@ -639,6 +675,7 @@ const formatPostData = (hit) => {
         googleName: source.name,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
         p_comments_data: source.p_comments_data,
+        matched_terms,
     };
 };
 

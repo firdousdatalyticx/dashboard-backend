@@ -98,4 +98,7 @@ router.post('/check', transformCategoryData, topicCategoriesController.checkCate
 // Route to get topic statistics with Google and social media counts
 router.get('/stats', transformCategoryData, topicCategoriesController.getTopicStats);
 
+// Bulk create topic categories (no Swagger)
+router.post('/bulk', express.json(), topicCategoriesController.bulkCreateCategories);
+
 module.exports = router; 

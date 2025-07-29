@@ -854,7 +854,18 @@ model topic_categories {
   updated_at      DateTime @updatedAt
 }
 
+model topic_sub_categories {
+  id             Int      @id @default(autoincrement())
+  customer_topic_id        Int
+  sub_category_title  String
+  topic_hash_tags  String
+  topic_urls      String
+  topic_keywords String
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+}
 
+  
 model alerts {
   id              Int      @id @default(autoincrement())
   frequency       String? 

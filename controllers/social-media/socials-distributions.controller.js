@@ -20,7 +20,7 @@ const socialsDistributionsController = {
             console.log(fromDate, toDate);
             
             // Check if this is the special topicId
-            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600 || parseInt(topicId) === 2627;
             
             // Get category data from middleware
             const categoryData = req.processedCategories || {};

@@ -22,7 +22,7 @@ const mentionsTrendController = {
             } = req.body;
 
             // Check if this is the special topicId
-            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+            const isSpecialTopic = (topicId && parseInt(topicId) === 2627) || (parseInt(topicId) === 2600);
 
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
@@ -275,13 +275,13 @@ const mentionsTrendController = {
             } = req.body;
 
             // Check if this is the special topicId
-            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+            const isSpecialTopic = (topicId && parseInt(topicId) === 2627) || (parseInt(topicId) === 2600);
 
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
 
             if (Object.keys(categoryData).length === 0) {
-                return res.json({
+                return res.json({   
                     success: true,
                     error: 'No category data available',
                     mentionsGraphData: '',
@@ -468,6 +468,9 @@ const mentionsTrendController = {
                 });
             }
 
+            // Check if this is the special topicId
+            const isSpecialTopic = (req.body.topicId && parseInt(req.body.topicId) === 2627) || (parseInt(req.body.topicId) === 2600);
+
             // Build base query for filters processing
             const baseQueryString = buildBaseQueryString(category, categoryData);
             
@@ -497,7 +500,7 @@ const mentionsTrendController = {
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source,Number(req.body.topicId));
+            }, source, isSpecialTopic, Number(req.body.topicId));
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);

@@ -2,6 +2,7 @@ const prisma = require("../../config/database");
 const { elasticClient } = require("../../config/elasticsearch");
 const { buildTopicQueryString } = require("../../utils/queryBuilder");
 const { processFilters } = require("./filter.utils");
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 //Benchmarking presence & sentiment - IGOs / NGOs / Countries
 const distributionbyCountryPostsController = {
@@ -35,7 +36,15 @@ const distributionbyCountryPostsController = {
         // Check if this is the special topicId
         const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-                          const categoryData = req.processedCategories || {};
+                          // Determine which category data to use
+                          let categoryData = {};
+                          
+                          if (req.query.categoryItems && Array.isArray(req.query.categoryItems) && req.query.categoryItems.length > 0) {
+                            categoryData = processCategoryItems(req.query.categoryItems);
+                          } else {
+                            // Fall back to middleware data
+                            categoryData = req.processedCategories || {};
+                          }
 
                           if (Object.keys(categoryData).length === 0) {
                               return res.json({ 

@@ -2,6 +2,8 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { format } = require('date-fns');
 const { processFilters } = require('./filter.utils');
 const prisma = require('../../config/database');
+const processCategoryItems = require('../../helpers/processedCategoryItems');
+
 
 const mentionsTrendController = {
     /**
@@ -9,23 +11,33 @@ const mentionsTrendController = {
      */
     getMentionsTrend: async (req, res) => {
         try {
-            const { 
+            const {
                 timeSlot,
                 fromDate,
                 toDate,
                 sentimentType,
                 source = 'All',
-                category = 'all',
                 unTopic = 'false',
                 topicId,
-                llm_mention_type
+                llm_mention_type,
+                categoryItems
             } = req.body;
+
+            let category = req.body.category || 'all';
 
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-            // Get category data from middleware
-            const categoryData = req.processedCategories || {};
+            // Determine which category data to use
+            let categoryData = {};
+
+            if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+                categoryData = processCategoryItems(categoryItems);
+                category = 'custom';
+            } else {
+                // Fall back to middleware data
+                categoryData = req.processedCategories || {};
+            }
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
@@ -38,7 +50,7 @@ const mentionsTrendController = {
 
             // Build base query for filters processing
             const baseQueryString = buildBaseQueryString(category, categoryData);
-            
+
             // Process filters (time slot, date range, sentiment)
             const filters = processFilters({
                 sentimentType,
@@ -54,7 +66,7 @@ const mentionsTrendController = {
                 lte: filters.lessThanTime
             };
 
-            if (Number(req.body.topicId)==2473) {
+            if (Number(req.body.topicId) == 2473) {
                 queryTimeRange = {
                     gte: '2023-01-01',
                     lte: '2023-04-30'
@@ -65,11 +77,11 @@ const mentionsTrendController = {
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic,Number(req.body.topicId));
+            }, source, isSpecialTopic, Number(req.body.topicId));
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
-            
+
             // Apply sentiment filter if provided
             if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
                 if (sentimentType.includes(',')) {
@@ -93,7 +105,7 @@ const mentionsTrendController = {
             }
 
             // Apply LLM Mention Type filter if provided
-            if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+            if (llm_mention_type != "" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
                 const mentionTypeFilter = {
                     bool: {
                         should: llm_mention_type.map(type => ({
@@ -111,9 +123,9 @@ const mentionsTrendController = {
                 size: 0,
                 aggs: {
                     daily_counts: {
-                        date_histogram: { 
-                            field: 'p_created_time', 
-                            fixed_interval: '1d', 
+                        date_histogram: {
+                            field: 'p_created_time',
+                            fixed_interval: '1d',
                             min_doc_count: 0,
                             extended_bounds: {
                                 min: queryTimeRange.gte,
@@ -179,11 +191,11 @@ const mentionsTrendController = {
             for (const bucket of buckets) {
                 const docCount = bucket.doc_count;
                 const keyAsString = new Date(bucket.key_as_string).toISOString().split('T')[0];
-                
+
                 const bucketDate = new Date(keyAsString);
                 const startDate = new Date(queryTimeRange.gte);
                 const endDate = new Date(queryTimeRange.lte);
-                
+
                 if (bucketDate >= startDate && bucketDate <= endDate) {
                     if (docCount > maxMentions) {
                         maxMentions = docCount;
@@ -192,7 +204,7 @@ const mentionsTrendController = {
 
                     // Format posts for this bucket
                     const posts = bucket.top_posts.hits.hits.map(hit => formatPostData(hit));
-                    
+
                     datesWithPosts.push({
                         date: keyAsString,
                         count: docCount,
@@ -260,25 +272,37 @@ const mentionsTrendController = {
         }
     },
 
-     getMentionsOverTime: async (req, res) => {
+    getMentionsOverTime: async (req, res) => {
         try {
-            const { 
+            const {
                 timeSlot,
                 fromDate,
                 toDate,
                 sentimentType,
                 source = 'All',
-                category = 'all',
                 unTopic = 'false',
                 topicId,
-                llm_mention_type
+                llm_mention_type,
+                categoryItems
             } = req.body;
+
+            let category = req.body.category || 'all';
 
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-            // Get category data from middleware
-            const categoryData = req.processedCategories || {};
+            // Determine which category data to use
+            let categoryData = {};
+
+            if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+                // Use categoryItems if provided and not empty
+                categoryData = processCategoryItems(categoryItems);
+                // When using categoryItems, always use 'custom' category
+                category = 'custom';
+            } else {
+                // Fall back to middleware data
+                categoryData = req.processedCategories || {};
+            }
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
@@ -291,7 +315,7 @@ const mentionsTrendController = {
 
             // Build base query for filters processing
             const baseQueryString = buildBaseQueryString(category, categoryData);
-            
+
             // Process filters (time slot, date range, sentiment)
             const filters = processFilters({
                 sentimentType,
@@ -308,7 +332,7 @@ const mentionsTrendController = {
                 lte: filters.lessThanTime
             };
 
-            if (Number(req.body.topicId)==2473) {
+            if (Number(req.body.topicId) == 2473) {
                 queryTimeRange = {
                     gte: '2023-01-01',
                     lte: '2023-04-30'
@@ -319,11 +343,11 @@ const mentionsTrendController = {
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic,Number(req.body.topicId));
+            }, source, isSpecialTopic, Number(req.body.topicId));
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
-            
+
             // Apply sentiment filter if provided
             if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
                 if (sentimentType.includes(',')) {
@@ -348,7 +372,7 @@ const mentionsTrendController = {
             }
 
             // Apply LLM Mention Type filter if provided
-            if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+            if (llm_mention_type != "" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
                 const mentionTypeFilter = {
                     bool: {
                         should: llm_mention_type.map(type => ({
@@ -366,9 +390,9 @@ const mentionsTrendController = {
                 size: 0,
                 aggs: {
                     daily_counts: {
-                        date_histogram: { 
-                            field: 'p_created_time', 
-                            fixed_interval: '1d', 
+                        date_histogram: {
+                            field: 'p_created_time',
+                            fixed_interval: '1d',
                             min_doc_count: 0,
                             extended_bounds: {
                                 min: queryTimeRange.gte,
@@ -397,41 +421,41 @@ const mentionsTrendController = {
             const totalCount = totalCountResponse.hits.total.value || totalCountResponse.hits.total || 0;
 
             // Process aggregation results and find max mentions
-                let maxDate = '';
-                let maxMentions = 0;
-                const datesArray = [];
+            let maxDate = '';
+            let maxMentions = 0;
+            const datesArray = [];
 
-                const buckets = aggResponse?.aggregations?.daily_counts?.buckets || [];
+            const buckets = aggResponse?.aggregations?.daily_counts?.buckets || [];
 
-                for (const bucket of buckets) {
-                    const docCount = bucket.doc_count;
-                    const keyAsString = new Date(bucket.key_as_string).toISOString().split('T')[0];
+            for (const bucket of buckets) {
+                const docCount = bucket.doc_count;
+                const keyAsString = new Date(bucket.key_as_string).toISOString().split('T')[0];
 
-                    const bucketDate = new Date(keyAsString);
-                    const startDate = new Date(queryTimeRange.gte);
-                    const endDate = new Date(queryTimeRange.lte);
+                const bucketDate = new Date(keyAsString);
+                const startDate = new Date(queryTimeRange.gte);
+                const endDate = new Date(queryTimeRange.lte);
 
-                    if (bucketDate >= startDate && bucketDate <= endDate) {
-                        if (docCount > maxMentions) {
-                            maxMentions = docCount;
-                            maxDate = keyAsString;
-                        }
-
-                        datesArray.push({ date: keyAsString, count: docCount });
+                if (bucketDate >= startDate && bucketDate <= endDate) {
+                    if (docCount > maxMentions) {
+                        maxMentions = docCount;
+                        maxDate = keyAsString;
                     }
+
+                    datesArray.push({ date: keyAsString, count: docCount });
                 }
+            }
 
-                // Sort dates in descending order
-                datesArray.sort((a, b) => new Date(b.date) - new Date(a.date));
+            // Sort dates in descending order
+            datesArray.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                // Return response with mentions only
-                return res.status(200).json({
-                    success: true,
-                    maxMentionData: `${maxDate},${maxMentions}`,
-                    totalCount: totalCount,
-                    datesWithPosts: datesArray, // this is your final mentions data
-                    query: query // optional for debugging
-                });
+            // Return response with mentions only
+            return res.status(200).json({
+                success: true,
+                maxMentionData: `${maxDate},${maxMentions}`,
+                totalCount: totalCount,
+                datesWithPosts: datesArray, // this is your final mentions data
+                query: query // optional for debugging
+            });
 
 
         } catch (error) {
@@ -445,19 +469,31 @@ const mentionsTrendController = {
 
     getMentionsTrendPost: async (req, res) => {
         try {
-            const { 
+            const {
                 timeSlot,
                 fromDate,
                 toDate,
                 sentimentType,
                 source = 'All',
-                category = 'all',
                 unTopic = 'false',
                 llm_mention_type,
+                categoryItems
             } = req.query;
 
-            // Get category data from middleware
-            const categoryData = req.processedCategories || {};
+            let category = req.query.category || 'all';
+
+            // Determine which category data to use
+            let categoryData = {};
+
+            if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+                // Use categoryItems if provided and not empty
+                categoryData = processCategoryItems(categoryItems);
+                // When using categoryItems, always use 'custom' category
+                category = 'custom';
+            } else {
+                // Fall back to middleware data
+                categoryData = req.processedCategories || {};
+            }
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
@@ -470,7 +506,7 @@ const mentionsTrendController = {
 
             // Build base query for filters processing
             const baseQueryString = buildBaseQueryString(category, categoryData);
-            
+
             // Process filters (time slot, date range, sentiment)
             const filters = processFilters({
                 sentimentType,
@@ -486,8 +522,8 @@ const mentionsTrendController = {
                 lte: filters.lessThanTime
             };
 
-            if (Number(req.body.topicId)==2473) {
-               queryTimeRange = {
+            if (Number(req.body.topicId) == 2473) {
+                queryTimeRange = {
                     gte: fromDate,
                     lte: toDate
                 };
@@ -497,11 +533,11 @@ const mentionsTrendController = {
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source,Number(req.body.topicId));
+            }, source, Number(req.body.topicId));
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
-            
+
             // Apply sentiment filter if provided
             if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
                 if (sentimentType.includes(',')) {
@@ -526,7 +562,7 @@ const mentionsTrendController = {
             }
 
             // Apply LLM Mention Type filter if provided
-            if (llm_mention_type!="" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+            if (llm_mention_type != "" && llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
                 const mentionTypeFilter = {
                     bool: {
                         should: llm_mention_type.map(type => ({
@@ -539,12 +575,12 @@ const mentionsTrendController = {
             }
 
             // Normalize the input
-            const mentionTypesArray = typeof llm_mention_type === 'string' 
-                ? llm_mention_type.split(',').map(s => s.trim()) 
+            const mentionTypesArray = typeof llm_mention_type === 'string'
+                ? llm_mention_type.split(',').map(s => s.trim())
                 : llm_mention_type;
 
             // Apply LLM Mention Type filter if provided
-            if (llm_mention_type!="" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
+            if (llm_mention_type != "" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
                 const mentionTypeFilter = {
                     bool: {
                         should: mentionTypesArray.map(type => ({
@@ -561,7 +597,7 @@ const mentionsTrendController = {
                 query: query,
                 size: 30
             };
-            
+
             // Execute Elasticsearch query
             const results = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -667,7 +703,7 @@ const formatPostData = (hit) => {
     // Determine sentiment
     let predicted_sentiment = '';
     let predicted_category = '';
-    
+
     if (source.predicted_sentiment_value)
         predicted_sentiment = `${source.predicted_sentiment_value}`;
     else if (source.source === 'GoogleMyBusiness' && source.rating) {
@@ -743,7 +779,7 @@ const formatPostData = (hit) => {
         uSource: source.u_source,
         googleName: source.name,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
-        p_comments_data:source.p_comments_data,
+        p_comments_data: source.p_comments_data,
 
     };
 };
@@ -757,7 +793,7 @@ const formatPostData = (hit) => {
 function buildBaseQueryString(selectedCategory, categoryData) {
     let queryString = '';
     const allTerms = [];
-    
+
     if (selectedCategory === 'all') {
         // Combine all keywords, hashtags, and urls from all categories
         Object.values(categoryData).forEach(data => {
@@ -783,13 +819,13 @@ function buildBaseQueryString(selectedCategory, categoryData) {
             allTerms.push(...data.urls);
         }
     }
-    
+
     // Create a query string with all terms as ORs
     if (allTerms.length > 0) {
         const terms = allTerms.map(term => `"${term}"`).join(' OR ');
         queryString = `(p_message_text:(${terms}) OR u_fullname:(${terms}))`;
     }
-    
+
     return queryString;
 }
 
@@ -799,7 +835,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
     const query = {
         bool: {
             must: [
@@ -821,19 +857,19 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
             ]
         }
     };
-     if(topicId===2619){
+    if (topicId === 2619) {
         query.bool.must.push({
             bool: {
                 should: [
-                       { match_phrase: { source: "LinkedIn" } },
-                        { match_phrase: { source: "Linkedin" } }
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } }
                 ],
                 minimum_should_match: 1
             }
         });
-     }
+    }
     // Handle special topic source filtering
-   else if (isSpecialTopic) {
+    else if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
                 should: [
@@ -965,5 +1001,7 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
         }
     }
 }
+
+
 
 module.exports = mentionsTrendController; 

@@ -1,5 +1,6 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 const getSentimentTrendData = async ({ query, formattedMinDate, formattedMaxDate, calendarInterval, formatPattern, analysisType }) => {
   const aggregations = {
@@ -76,9 +77,18 @@ const sentimentsController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
 
 
+
+            console.log(categoryData, "huzaifahuzaifahuzaifahuzaifahuzaifahuzaifahuzaifa");
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -444,8 +454,14 @@ llmMotivationSentimentTrend: async (req, res) => {
     const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
     const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
 
-    const categoryData = req.processedCategories || {};
-    if (Object.keys(categoryData).length === 0) {
+    let categoryData = {};
+      
+    if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+      categoryData = processCategoryItems(req.body.categoryItems);
+    } else {
+      // Fall back to middleware data
+      categoryData = req.processedCategories || {};
+    }    if (Object.keys(categoryData).length === 0) {
       return res.json({
         success: true,
         sentiments: [],

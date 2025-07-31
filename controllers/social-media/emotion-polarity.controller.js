@@ -437,12 +437,19 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { buildTopicQueryString } = require('../../utils/queryBuilder');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 const emotionPolarityController = {
     getEmotionPolarity: async (req, res) => {
         try {
-            const categoryData = req.processedCategories || {};
-            
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }            
             // Get request parameters
             const params = req.method === 'POST' ? req.body : req.query;
             const { 

@@ -3,6 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const { format, toDate } = require('date-fns');
 const { processFilters } = require('../social-media/filter.utils');
 const prisma = new PrismaClient();
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 /**
  * Helper function to execute Elasticsearch count query
@@ -152,8 +153,11 @@ const keywordsController = {
                 category = 'all',
                 source = 'All',
                 unTopic = 'false',
-                sentimentType
+                sentimentType,
+                categoryItems
             } = req.body;
+
+
 
                 const isScadUser="true";
                 const selectedTab ="";
@@ -206,7 +210,106 @@ const keywordsController = {
                         match: { predicted_sentiment_value: sentimentType.trim() }
                         })
                     }
-                 
+
+                    // Add category filters to the query
+                    if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                        const categoryData = processCategoryItems(req.body.categoryItems);
+                        if (Object.keys(categoryData).length > 0) {
+                            const categoryFilters = [];
+                            
+                            Object.values(categoryData).forEach(data => {
+                                if (data.keywords && data.keywords.length > 0) {
+                                    data.keywords.forEach(keyword => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: keyword,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                                if (data.hashtags && data.hashtags.length > 0) {
+                                    data.hashtags.forEach(hashtag => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: hashtag,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                                if (data.urls && data.urls.length > 0) {
+                                    data.urls.forEach(url => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: url,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                            });
+
+                            if (categoryFilters.length > 0) {
+                                params.body.query.bool.must.push({
+                                    bool: {
+                                        should: categoryFilters,
+                                        minimum_should_match: 1
+                                    }
+                                });
+                            }
+                        }
+                    } else if (req.processedCategories && Object.keys(req.processedCategories).length > 0) {
+                        const categoryFilters = [];
+                        
+                        Object.values(req.processedCategories).forEach(data => {
+                            if (data.keywords && data.keywords.length > 0) {
+                                data.keywords.forEach(keyword => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: keyword,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                            if (data.hashtags && data.hashtags.length > 0) {
+                                data.hashtags.forEach(hashtag => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: hashtag,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                            if (data.urls && data.urls.length > 0) {
+                                data.urls.forEach(url => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: url,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                        });
+
+                        if (categoryFilters.length > 0) {
+                            params.body.query.bool.must.push({
+                                bool: {
+                                    should: categoryFilters,
+                                    minimum_should_match: 1
+                                }
+                            });
+                        }
+                    }
 
                     const es_data = await executeElasticSearchCount(params)
             
@@ -354,7 +457,107 @@ const keywordsController = {
                         match: { predicted_sentiment_value: sentimentType.trim() }
                         })
                     }
-            
+
+                    // Add category filters to the query
+                    if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                        const categoryData = processCategoryItems(req.body.categoryItems);
+                        if (Object.keys(categoryData).length > 0) {
+                            const categoryFilters = [];
+                            
+                            Object.values(categoryData).forEach(data => {
+                                if (data.keywords && data.keywords.length > 0) {
+                                    data.keywords.forEach(keyword => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: keyword,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                                if (data.hashtags && data.hashtags.length > 0) {
+                                    data.hashtags.forEach(hashtag => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: hashtag,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                                if (data.urls && data.urls.length > 0) {
+                                    data.urls.forEach(url => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: url,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                            });
+
+                            if (categoryFilters.length > 0) {
+                                params.body.query.bool.must.push({
+                                    bool: {
+                                        should: categoryFilters,
+                                        minimum_should_match: 1
+                                    }
+                                });
+                            }
+                        }
+                    } else if (req.processedCategories && Object.keys(req.processedCategories).length > 0) {
+                        const categoryFilters = [];
+                        
+                        Object.values(req.processedCategories).forEach(data => {
+                            if (data.keywords && data.keywords.length > 0) {
+                                data.keywords.forEach(keyword => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: keyword,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                            if (data.hashtags && data.hashtags.length > 0) {
+                                data.hashtags.forEach(hashtag => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: hashtag,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                            if (data.urls && data.urls.length > 0) {
+                                data.urls.forEach(url => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: url,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                        });
+
+                        if (categoryFilters.length > 0) {
+                            params.body.query.bool.must.push({
+                                bool: {
+                                    should: categoryFilters,
+                                    minimum_should_match: 1
+                                }
+                            });
+                        }
+                    }
+
                     const results = await executeElasticSearchCount(params)
             
                     // Fetch posts for this keyword
@@ -411,10 +614,20 @@ const keywordsController = {
             
                 // Sort array by key_count descending
                 responseArray.sort((a, b) => b.key_count - a.key_count)
-                // Gather all filter terms from req.processedCategories
+                // Determine which category data to use
+                let categoryData = {};
+                
+                if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                  categoryData = processCategoryItems(req.body.categoryItems);
+                } else {
+                  // Fall back to middleware data
+                  categoryData = req.processedCategories || {};
+                }
+
+                // Gather all filter terms from category data
                 let allFilterTerms = [];
-                if (req.processedCategories) {
-                  Object.values(req.processedCategories).forEach((data) => {
+                if (categoryData && Object.keys(categoryData).length > 0) {
+                  Object.values(categoryData).forEach((data) => {
                     if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
                     if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
                     if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);

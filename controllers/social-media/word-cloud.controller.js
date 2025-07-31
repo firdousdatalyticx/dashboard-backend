@@ -1,6 +1,6 @@
 const { elasticClient } = require("../../config/elasticsearch");
 const { buildTopicQueryString } = require("../../utils/queryBuilder");
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 /**
  * Helper function to build Elasticsearch query params for word cloud data
  * @param {Object} options Query options
@@ -196,8 +196,14 @@ const wordCloudController = {
   getWordPhrases: async (req, res) => {
     try {
       const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type,topicId } = req.body;
-      const categoryData = req.processedCategories || {};
-
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -317,8 +323,14 @@ const wordCloudController = {
         topicId
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
-
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
       if (!phrase) {
         return res.status(400).json({
           success: false,

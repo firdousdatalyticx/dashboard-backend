@@ -650,8 +650,11 @@ const postsController = {
         category,
         click = "false",
         llm_mention_type,
-        type
+        type,
+        categoryItems
       } = req.query;
+
+      console.log(categoryItems, "huzaifahuzaifahuzaifahuzaifahuzaifahuzaifahuzaifa");
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -660,8 +663,14 @@ const postsController = {
       const googleUrls = req.googleUrls || [];
 
       // Get category data from middleware if available.
-      const categoryData = req.processedCategories || {};
-
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }    
       // Parse and validate rating if provided.
       const requestedRatingValue = rating ? parseInt(rating, 10) : null;
       const isRatingFilterActive =

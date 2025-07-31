@@ -1,6 +1,6 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 /**
  * Controller for analyzing inflation-related phrases from social media posts
  */
@@ -25,8 +25,14 @@ const inflationAnalysisController = {
 
 
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-            const rawCategories = req.rawCategories || [];
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }            const rawCategories = req.rawCategories || [];
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
@@ -457,9 +463,14 @@ const inflationAnalysisController = {
             } = req.body;
 
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-            const rawCategories = req.rawCategories || [];
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -849,8 +860,14 @@ const inflationAnalysisController = {
             } = req.body;
 
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-            const rawCategories = req.rawCategories || [];
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
 
             if (Object.keys(categoryData).length === 0) {
                 return res.json({

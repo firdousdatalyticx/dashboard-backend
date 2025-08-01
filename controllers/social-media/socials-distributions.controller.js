@@ -1,7 +1,7 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { processFilters } = require('./filter.utils');
 const { format } = require('date-fns');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 const socialsDistributionsController = {
     getDistributions: async (req, res) => {
         try {
@@ -23,8 +23,14 @@ const socialsDistributionsController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600 || parseInt(topicId) === 2627;
             
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             // If there's nothing to search for, return zero counts
             if (Object.keys(categoryData).length === 0) {
                 return res.json({});

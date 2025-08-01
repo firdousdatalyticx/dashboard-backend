@@ -45,6 +45,26 @@ router.post('/', topicCategoriesController.createCategories);
  */
 router.get('/topic/:topicId', transformCategoryData, topicCategoriesController.getCategoriesByTopicId);
 
+
+
+/**
+ * @swagger
+ * /topic-categories/topic/{topicId}:
+ *   get:
+ *     summary: Get topic categories and sub-categories
+ *     description: Retrieves all categories and sub-categories for a specific topic. Requires authentication. The response is transformed by categoryTransform middleware.
+ *     tags: [Topic Categories]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: topicId
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID of the topic to get categories for
+ */
+router.get('/topic/subcategories/:topicId', transformCategoryData, topicCategoriesController.getSubCategoriesByTopicId);
 /**
  * @swagger
  * /topic-categories/{id}:

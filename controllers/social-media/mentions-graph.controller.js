@@ -1,11 +1,17 @@
 const { clientmetiontrends } = require('../../config/elasticsearch');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 const mentionsGraphController = {
     getMentionsGraph: async (req, res) => {
         try {
             const { interval = 'monthly', category = 'all', source = 'All' } = req.body;
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ 
                     mentionsGraphData: '', 

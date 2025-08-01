@@ -3,6 +3,7 @@ const { buildTopicQueryString } = require("../../utils/queryBuilder");
 const { getCountryCode } = require("../../utils/countryHelper");
 const { getSourceIcon } = require("../../utils/sourceHelper");
 const { processFilters } = require("./filter.utils");
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 const audienceController = {
   getAudience: async (req, res) => {
@@ -14,9 +15,18 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
+        categoryItems
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      let categoryData = {};
+
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+        category = 'custom';
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -147,9 +157,18 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
+        categoryItems
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      let categoryData = {};
+
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+        category = 'custom';
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -339,10 +358,18 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
+        categoryItems
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      let categoryData = {};
 
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+        category = 'custom';
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
       if (Object.keys(categoryData).length === 0) {
         return res.json({
           dates: [],
@@ -525,10 +552,18 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
+        categoryItems
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      let categoryData = {};
 
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+        category = 'custom';
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
       if (Object.keys(categoryData).length === 0) {
         return res.json({
           data_array: [],
@@ -635,188 +670,188 @@ const audienceController = {
         });
       }
 
-    const categorizeSeniority = (position, summary) => {
-  
-  // Handle case where position is an array of job objects
-  let positionText = "";
-  if (Array.isArray(position)) {
-    // Extract titles from job objects and combine them
-    positionText = position
-      .map(job => job.title || "")
-      .filter(title => title.trim() !== "")
-      .join(" ");
-  } else {
-    positionText = String(position || "");
-  }
-  
-  const positionLower = positionText.toLowerCase();
-  const summaryLower = String(summary || "").toLowerCase();
-    console.log(position, summary);
+      const categorizeSeniority = (position, summary) => {
 
-  const combinedText = `${positionLower} ${summaryLower}`;
+        // Handle case where position is an array of job objects
+        let positionText = "";
+        if (Array.isArray(position)) {
+          // Extract titles from job objects and combine them
+          positionText = position
+            .map(job => job.title || "")
+            .filter(title => title.trim() !== "")
+            .join(" ");
+        } else {
+          positionText = String(position || "");
+        }
 
-  // Helper function for better keyword matching
-  const containsKeyword = (text, keyword) => {
-    // Handle special cases for abbreviations and dots
-    if (keyword.includes('.')) {
-      return text.includes(keyword) || text.includes(keyword.replace('.', ''));
-    }
-    // Use word boundary for most cases, but handle edge cases
-    const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(`\\b${escapedKeyword}\\b`, "i");
-    return regex.test(text);
-  };
+        const positionLower = positionText.toLowerCase();
+        const summaryLower = String(summary || "").toLowerCase();
+        console.log(position, summary);
 
-  // Expanded and prioritized keyword lists
-  const executiveKeywords = [
-    "ceo", "chief", "cto", "cfo", "coo", "cmo", "cio", "cpo",
-    "founder", "co-founder", "owner", "partner", "president", "chairman",
-    "board member", "vice president", "vp", "area vice president",
-    "regional vice president", "country manager", "general manager",
-    "global head", "executive director", "managing director",
-    "group director", "regional director", "country head", "global manager"
-  ];
+        const combinedText = `${positionLower} ${summaryLower}`;
 
-  const seniorKeywords = [
-    "senior", "sr.", "sr ", "lead", "principal", "director", "head of",
-    "manager", "managing", "supervisor", "team lead", "architect",
-    "strategist", "expert", "specialist", "department head", "division head",
-    "senior manager", "senior director", "senior consultant", "senior engineer",
-    "senior analyst", "senior developer", "senior architect", "senior advisor",
-    "customer success advisor lead", "key account manager", "solution engineering",
-    "sales manager", "account director", "practice lead", "delivery manager",
-    "program manager", "technical lead", "staff engineer", "staff developer",
-    "staff architect", "enterprise sales", "enterprise", "business development manager",
-    "regional manager", "area manager", "territory manager", "channel manager",
-    "partnership manager", "strategic", "solutions architect", "systems architect",
-    "it specialist", "technology specialist", "renewal specialist", "license specialist",
-    "managed services", "cloud specialist", "aws specialist", "azure specialist",
-    "devops engineer", "security specialist", "infrastructure manager"
-  ];
+        // Helper function for better keyword matching
+        const containsKeyword = (text, keyword) => {
+          // Handle special cases for abbreviations and dots
+          if (keyword.includes('.')) {
+            return text.includes(keyword) || text.includes(keyword.replace('.', ''));
+          }
+          // Use word boundary for most cases, but handle edge cases
+          const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const regex = new RegExp(`\\b${escapedKeyword}\\b`, "i");
+          return regex.test(text);
+        };
 
-  const midKeywords = [
-    "analyst", "coordinator", "associate", "executive", "developer",
-    "engineer", "designer", "marketing", "sales rep", "officer",
-    "representative", "consultant", "advisor", "assistant manager",
-    "professional", "technician", "planner", "administrator", "operations",
-    "hr", "human resources", "account manager", "project manager",
-    "product manager", "brand manager", "community manager", "social media manager",
-    "business analyst", "data analyst", "software engineer", "web developer",
-    "qa engineer", "support engineer", "network administrator", "system administrator"
-  ];
+        // Expanded and prioritized keyword lists
+        const executiveKeywords = [
+          "ceo", "chief", "cto", "cfo", "coo", "cmo", "cio", "cpo",
+          "founder", "co-founder", "owner", "partner", "president", "chairman",
+          "board member", "vice president", "vp", "area vice president",
+          "regional vice president", "country manager", "general manager",
+          "global head", "executive director", "managing director",
+          "group director", "regional director", "country head", "global manager"
+        ];
 
-  const juniorKeywords = [
-    "junior", "jr.", "entry", "trainee", "intern", "internship",
-    "graduate", "assistant", "fresher", "new grad", "recent graduate",
-    "apprentice", "volunteer", "student", "entry-level", "beginner",
-    "learner", "temporary", "contract", "freelance", "part-time",
-    "support", "aide", "helper", "staff", "crew", "associate developer",
-    "junior developer", "junior engineer", "junior analyst", "entry level"
-  ];
+        const seniorKeywords = [
+          "senior", "sr.", "sr ", "lead", "principal", "director", "head of",
+          "manager", "managing", "supervisor", "team lead", "architect",
+          "strategist", "expert", "specialist", "department head", "division head",
+          "senior manager", "senior director", "senior consultant", "senior engineer",
+          "senior analyst", "senior developer", "senior architect", "senior advisor",
+          "customer success advisor lead", "key account manager", "solution engineering",
+          "sales manager", "account director", "practice lead", "delivery manager",
+          "program manager", "technical lead", "staff engineer", "staff developer",
+          "staff architect", "enterprise sales", "enterprise", "business development manager",
+          "regional manager", "area manager", "territory manager", "channel manager",
+          "partnership manager", "strategic", "solutions architect", "systems architect",
+          "it specialist", "technology specialist", "renewal specialist", "license specialist",
+          "managed services", "cloud specialist", "aws specialist", "azure specialist",
+          "devops engineer", "security specialist", "infrastructure manager"
+        ];
 
-  // First check for experience patterns
-  const experienceMatch = summaryLower.match(
-    /(\d+)\+?\s*years?\s*(of\s*)?(experience|exp|industry|field|work)/i
-  );
-  if (experienceMatch) {
-    const years = parseInt(experienceMatch[1]);
-    if (years >= 10) return "Executive Level (10+ years)";
-    if (years >= 5) return "Senior Level (5+ years)";
-    if (years >= 3) return "Mid Level (3-4 years)";
-    if (years > 0) return "Entry Level (1-2 years)";
-    return "Entry Level (Intern/Fresh Graduate)";
-  }
+        const midKeywords = [
+          "analyst", "coordinator", "associate", "executive", "developer",
+          "engineer", "designer", "marketing", "sales rep", "officer",
+          "representative", "consultant", "advisor", "assistant manager",
+          "professional", "technician", "planner", "administrator", "operations",
+          "hr", "human resources", "account manager", "project manager",
+          "product manager", "brand manager", "community manager", "social media manager",
+          "business analyst", "data analyst", "software engineer", "web developer",
+          "qa engineer", "support engineer", "network administrator", "system administrator"
+        ];
 
-  // Check for education level indicators
-  const educationMatch = summaryLower.match(
-    /(master|mba|phd|doctorate|postgraduate)/i
-  );
-  if (educationMatch) {
-    return "Senior Level (Advanced Degree)";
-  }
+        const juniorKeywords = [
+          "junior", "jr.", "entry", "trainee", "intern", "internship",
+          "graduate", "assistant", "fresher", "new grad", "recent graduate",
+          "apprentice", "volunteer", "student", "entry-level", "beginner",
+          "learner", "temporary", "contract", "freelance", "part-time",
+          "support", "aide", "helper", "staff", "crew", "associate developer",
+          "junior developer", "junior engineer", "junior analyst", "entry level"
+        ];
 
-  // PRIORITY CHECK 1: Executive level first with exact matches
-  for (let keyword of executiveKeywords) {
-    if (containsKeyword(combinedText, keyword)) {
-      return "Executive Level";
-    }
-  }
+        // First check for experience patterns
+        const experienceMatch = summaryLower.match(
+          /(\d+)\+?\s*years?\s*(of\s*)?(experience|exp|industry|field|work)/i
+        );
+        if (experienceMatch) {
+          const years = parseInt(experienceMatch[1]);
+          if (years >= 10) return "Executive Level (10+ years)";
+          if (years >= 5) return "Senior Level (5+ years)";
+          if (years >= 3) return "Mid Level (3-4 years)";
+          if (years > 0) return "Entry Level (1-2 years)";
+          return "Entry Level (Intern/Fresh Graduate)";
+        }
 
-  // PRIORITY CHECK 2: Area Vice President should be Executive (specific case)
-  if (/area\s+vice\s+president/i.test(combinedText)) {
-    return "Executive Level";
-  }
+        // Check for education level indicators
+        const educationMatch = summaryLower.match(
+          /(master|mba|phd|doctorate|postgraduate)/i
+        );
+        if (educationMatch) {
+          return "Senior Level (Advanced Degree)";
+        }
 
-  // PRIORITY CHECK 3: Senior patterns - must come before mid-level checks
-  for (let keyword of seniorKeywords) {
-    if (containsKeyword(combinedText, keyword)) {
-      return "Senior Level";
-    }
-  }
+        // PRIORITY CHECK 1: Executive level first with exact matches
+        for (let keyword of executiveKeywords) {
+          if (containsKeyword(combinedText, keyword)) {
+            return "Executive Level";
+          }
+        }
 
-  // PRIORITY CHECK 4: Manager positions (but not assistant manager)
-  if (containsKeyword(combinedText, "manager") && 
-      !containsKeyword(combinedText, "assistant manager")) {
-    return "Senior Level";
-  }
+        // PRIORITY CHECK 2: Area Vice President should be Executive (specific case)
+        if (/area\s+vice\s+president/i.test(combinedText)) {
+          return "Executive Level";
+        }
 
-  // PRIORITY CHECK 5: Director positions
-  if (containsKeyword(combinedText, "director") && 
-      !containsKeyword(combinedText, "assistant director")) {
-    return "Senior Level";
-  }
+        // PRIORITY CHECK 3: Senior patterns - must come before mid-level checks
+        for (let keyword of seniorKeywords) {
+          if (containsKeyword(combinedText, keyword)) {
+            return "Senior Level";
+          }
+        }
 
-  // PRIORITY CHECK 6: Lead positions
-  if (containsKeyword(combinedText, "lead") && 
-      !containsKeyword(combinedText, "assistant lead")) {
-    return "Senior Level";
-  }
+        // PRIORITY CHECK 4: Manager positions (but not assistant manager)
+        if (containsKeyword(combinedText, "manager") &&
+          !containsKeyword(combinedText, "assistant manager")) {
+          return "Senior Level";
+        }
 
-  // PRIORITY CHECK 7: Sr. or Senior prefix (specific patterns)
-  if (/\b(sr\.?|senior)\s+/i.test(combinedText)) {
-    return "Senior Level";
-  }
+        // PRIORITY CHECK 5: Director positions
+        if (containsKeyword(combinedText, "director") &&
+          !containsKeyword(combinedText, "assistant director")) {
+          return "Senior Level";
+        }
 
-  // PRIORITY CHECK 8: Check for junior level explicitly
-  for (let keyword of juniorKeywords) {
-    if (containsKeyword(combinedText, keyword)) {
-      return "Entry Level";
-    }
-  }
+        // PRIORITY CHECK 6: Lead positions
+        if (containsKeyword(combinedText, "lead") &&
+          !containsKeyword(combinedText, "assistant lead")) {
+          return "Senior Level";
+        }
 
-  // PRIORITY CHECK 9: Check for mid level
-  for (let keyword of midKeywords) {
-    if (containsKeyword(combinedText, keyword)) {
-      return "Mid Level";
-    }
-  }
+        // PRIORITY CHECK 7: Sr. or Senior prefix (specific patterns)
+        if (/\b(sr\.?|senior)\s+/i.test(combinedText)) {
+          return "Senior Level";
+        }
 
-  // Additional fallback checks
-  if (/\b(head|supervisor|team\s+lead)\b/i.test(combinedText)) {
-    return "Senior Level";
-  }
+        // PRIORITY CHECK 8: Check for junior level explicitly
+        for (let keyword of juniorKeywords) {
+          if (containsKeyword(combinedText, keyword)) {
+            return "Entry Level";
+          }
+        }
 
-  if (/\b(assistant|associate|coordinator)\b/i.test(combinedText)) {
-    return "Mid Level";
-  }
+        // PRIORITY CHECK 9: Check for mid level
+        for (let keyword of midKeywords) {
+          if (containsKeyword(combinedText, keyword)) {
+            return "Mid Level";
+          }
+        }
 
-  if (/\b(intern|trainee|student)\b/i.test(combinedText)) {
-    return "Entry Level";
-  }
+        // Additional fallback checks
+        if (/\b(head|supervisor|team\s+lead)\b/i.test(combinedText)) {
+          return "Senior Level";
+        }
 
-  // Enhanced fallback based on title complexity and keywords
-  if (positionLower.split(/\s+/).length > 3 && 
-      !/(assistant|associate|junior|jr\.?|intern)/i.test(positionLower)) {
-    return "Senior Level";
-  }
+        if (/\b(assistant|associate|coordinator)\b/i.test(combinedText)) {
+          return "Mid Level";
+        }
 
-  // Additional check for enterprise/business roles
-  if (/\b(enterprise|business|strategic|solutions|technology)\b/i.test(combinedText)) {
-    return "Senior Level";
-  }
+        if (/\b(intern|trainee|student)\b/i.test(combinedText)) {
+          return "Entry Level";
+        }
 
-  return "Other";
-};
+        // Enhanced fallback based on title complexity and keywords
+        if (positionLower.split(/\s+/).length > 3 &&
+          !/(assistant|associate|junior|jr\.?|intern)/i.test(positionLower)) {
+          return "Senior Level";
+        }
+
+        // Additional check for enterprise/business roles
+        if (/\b(enterprise|business|strategic|solutions|technology)\b/i.test(combinedText)) {
+          return "Senior Level";
+        }
+
+        return "Other";
+      };
 
       const categorizeSentiment = (sentimentValue) => {
         if (typeof sentimentValue !== "number") return "neutral";
@@ -1020,7 +1055,7 @@ const audienceController = {
         const avgSentiment =
           sentimentValues.length > 0
             ? sentimentValues.reduce((sum, val) => sum + val, 0) /
-              sentimentValues.length
+            sentimentValues.length
             : 0;
 
         finalSeniorityStats[level] = {
@@ -1082,9 +1117,9 @@ const audienceController = {
         const avgSentiment =
           sentimentValues.length > 0
             ? (
-                sentimentValues.reduce((sum, val) => sum + val, 0) /
-                sentimentValues.length
-              ).toFixed(2)
+              sentimentValues.reduce((sum, val) => sum + val, 0) /
+              sentimentValues.length
+            ).toFixed(2)
             : "0.00";
 
         topCommentersBySeniority[level].push({
@@ -1192,7 +1227,7 @@ const audienceController = {
           most_active_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
               finalSeniorityStats[current].total_comments >
-              finalSeniorityStats[prev]?.total_comments
+                finalSeniorityStats[prev]?.total_comments
                 ? current
                 : prev,
             Object.keys(finalSeniorityStats)[0] || ""
@@ -1200,7 +1235,7 @@ const audienceController = {
           highest_engagement_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
               finalSeniorityStats[current].unique_commenters >
-              finalSeniorityStats[prev]?.unique_commenters
+                finalSeniorityStats[prev]?.unique_commenters
                 ? current
                 : prev,
             Object.keys(finalSeniorityStats)[0] || ""
@@ -1208,7 +1243,7 @@ const audienceController = {
           most_positive_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
               parseFloat(finalSeniorityStats[current].avg_sentiment) >
-              parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
+                parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
                 ? current
                 : prev,
             Object.keys(finalSeniorityStats)[0] || ""
@@ -1216,7 +1251,7 @@ const audienceController = {
           most_negative_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
               parseFloat(finalSeniorityStats[current].avg_sentiment) <
-              parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
+                parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
                 ? current
                 : prev,
             Object.keys(finalSeniorityStats)[0] || ""
@@ -1246,13 +1281,21 @@ const audienceController = {
         category = "all",
         source = "All",
         topicId,
+        categoryItems
       } = req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-      const categoryData = req.processedCategories || {};
+      let categoryData = {};
 
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+        category = 'custom';
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
       if (Object.keys(categoryData).length === 0) {
         return res.json({
           responseArray: [],
@@ -1435,8 +1478,8 @@ const formatPostData = (hit, allFilterTerms = []) => {
       ? source.rating >= 4
         ? "Supportive"
         : source.rating <= 2
-        ? "Frustrated"
-        : "Neutral"
+          ? "Frustrated"
+          : "Neutral"
       : "");
 
   // Clean up comments URL if available
@@ -1467,8 +1510,8 @@ const formatPostData = (hit, allFilterTerms = []) => {
       source.rating >= 4
         ? "Positive"
         : source.rating <= 2
-        ? "Negative"
-        : "Neutral";
+          ? "Negative"
+          : "Neutral";
   }
 
   if (source.predicted_category) predicted_category = source.predicted_category;

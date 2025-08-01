@@ -1,6 +1,7 @@
 const prisma = require("../../config/database");
 const { elasticClient } = require("../../config/elasticsearch");
 const { format, parseISO, subDays } = require("date-fns");
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 const sentimentsMultipleCategoriesController = {
   // ... existing getSentimentsAnalysis method ...
@@ -27,8 +28,15 @@ const sentimentsMultipleCategoriesController = {
         });
       }
 
-      // Get category data from middleware
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -223,8 +231,15 @@ const sentimentsMultipleCategoriesController = {
           }
       }
 
-      // Get category data from middleware
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -461,8 +476,15 @@ const sentimentsMultipleCategoriesController = {
         });
       }
 
-      // Get category data from middleware
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      
+      if (req.query.categoryItems && Array.isArray(req.query.categoryItems) && req.query.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.query.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({

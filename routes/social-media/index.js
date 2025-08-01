@@ -47,6 +47,7 @@ const eventTypePopularityRoute = require("./event-type-popularity.routes");
 const llm_motivation_phase_route= require("./llm_motivation-phase.route")
 const llm_motivation_sentiment_route = require("./llm-motivation-sentiment.route")
 const mentionsOverTimeRoute = require("./mentions-over-time.route")
+const businessLocationRoutes = require("./business-locations.routes")
 // migration-topics.routes.js
 /**
  * @swagger
@@ -102,5 +103,6 @@ router.use('/bench-marking-presence-sentiment',benchMarkingPresenceSentimentRout
 router.use('/event-type-popularity',eventTypePopularityRoute)
 router.use("/llm-motivation-phase",llm_motivation_phase_route);
 router.use("/llm-motivation-sentiment",llm_motivation_sentiment_route)
+router.use("/business-location",businessLocationRoutes)
 
 module.exports = router; 

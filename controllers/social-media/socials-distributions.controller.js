@@ -17,7 +17,6 @@ const socialsDistributionsController = {
                 llm_mention_type
             } = req.body;
 
-            console.log(fromDate, toDate);
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600 || parseInt(topicId) === 2627;
@@ -31,10 +30,12 @@ const socialsDistributionsController = {
               // Fall back to middleware data
               categoryData = req.processedCategories || {};
             }
+
             // If there's nothing to search for, return zero counts
             if (Object.keys(categoryData).length === 0) {
                 return res.json({});
             }
+
 
               // Build base query for filters processing
                         const baseQueryString = buildBaseQueryString(category, categoryData);

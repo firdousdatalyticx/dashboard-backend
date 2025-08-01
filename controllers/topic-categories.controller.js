@@ -304,8 +304,8 @@ const topicCategoriesController = {
             const numericTopicId =
                 topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
 
-            // Check if this is the special topicId
-            const isSpecialTopic = numericTopicId === 2600;
+      // Check if this is the special topicId
+      const isSpecialTopic = numericTopicId === 2600 || numericTopicId === 2627;
 
             // Fetch customer topics
             const customerTopics = await prisma.customer_topics.findMany({

@@ -35,40 +35,51 @@ const transformCategoryData = async (req, res, next) => {
             return [...new Set(items)];
         };
 
-        // Transform the data into the desired format with consistent processing
-        const categoriesData = categoryData.map(category => ({
-            [category.category_title.trim()]: { // Normalize category title
-                urls: normalizeArray(category.topic_urls),
-                keywords: normalizeArray(category.topic_keywords),
-                hashtags: normalizeArray(category.topic_hash_tags)
-            }
-        }));
+        // Helper function to merge arrays and remove duplicates
+        const mergeArrays = (...arrays) => {
+            const merged = arrays.flat().filter(item => item);
+            return [...new Set(merged)].sort();
+        };
 
-        // Create the final processed data structure with sorted keys
+        // Create the final processed data structure by merging duplicate categories
         const processedData = {};
         
-        // Sort categories by name for consistent processing
-        const sortedCategories = categoriesData.sort((a, b) => {
-            const keyA = Object.keys(a)[0];
-            const keyB = Object.keys(b)[0];
-            return keyA.localeCompare(keyB);
+        categoryData.forEach(category => {
+            const categoryName = category.category_title.trim();
+            const urls = normalizeArray(category.topic_urls);
+            const keywords = normalizeArray(category.topic_keywords);
+            const hashtags = normalizeArray(category.topic_hash_tags);
+            
+            if (processedData[categoryName]) {
+                // Merge with existing category data
+                processedData[categoryName] = {
+                    urls: mergeArrays(processedData[categoryName].urls, urls),
+                    keywords: mergeArrays(processedData[categoryName].keywords, keywords),
+                    hashtags: mergeArrays(processedData[categoryName].hashtags, hashtags)
+                };
+            } else {
+                // Create new category entry
+                processedData[categoryName] = {
+                    urls: urls,
+                    keywords: keywords,
+                    hashtags: hashtags
+                };
+            }
         });
 
-        sortedCategories.forEach(item => {
-            const categoryName = Object.keys(item)[0];
-            processedData[categoryName] = {
-                hashtags: item[categoryName].hashtags,
-                keywords: item[categoryName].keywords,
-                urls: item[categoryName].urls
-            };
-        });
+        // Transform to array format (if needed for backward compatibility)
+        const categoriesData = Object.keys(processedData)
+            .sort() // Sort category names
+            .map(categoryName => ({
+                [categoryName]: processedData[categoryName]
+            }));
 
-        // Attach the processed data to the request object
-        req.processedCategories = processedData;
+            
+
+        // Attach both formats to the request object
+        req.processedCategories = processedData; // Object format (recommended)
+        req.categoriesArray = categoriesData;    // Array format (for compatibility)
         req.rawCategories = categoryData;
-        
-        // Add debug logging for troubleshooting
-
         
         next();
     } catch (error) {

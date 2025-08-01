@@ -528,34 +528,48 @@ const topicCategoriesController = {
     bulkCreateCategories: async (req, res) => {
         try {
             const { categories, topicId } = req.body;
+    
             if (!categories || !Array.isArray(categories) || !topicId) {
                 return res.status(400).json({
                     success: false,
                     error: 'Invalid request body. Categories array and topicId are required.'
                 });
             }
+    
             // Delete all previous categories for this topicId
             await prisma.topic_categories.deleteMany({
                 where: { customer_topic_id: topicId }
             });
-            for (const categoryData of categories) {
-                const categoryTitle = Object.keys(categoryData)[0];
-                const { urls, keywords, hashtags } = categoryData[categoryTitle];
-                // Convert arrays into comma-separated strings
-                const topicUrls = urls.join(', ');
-                const topicKeywords = keywords.join(', ');
-                const topicHashTags = hashtags.join(', ');
-                // Insert data into the database
-                await prisma.topic_categories.create({
-                    data: {
-                        customer_topic_id: topicId,
-                        category_title: categoryTitle,
-                        topic_hash_tags: topicHashTags,
-                        topic_urls: topicUrls,
-                        topic_keywords: topicKeywords,
-                    }
-                });
+    
+            // Process each country object in the categories array
+            for (const countryObject of categories) {
+                // Get the country name (first key in the object)
+                const countryName = Object.keys(countryObject)[0];
+                const countryCategories = countryObject[countryName];
+    
+                // Process each category within the country
+                for (const [categoryTitle, categoryData] of Object.entries(countryCategories)) {
+                    const { urls, keywords, hashtags } = categoryData;
+    
+                    // Convert arrays into comma-separated strings
+                    const topicUrls = urls.join(', ');
+                    const topicKeywords = keywords.join(', ');
+                    const topicHashTags = hashtags.join(', ');
+    
+                    // Insert data into the database
+                    await prisma.topic_categories.create({
+                        data: {
+                            customer_topic_id: topicId,
+                            country: countryName,
+                            category_title: categoryTitle,
+                            topic_hash_tags: topicHashTags,
+                            topic_urls: topicUrls,
+                            topic_keywords: topicKeywords,
+                        }
+                    });
+                }
             }
+    
             return res.json({ success: true });
         } catch (error) {
             console.error('Error inserting categories:', error);

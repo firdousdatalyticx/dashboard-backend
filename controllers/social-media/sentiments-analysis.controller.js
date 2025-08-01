@@ -88,7 +88,6 @@ const sentimentsController = {
 
 
 
-            console.log(categoryData, "huzaifahuzaifahuzaifahuzaifahuzaifahuzaifahuzaifa");
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,

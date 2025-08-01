@@ -3,7 +3,7 @@ const { PrismaClient } = require("@prisma/client");
 const { buildQueryString } = require("../utils/query.utils");
 const { format } = require("date-fns");
 const prisma = new PrismaClient();
-
+const processCategoryItems = require('../helpers/processedCategoryItems');
 /**
  * Safely format a date for Elasticsearch (yyyy-MM-dd)
  */
@@ -654,7 +654,6 @@ const postsController = {
         categoryItems
       } = req.query;
 
-      console.log(categoryItems, "huzaifahuzaifahuzaifahuzaifahuzaifahuzaifahuzaifa");
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -662,15 +661,28 @@ const postsController = {
       // Get googleUrls from middleware
       const googleUrls = req.googleUrls || [];
 
+      // Parse categoryItems from URL-encoded comma-separated string
+      let parsedCategoryItems = [];
+      if (categoryItems && typeof categoryItems === 'string') {
+        // Decode URL encoding and split by comma
+        const decodedItems = decodeURIComponent(categoryItems);
+        parsedCategoryItems = decodedItems.split(',').map(item => item.trim()).filter(item => item.length > 0);
+      }
+
+
+
       // Get category data from middleware if available.
       let categoryData = {};
       
-      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
-        categoryData = processCategoryItems(req.body.categoryItems);
+      if (parsedCategoryItems && parsedCategoryItems.length > 0) {
+        categoryData = processCategoryItems(parsedCategoryItems);
       } else {
         // Fall back to middleware data
         categoryData = req.processedCategories || {};
       }    
+
+      console.log(categoryData, "categoryData");
+
       // Parse and validate rating if provided.
       const requestedRatingValue = rating ? parseInt(rating, 10) : null;
       const isRatingFilterActive =

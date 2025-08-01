@@ -363,9 +363,7 @@ const topicCategoriesController = {
             const formatDate = (date) => date.toISOString().split("T")[0];
 
             // Determine date range based on special topic
-            let dateRange = isSpecialTopic
-                ? { gte: "2020-01-01", lte: "now" }
-                : { gte: formatDate(pastDate), lte: formatDate(today) };
+  
 
 
             // Determine social media sources based on special topic
@@ -384,10 +382,6 @@ const topicCategoriesController = {
                     "Web",
                 ];
 
-            if (numericTopicId === 2473) {
-                dateRange.gte = "2023-01-01";
-                dateRange.lte = "2023-04-30";
-            }
 
             const must = [
 
@@ -403,25 +397,7 @@ const topicCategoriesController = {
                 ]
 
 
-            if (numericTopicId === 2473 || isSpecialTopic) {
-                must.push({
-                    range: {
-                        created_at: dateRange,
-                    }
-                },
-                    // {
-                    //     range: {
-                    //         p_created_time: dateRange
-                    //     }
-                    // }
-                )
-
-                googleMust.push({
-                    range: {
-                        created_at: dateRange,
-                    },
-                },)
-            }
+          
             // Query builder for social media data
             const buildSocialMediaQuery = () => ({
                 bool: {

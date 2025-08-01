@@ -241,7 +241,6 @@ const engagementController = {
                     toDate,
                     sentimentType,
                     queryString: query,
-                    isSpecialTopic // Pass special topic flag
                 });
                    // // Handle special case for unTopic
             let queryTimeRange = {

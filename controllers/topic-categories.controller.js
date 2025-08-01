@@ -363,9 +363,7 @@ const topicCategoriesController = {
             const formatDate = (date) => date.toISOString().split("T")[0];
 
             // Determine date range based on special topic
-            let dateRange = isSpecialTopic
-                ? { gte: "2020-01-01", lte: "now" }
-                : { gte: formatDate(pastDate), lte: formatDate(today) };
+            let dateRange =  { gte: formatDate(pastDate), lte: formatDate(today) };
 
 
             // Determine social media sources based on special topic

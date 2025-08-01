@@ -54,7 +54,6 @@ const entitiesController = {
                 fromDate,
                 toDate,
                 queryString: baseQueryString,
-                isSpecialTopic // Pass special topic flag
             });
             
             // Set date range based on filters or special case
@@ -67,11 +66,7 @@ const entitiesController = {
                 effectiveLessThanTime = '2023-04-30';
             }
             
-            // For special topic, use wider range if no dates provided
-            if (isSpecialTopic && !fromDate && !toDate) {
-                effectiveGreaterThanTime = '2020-01-01';
-                effectiveLessThanTime = 'now';
-            }
+          
             
             // If input dates were provided, they take precedence
             if (inputGreaterThanTime) {

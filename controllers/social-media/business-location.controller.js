@@ -289,6 +289,7 @@ const businessLocationController = {
         timeSlot = "last90days",
         category = "all",
         llm_mention_type,
+        categoryItems
       } = req.body;
 
       // Check if this is the special topicId

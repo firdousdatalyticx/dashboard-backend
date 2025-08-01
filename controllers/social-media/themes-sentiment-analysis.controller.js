@@ -43,18 +43,7 @@ const themesSentimentAnalysisController = {
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use provided dates or default to last 90 days
-                if (greaterThanTime && lessThanTime) {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                } else {
-                    // No default date restriction for special topic
-                    const ninetyDaysAgo = subDays(now, 90);
-                    effectiveGreaterThanTime = format(ninetyDaysAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = format(now, 'yyyy-MM-dd');
-                }
-            } else {
+       
                 // For regular topics, default to last 90 days if not provided
                 if (!greaterThanTime || !lessThanTime) {
                     const ninetyDaysAgo = subDays(now, 90);
@@ -64,7 +53,7 @@ const themesSentimentAnalysisController = {
                     effectiveGreaterThanTime = greaterThanTime;
                     effectiveLessThanTime = lessThanTime;
                 }
-            }
+            
 
             // Build base query
             const query = buildBaseQuery({
@@ -168,9 +157,9 @@ const themesSentimentAnalysisController = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: params
             });
-            console.log('Themes Sentiment Analysis Query:', JSON.stringify(query, null, 2));
+            // console.log('Themes Sentiment Analysis Query:', JSON.stringify(query, null, 2));
 
-            console.log('Themes Sentiment Analysis Response hits:', response.hits.hits.length);
+            // console.log('Themes Sentiment Analysis Response hits:', response.hits.hits.length);
 
             // Process the themes sentiment data
             const themesSentimentMap = new Map();

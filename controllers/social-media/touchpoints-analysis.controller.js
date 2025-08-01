@@ -43,18 +43,7 @@ const touchpointsAnalysisController = {
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use provided dates or wider range
-                if (greaterThanTime && lessThanTime) {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                } else {
-                    // Default to wider range for special topic
-                    const twoYearsAgo = subDays(now, 730);
-                    effectiveGreaterThanTime = format(twoYearsAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = format(now, 'yyyy-MM-dd');
-                }
-            } else {
+            
                 // For regular topics, use 90 days default if not provided
                 if (!greaterThanTime || !lessThanTime) {
                     const ninetyDaysAgo = subDays(now, 90);
@@ -64,7 +53,7 @@ const touchpointsAnalysisController = {
                     effectiveGreaterThanTime = greaterThanTime;
                     effectiveLessThanTime = lessThanTime;
                 }
-            }
+            
 
             // Build base query
             const query = buildBaseQuery({

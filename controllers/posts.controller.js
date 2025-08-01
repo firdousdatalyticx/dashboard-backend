@@ -701,22 +701,11 @@ const postsController = {
       let greaterThanTime = inputGreaterThanTime;
       let lessThanTime = inputLessThanTime;
 
-      // Handle special topic date range logic
-      if (isSpecialTopic) {
-        // For special topic, use wider range if no dates provided
-        if (!greaterThanTime && !lessThanTime) {
-          greaterThanTime = "2020-01-01";
-          lessThanTime = "now";
-        } else {
-          // Use provided dates or fall back to environment defaults
-          greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
-          lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
-        }
-      } else {
+ 
         // Original logic for regular topics
         greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
         lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
-      }
+      
 
       // For GoogleMyBusiness, make sure time is properly formatted for consistency with review-trends
       if (postTypeSource === "GoogleMyBusiness") {

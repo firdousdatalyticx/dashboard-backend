@@ -946,15 +946,11 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
-
+ 
       // Fetch mention actions in **one** query
       const response = await getActionRequired(
-        effectiveFromDate,
-        effectiveToDate,
+        fromDate,
+        toDate,
         topicQueryString,
         sentimentType,
         categoryData
@@ -1003,10 +999,7 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
 
       // **Single Aggregation Query**
       const query = {
@@ -1018,8 +1011,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -1199,11 +1192,6 @@ const mentionsChartController = {
         }
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
-
       const params = {
         size: 0,
         query: {
@@ -1218,8 +1206,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -1349,11 +1337,7 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
-
+   
       // **Single Aggregation Query**
       const query = {
         size: 0,
@@ -1364,8 +1348,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -1489,10 +1473,7 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
       const query = {
@@ -1504,8 +1485,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -1633,10 +1614,6 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
       const query = {
@@ -1648,8 +1625,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -1779,10 +1756,7 @@ const mentionsChartController = {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
 
       // Elasticsearch query
       const query = {
@@ -1794,8 +1768,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -1948,10 +1922,7 @@ const mentionsChartController = {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "LinkedIn" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+   
 
       // Elasticsearch query
       const query = {
@@ -1963,8 +1934,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -2126,10 +2097,7 @@ const mentionsChartController = {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+   
 
       // Elasticsearch query
       const query = {
@@ -2141,8 +2109,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -2372,10 +2340,7 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+    
 
       // Build base query for aggregation
       const baseQuery = {
@@ -2385,8 +2350,8 @@ const mentionsChartController = {
             {
               range: {
                 p_created_time: {
-                  gte: effectiveFromDate || "now-90d",
-                  lte: effectiveToDate || "now",
+                  gte: fromDate || "now-90d",
+                  lte: toDate || "now",
                 },
               },
             },
@@ -2654,16 +2619,12 @@ const mentionsChartController = {
         }
       }
 
-      // Apply special topic date range
-      const effectiveGreaterThanTime =
-        isSpecialTopic && !greaterThanTime ? "2020-01-01" : greaterThanTime;
-      const effectiveLessThanTime =
-        isSpecialTopic && !lessThanTime ? "now" : lessThanTime;
+    
 
       // Fetch mention actions in **one** query
       await getPosts(
-        effectiveGreaterThanTime,
-        effectiveLessThanTime,
+        greaterThanTime,
+        lessThanTime,
         topicQueryString,
         sentiment,
         field,
@@ -2817,10 +2778,7 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
 
       // **Single Aggregation Query**
       const query = {
@@ -2832,8 +2790,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -2851,8 +2809,8 @@ const mentionsChartController = {
                   fixed_interval: "1d",
                   min_doc_count: 0,
                   extended_bounds: {
-                    min: effectiveFromDate || "now-90d",
-                    max: effectiveToDate || "now",
+                    min: fromDate || "now-90d",
+                    max: toDate || "now",
                   },
                 },
                 aggs: {
@@ -2860,8 +2818,8 @@ const mentionsChartController = {
                     filter: {
                       range: {
                         p_created_time: {
-                          gte: effectiveFromDate || "now-90d",
-                          lte: effectiveToDate || "now",
+                          gte: fromDate || "now-90d",
+                          lte: toDate || "now",
                         },
                       },
                     },
@@ -3703,10 +3661,7 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
 
       // **Single Aggregation Query**
       const query = {
@@ -3718,8 +3673,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -3800,10 +3755,10 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+      // // Apply special topic date range
+      // const effectiveFromDate =
+      //   isSpecialTopic && !fromDate ? "" : fromDate;
+      // const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
       // **Single Aggregation Query with Overall Sentiment Filtering**
       const query = {
@@ -3815,8 +3770,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -3998,10 +3953,7 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+  
 
       // Build the main query
       const query = {
@@ -4013,8 +3965,8 @@ const mentionsChartController = {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -5370,10 +5322,7 @@ trustDimensionsEducationSystem: async (req, res) => {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+ 
 
       // **Single Aggregation Query**
       const query = {
@@ -5385,8 +5334,8 @@ trustDimensionsEducationSystem: async (req, res) => {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -5521,10 +5470,7 @@ trustDimensionsEducationSystem: async (req, res) => {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
 
       // **Single Aggregation Query**
       const query = {
@@ -5536,8 +5482,8 @@ trustDimensionsEducationSystem: async (req, res) => {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },
@@ -5615,10 +5561,7 @@ trustDimensionsEducationSystem: async (req, res) => {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
 
-      // Apply special topic date range
-      const effectiveFromDate =
-        isSpecialTopic && !fromDate ? "2020-01-01" : fromDate;
-      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
 
       // **Single Aggregation Query**
       const query = {
@@ -5630,8 +5573,8 @@ trustDimensionsEducationSystem: async (req, res) => {
               {
                 range: {
                   p_created_time: {
-                    gte: effectiveFromDate || "now-90d",
-                    lte: effectiveToDate || "now",
+                    gte: fromDate || "now-90d",
+                    lte: toDate || "now",
                   },
                 },
               },

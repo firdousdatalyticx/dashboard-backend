@@ -43,29 +43,20 @@ const trustDimensionsOverTimeController = {
             // Set date range - default to last 12 months (June to December focus)
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
+           
             
-            if (isSpecialTopic) {
-                // For special topic, use provided dates or wider range
-                if (greaterThanTime && lessThanTime) {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                } else {
-                    // Default to last 12 months for special topic
-                    const twelveMonthsAgo = subMonths(now, 12);
-                    effectiveGreaterThanTime = format(twelveMonthsAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = format(now, 'yyyy-MM-dd');
-                }
-            } else {
-                // For regular topics, default to last 12 months if not provided
+               // For regular topics, use 90 days default if not provided
                 if (!greaterThanTime || !lessThanTime) {
-                    const twelveMonthsAgo = subMonths(now, 12);
-                    effectiveGreaterThanTime = greaterThanTime || format(twelveMonthsAgo, 'yyyy-MM-dd');
+                    const ninetyDaysAgo = subDays(now, 90);
+                    effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
                     effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
                 } else {
                     effectiveGreaterThanTime = greaterThanTime;
                     effectiveLessThanTime = lessThanTime;
                 }
-            }
+           
+              
+            
 
             // Build base query
             const query = buildBaseQuery({

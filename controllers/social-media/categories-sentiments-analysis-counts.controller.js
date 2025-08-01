@@ -252,16 +252,12 @@ const sentimentsMultipleCategoriesController = {
       const now = new Date();
       let greaterThanTime, lessThanTime;
       
-      if (isSpecialTopic) {
-        // For special topic, use wider range if no dates provided
-        greaterThanTime = fromDate && fromDate != null ? fromDate : "2020-01-01";
-        lessThanTime = toDate && toDate != null ? toDate : "now";
-      } else {
+    
         // Original logic with 90 days default
         const ninetyDaysAgo = subDays(now, 90);
         greaterThanTime = fromDate && fromDate != null ? fromDate : "now-90d";
         lessThanTime = toDate && toDate != null ? toDate : "now";
-      }
+      
 
       // Build base query (without category filters)
       const baseQuery = buildBaseQuery(

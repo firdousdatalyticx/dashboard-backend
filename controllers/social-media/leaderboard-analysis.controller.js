@@ -47,17 +47,12 @@ const leaderboardAnalysisController = {
 
             // Calculate date filter - for special topic, use wider range
             let dateFilter;
-            if (isSpecialTopic) {
-                // For special topic, use a wider range instead of 90 days
-                const twoYearsAgo = new Date();
-                twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-                dateFilter = twoYearsAgo.toISOString();
-            } else {
+          
                 // Calculate date 90 days ago
                 const ninetyDaysAgo = new Date();
                 ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
                 dateFilter = ninetyDaysAgo.toISOString();
-            }
+            
 
 
                         let dateRange;

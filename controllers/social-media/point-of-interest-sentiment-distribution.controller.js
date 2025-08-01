@@ -27,16 +27,12 @@ const poiSentimentDistributionController = {
             }
 
             // Calculate date filter based on special topic
-            let dateFilter;
-            if (isSpecialTopic) {
-                // For special topic, use wider range instead of 90 days
-                dateFilter = '2020-01-01';
-            } else {
+           
                 // Calculate date 90 days ago
                 const ninetyDaysAgo = new Date();
                 ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-                dateFilter = ninetyDaysAgo.toISOString();
-            }
+              let  dateFilter = ninetyDaysAgo.toISOString();
+            
 
             // Filter out categories with empty criteria
             const validCategories = Object.entries(categoryData).filter(([_, data]) => {

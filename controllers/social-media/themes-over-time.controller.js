@@ -54,13 +54,13 @@ const themesOverTimeController = {
                     effectiveLessThanTime = lessThanTime;
                 } else {
                     // Default to last 4 months for special topic
-                    const fourMonthsAgo = subDays(now, 120); // approximately 4 months
+                    const fourMonthsAgo = subDays(now, 90); // approximately 3 months
                     effectiveGreaterThanTime = format(fourMonthsAgo, 'yyyy-MM-dd');
                     effectiveLessThanTime = format(now, 'yyyy-MM-dd');
                 }
             } else {
                 // Always use last 4 months for regular topics
-                const fourMonthsAgo = subDays(now, 120); // approximately 4 months
+                const fourMonthsAgo = subDays(now, 90); // approximately 3 months
                 effectiveGreaterThanTime = format(fourMonthsAgo, 'yyyy-MM-dd');
                 effectiveLessThanTime = format(now, 'yyyy-MM-dd');
             }

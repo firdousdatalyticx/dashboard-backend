@@ -44,11 +44,7 @@ const trustDimensionsController = {
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use wider range if not provided
-                effectiveGreaterThanTime = greaterThanTime || '2020-01-01';
-                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
-            } else {
+       
                 // Original logic with 90 days default if not provided
                 if (!greaterThanTime || !lessThanTime) {
                     const ninetyDaysAgo = subDays(now, 90);
@@ -58,7 +54,7 @@ const trustDimensionsController = {
                     effectiveGreaterThanTime = greaterThanTime;
                     effectiveLessThanTime = lessThanTime;
                 }
-            }
+            
 
             // Build base query
             const query = buildBaseQuery({

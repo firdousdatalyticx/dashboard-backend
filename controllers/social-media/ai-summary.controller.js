@@ -38,12 +38,6 @@ const aiSummaryController = {
             let calendarInterval;
             let formatPattern;
 
-            if (isSpecialTopic) {
-                // For special topic, use a wider range instead of default restrictions
-                startDate = new Date('2020-01-01');
-                calendarInterval = 'month';
-                formatPattern = 'yyyy-MM';
-            } else {
                 switch (interval) {
                     case 'daily':
                         startDate = subDays(now, 7);
@@ -60,7 +54,7 @@ const aiSummaryController = {
                         calendarInterval = 'month';
                         formatPattern = 'yyyy-MM';
                 }
-            }
+            
 
             // Format dates for Elasticsearch query
             const greaterThanTime = format(startDate, 'yyyy-MM-dd');

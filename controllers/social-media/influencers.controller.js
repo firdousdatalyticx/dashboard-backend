@@ -143,7 +143,6 @@ const influencersController = {
         toDate,
         sentimentType,
         queryString: topicQueryString,
-        isSpecialTopic, // Pass special topic flag
       });
 
       const finalDataArray = [];
@@ -347,7 +346,6 @@ const influencersController = {
         toDate,
         sentimentType,
         queryString: topicQueryString,
-        isSpecialTopic, // Pass special topic flag
       });
 
       // Handle source filtering based on user type and selected tab
@@ -443,7 +441,6 @@ const influencersController = {
         toDate: lessThanTime,
         sentimentType: sentiment,
         queryString: topicQueryString,
-        isSpecialTopic, // Pass special topic flag
       });
 
       // Handle source filtering based on user type and selected tab

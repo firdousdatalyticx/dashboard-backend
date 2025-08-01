@@ -45,7 +45,6 @@ const socialsDistributionsController = {
                             fromDate,
                             toDate,
                             queryString: baseQueryString,
-                            isSpecialTopic // Pass special topic flag
                         });
             
                         // Handle special case for unTopic

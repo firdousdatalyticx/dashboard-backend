@@ -41,16 +41,12 @@ const inflationController = {
             const now = new Date();
             let greaterThanTime, lessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use wider range
-                greaterThanTime = '2020-01-01';
-                lessThanTime = format(now, 'yyyy-MM-dd');
-            } else {
+           
                 // Original logic with 90 days default
                 const ninetyDaysAgo = subDays(now, 90);
                 greaterThanTime = format(ninetyDaysAgo, 'yyyy-MM-dd');
                 lessThanTime = format(now, 'yyyy-MM-dd');
-            }
+            
 
             // Set calendar interval based on requested interval
             let calendarInterval = 'month';

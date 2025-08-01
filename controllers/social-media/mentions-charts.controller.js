@@ -2778,6 +2778,12 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
 
+            // Apply special topic date range
+      const effectiveFromDate =
+        isSpecialTopic && !fromDate ? "now-90d" : fromDate;
+      const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
+
+
 
 
       // **Single Aggregation Query**

@@ -17,7 +17,6 @@ const socialsDistributionsController = {
                 llm_mention_type
             } = req.body;
 
-            console.log(fromDate, toDate);
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600 || parseInt(topicId) === 2627;

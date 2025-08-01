@@ -382,10 +382,6 @@ const topicCategoriesController = {
                     "Web",
                 ];
 
-            if (numericTopicId === 2473) {
-                dateRange.gte = "2023-01-01";
-                dateRange.lte = "2023-04-30";
-            }
 
             const must = [
 
@@ -401,25 +397,7 @@ const topicCategoriesController = {
                 ]
 
 
-            if (numericTopicId === 2473 || isSpecialTopic) {
-                must.push({
-                    range: {
-                        created_at: dateRange,
-                    }
-                },
-                    // {
-                    //     range: {
-                    //         p_created_time: dateRange
-                    //     }
-                    // }
-                )
-
-                googleMust.push({
-                    range: {
-                        created_at: dateRange,
-                    },
-                },)
-            }
+          
             // Query builder for social media data
             const buildSocialMediaQuery = () => ({
                 bool: {

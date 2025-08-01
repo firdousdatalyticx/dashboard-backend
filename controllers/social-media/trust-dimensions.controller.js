@@ -1,7 +1,7 @@
 const prisma = require('../../config/database');
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 const trustDimensionsController = {
     /**
      * Get trust dimensions analysis data for social media posts
@@ -24,8 +24,14 @@ const trustDimensionsController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -320,8 +326,14 @@ const trustDimensionsController = {
         } = req.body;
 
         // Get category data from middleware
-        const categoryData = req.processedCategories || {};
-        const rawCategories = req.rawCategories || [];
+        let categoryData = {};
+      
+        if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+          categoryData = processCategoryItems(req.body.categoryItems);
+        } else {
+          // Fall back to middleware data
+          categoryData = req.processedCategories || {};
+        }     
 
         if (Object.keys(categoryData).length === 0) {
             return res.json({

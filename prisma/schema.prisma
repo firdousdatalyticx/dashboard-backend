@@ -844,17 +844,21 @@ model zoom_recordings {
 }
 
 model topic_categories {
-  id             Int      @id @default(autoincrement())
-  customer_topic_id        Int
-  category_title  String
-  topic_hash_tags  String
-  topic_urls      String
-  topic_keywords String
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  customer_topic_id     Int
+  country              String?   // New field to store country name (e.g., "Turkey", "Syria")
+  category_title       String   // Category name (e.g., "Disaster Management", "Humanitarian Aid")
+  topic_hash_tags      String   @db.Text // Comma-separated string of hashtags
+  topic_urls           String   @db.Text // Comma-separated string of URLs
+  topic_keywords       String   @db.Text // Comma-separated string of keywords
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  // Optional: Add index for better query performance
+  @@index([customer_topic_id, country])
+  @@index([country, category_title])
 }
-
-
+  
 model alerts {
   id              Int      @id @default(autoincrement())
   frequency       String? 

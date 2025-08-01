@@ -12,8 +12,8 @@ const topicCategoriesController = {
             if (!categories || !Array.isArray(categories) || !topicId) {
                 return res.status(400).json({
                     success: false,
-          error:
-            "Invalid request body. Categories array and topicId are required.",
+                    error:
+                        "Invalid request body. Categories array and topicId are required.",
                 });
             }
 
@@ -23,15 +23,15 @@ const topicCategoriesController = {
                     topic_id: parseInt(topicId),
                     topic_user_id: userId,
                     topic_is_deleted: {
-            not: "Y",
-          },
-        },
+                        not: "Y",
+                    },
+                },
             });
 
             if (!topic) {
                 return res.status(403).json({
                     success: false,
-          error: "You do not have access to this topic",
+                    error: "You do not have access to this topic",
                 });
             }
 
@@ -42,9 +42,9 @@ const topicCategoriesController = {
                     const { urls, keywords, hashtags } = categoryData[categoryTitle];
 
                     // Convert arrays into comma-separated strings
-          const topicUrls = urls.join(", ");
-          const topicKeywords = keywords.join(", ");
-          const topicHashTags = hashtags.join(", ");
+                    const topicUrls = urls.join(", ");
+                    const topicKeywords = keywords.join(", ");
+                    const topicHashTags = hashtags.join(", ");
 
                     // Insert data into the database
                     return prisma.topic_categories.create({
@@ -54,20 +54,20 @@ const topicCategoriesController = {
                             topic_hash_tags: topicHashTags,
                             topic_urls: topicUrls,
                             topic_keywords: topicKeywords,
-            },
+                        },
                     });
                 })
             );
 
             res.status(201).json({
                 success: true,
-        data: createdCategories,
+                data: createdCategories,
             });
         } catch (error) {
-      console.error("Error inserting categories:", error);
+            console.error("Error inserting categories:", error);
             res.status(500).json({
                 success: false,
-        error: "Failed to insert categories",
+                error: "Failed to insert categories",
             });
         }
     },
@@ -80,13 +80,38 @@ const topicCategoriesController = {
 
             const categoryData = await prisma.topic_categories.findMany({
                 where: {
-                customer_topic_id: Number(topicId),
+                    customer_topic_id: Number(topicId),
                 },
             })
-                
-              return res.json(categoryData)
+
+            return res.json(categoryData)
+
+
+        } catch (error) {
+            console.error('Error fetching categories:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch categories'
+            });
+        }
+    },
+
+    // Get categories and sub-categories by topic ID
+    getSubCategoriesByTopicId: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { topicId } = req.params;
 
         
+            const subCategoryData = await prisma.topic_sub_categories.findMany({
+                where: {
+                    customer_topic_id: Number(topicId),
+                },
+            })
+
+            return res.json({  subCategoryData })
+
+
         } catch (error) {
             console.error('Error fetching categories:', error);
             res.status(500).json({
@@ -101,60 +126,60 @@ const topicCategoriesController = {
         try {
             const { id } = req.params;
             const userId = req.user.id;
-      const { category_title, topic_hash_tags, topic_urls, topic_keywords } =
-        req.body;
+            const { category_title, topic_hash_tags, topic_urls, topic_keywords } =
+                req.body;
 
             // Get the category
             const category = await prisma.topic_categories.findUnique({
                 where: {
-          id: parseInt(id),
-        },
+                    id: parseInt(id),
+                },
             });
 
             if (!category) {
                 return res.status(404).json({
                     success: false,
-          error: "Category not found",
+                    error: "Category not found",
                 });
             }
 
             // Get the topic to verify ownership
             const topic = await prisma.customer_topics.findUnique({
                 where: {
-          topic_id: category.customer_topic_id,
-        },
+                    topic_id: category.customer_topic_id,
+                },
             });
 
             // Verify that the topic belongs to the user
             if (!topic || topic.topic_user_id !== userId) {
                 return res.status(403).json({
                     success: false,
-          error: "You do not have access to this category",
+                    error: "You do not have access to this category",
                 });
             }
 
             const updatedCategory = await prisma.topic_categories.update({
                 where: {
-          id: parseInt(id),
+                    id: parseInt(id),
                 },
                 data: {
                     category_title,
                     topic_hash_tags,
                     topic_urls,
                     topic_keywords,
-          updated_at: new Date(),
-        },
+                    updated_at: new Date(),
+                },
             });
 
             res.json({
                 success: true,
-        data: updatedCategory,
+                data: updatedCategory,
             });
         } catch (error) {
-      console.error("Error updating category:", error);
+            console.error("Error updating category:", error);
             res.status(500).json({
                 success: false,
-        error: "Failed to update category",
+                error: "Failed to update category",
             });
         }
     },
@@ -168,32 +193,32 @@ const topicCategoriesController = {
             // Get the category to verify ownership
             const category = await prisma.topic_categories.findUnique({
                 where: {
-          id: parseInt(id),
-        },
+                    id: parseInt(id),
+                },
             });
 
             if (!category) {
                 return res.status(404).json({
                     success: false,
-          error: "Category not found",
+                    error: "Category not found",
                 });
             }
 
             await prisma.topic_categories.delete({
                 where: {
-          id: parseInt(id),
-        },
+                    id: parseInt(id),
+                },
             });
 
             res.json({
                 success: true,
-        message: "Category deleted successfully",
+                message: "Category deleted successfully",
             });
         } catch (error) {
-      console.error("Error deleting category:", error);
+            console.error("Error deleting category:", error);
             res.status(500).json({
                 success: false,
-        error: "Failed to delete category",
+                error: "Failed to delete category",
             });
         }
     },
@@ -206,9 +231,9 @@ const topicCategoriesController = {
 
             // Validate topicId
             if (!topicId) {
-                return res.status(400).json({ 
+                return res.status(400).json({
                     success: false,
-          error: "Topic ID is required",
+                    error: "Topic ID is required",
                 });
             }
 
@@ -218,15 +243,15 @@ const topicCategoriesController = {
                     topic_id: parseInt(topicId),
                     topic_user_id: userId,
                     topic_is_deleted: {
-            not: "Y",
-          },
-        },
+                        not: "Y",
+                    },
+                },
             });
 
             if (!topic) {
                 return res.status(403).json({
                     success: false,
-          error: "You do not have access to this topic",
+                    error: "You do not have access to this topic",
                 });
             }
 
@@ -234,26 +259,26 @@ const topicCategoriesController = {
             const categoryExists = await prisma.topic_categories.findFirst({
                 where: {
                     customer_topic_id: Number(topicId),
-        },
+                },
             });
 
             if (categoryExists) {
-                return res.json({ 
+                return res.json({
                     success: true,
-                    exists: true, 
-          category: categoryExists,
+                    exists: true,
+                    category: categoryExists,
                 });
             } else {
-                return res.json({ 
+                return res.json({
                     success: true,
-          exists: false,
+                    exists: false,
                 });
             }
         } catch (error) {
-      console.error("Error checking category existence:", error);
-            res.status(500).json({ 
+            console.error("Error checking category existence:", error);
+            res.status(500).json({
                 success: false,
-        error: "Internal server error",
+                error: "Internal server error",
             });
         }
     },
@@ -270,14 +295,14 @@ const topicCategoriesController = {
             const topicId = req.query.topicId;
 
             if (!userId || isNaN(Number(userId))) {
-                return res.status(400).json({ 
-          error: "User ID is required and must be a number",
+                return res.status(400).json({
+                    error: "User ID is required and must be a number",
                 });
             }
 
             const numericUserId = Number(userId);
-      const numericTopicId =
-        topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
+            const numericTopicId =
+                topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
 
       // Check if this is the special topicId
       const isSpecialTopic = numericTopicId === 2600 || numericTopicId === 2627;
@@ -286,7 +311,7 @@ const topicCategoriesController = {
             const customerTopics = await prisma.customer_topics.findMany({
                 where: {
                     topic_user_id: numericUserId,
-          topic_is_deleted: "N",
+                    topic_is_deleted: "N",
                     ...(numericTopicId && { topic_id: numericTopicId }),
                 },
                 select: {
@@ -294,7 +319,7 @@ const topicCategoriesController = {
                     topic_hash_tags: true,
                     topic_urls: true,
                     topic_keywords: true,
-        },
+                },
             });
 
             const topicIds = customerTopics.map((t) => t.topic_id);
@@ -303,9 +328,9 @@ const topicCategoriesController = {
             const googleUrls = [
                 ...new Set(
                     customerTopics
-            .flatMap((t) => t.topic_urls?.split("|") || [])
-            .filter((url) => url.includes("google.com"))
-        ),
+                        .flatMap((t) => t.topic_urls?.split("|") || [])
+                        .filter((url) => url.includes("google.com"))
+                ),
             ].filter(Boolean);
 
             // Get category data from middleware
@@ -320,145 +345,145 @@ const topicCategoriesController = {
                         googlePOIs: 0,
                         socialMediaPOIs: 0,
                         termCount: 0,
-            id: topicIds,
-          },
+                        id: topicIds,
+                    },
                 });
             }
 
             // Extract terms from all categories for the query
-      const socialMediaTerms = extractTermsFromCategoryData(
-        "all",
-        categoryData
-      );
+            const socialMediaTerms = extractTermsFromCategoryData(
+                "all",
+                categoryData
+            );
 
-      const today = new Date();
-      const pastDate = new Date();
-      pastDate.setDate(today.getDate() - 90);
+            const today = new Date();
+            const pastDate = new Date();
+            pastDate.setDate(today.getDate() - 90);
 
-      const formatDate = (date) => date.toISOString().split("T")[0];
+            const formatDate = (date) => date.toISOString().split("T")[0];
 
-      // Determine date range based on special topic
-      let dateRange = isSpecialTopic
-        ? { gte: "2020-01-01", lte: "now" }
-        : { gte: formatDate(pastDate), lte: formatDate(today) };
+            // Determine date range based on special topic
+            let dateRange = isSpecialTopic
+                ? { gte: "2020-01-01", lte: "now" }
+                : { gte: formatDate(pastDate), lte: formatDate(today) };
 
-        
-      // Determine social media sources based on special topic
-      const socialSources = numericTopicId === 2619 ? [ "LinkedIn","Linkedin"]:isSpecialTopic
-        ? ["Facebook", "Twitter"]
-        : [
-            "Facebook",
-            "Twitter",
-            "Instagram",
-            "Youtube",
-            "Pinterest",
-            "Reddit",
-            "LinkedIn",
-            "Linkedin",
-            "TikTok",
-            "Web",
-          ];
 
-      if (numericTopicId === 2473) {
-        dateRange.gte = "2023-01-01";
-        dateRange.lte = "2023-04-30";
-      }
+            // Determine social media sources based on special topic
+            const socialSources = numericTopicId === 2619 ? ["LinkedIn", "Linkedin"] : isSpecialTopic
+                ? ["Facebook", "Twitter"]
+                : [
+                    "Facebook",
+                    "Twitter",
+                    "Instagram",
+                    "Youtube",
+                    "Pinterest",
+                    "Reddit",
+                    "LinkedIn",
+                    "Linkedin",
+                    "TikTok",
+                    "Web",
+                ];
 
-      const must = [
-          
-          ]
-      const googleMust = 
-         [
-            {
-              terms: {
-                "u_source.keyword": googleUrls,
-              },
-            },
-           
-          ]
-      
+            if (numericTopicId === 2473) {
+                dateRange.gte = "2023-01-01";
+                dateRange.lte = "2023-04-30";
+            }
 
-        if(numericTopicId === 2473 || isSpecialTopic){
-            must.push({
-              range: {
-                created_at: dateRange,
-              }
-            },
-            // {
-            //     range: {
-            //         p_created_time: dateRange
-            //     }
-            // }
-          )
+            const must = [
 
-          googleMust.push( {
-              range: {
-                created_at: dateRange,
-              },
-            },)
-        }          
+            ]
+            const googleMust =
+                [
+                    {
+                        terms: {
+                            "u_source.keyword": googleUrls,
+                        },
+                    },
+
+                ]
+
+
+            if (numericTopicId === 2473 || isSpecialTopic) {
+                must.push({
+                    range: {
+                        created_at: dateRange,
+                    }
+                },
+                    // {
+                    //     range: {
+                    //         p_created_time: dateRange
+                    //     }
+                    // }
+                )
+
+                googleMust.push({
+                    range: {
+                        created_at: dateRange,
+                    },
+                },)
+            }
             // Query builder for social media data
             const buildSocialMediaQuery = () => ({
                 bool: {
-          must: must,
+                    must: must,
                     filter: [
                         {
                             terms: {
-                "source.keyword": socialSources,
-              },
+                                "source.keyword": socialSources,
+                            },
                         },
                         {
                             bool: {
                                 must_not: [
                                     {
                                         term: {
-                      source: "DM",
-                    },
-                  },
-                ],
-              },
-            },
+                                            source: "DM",
+                                        },
+                                    },
+                                ],
+                            },
+                        },
                     ],
                     should: [
                         // Match all text fields with keywords/hashtags
                         {
                             bool: {
-                should: socialMediaTerms.map((term) => ({
+                                should: socialMediaTerms.map((term) => ({
                                     multi_match: {
                                         query: term,
                                         fields: [
-                      "p_message_text",
-                      "p_message",
-                      "keywords",
-                      "title",
-                      "hashtags",
-                      "u_source",
+                                            "p_message_text",
+                                            "p_message",
+                                            "keywords",
+                                            "title",
+                                            "hashtags",
+                                            "u_source",
                                         ],
-                    type: "phrase",
-                  },
+                                        type: "phrase",
+                                    },
                                 })),
-                minimum_should_match: 1,
-              },
+                                minimum_should_match: 1,
+                            },
                         },
                         // Match URLs in p_url
                         {
                             bool: {
-                should: socialMediaTerms.map((term) => ({
-                  term: { p_url: term },
+                                should: socialMediaTerms.map((term) => ({
+                                    term: { p_url: term },
                                 })),
-                minimum_should_match: 1,
-              },
-            },
+                                minimum_should_match: 1,
+                            },
+                        },
                     ],
-          minimum_should_match: 1, // Ensures at least one condition is met
-        },
+                    minimum_should_match: 1, // Ensures at least one condition is met
+                },
             });
 
             // Query builder for Google data
             const buildGoogleQuery = () => ({
                 bool: {
-          must:googleMust,
-        },
+                    must: googleMust,
+                },
             });
 
             // Count function
@@ -466,11 +491,11 @@ const topicCategoriesController = {
                 try {
                     const response = await elasticClient.count({
                         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: { query },
+                        body: { query },
                     });
                     return response.count;
                 } catch (error) {
-          console.error("Elasticsearch count error:", error);
+                    console.error("Elasticsearch count error:", error);
                     throw error;
                 }
             };
@@ -488,14 +513,14 @@ const topicCategoriesController = {
                     googlePOIs: googleUrls.length,
                     socialMediaPOIs: req.rawCategories ? req.rawCategories.length : 0,
                     termCount: socialMediaTerms.length,
-          id: topicIds,
-          query: buildSocialMediaQuery(),
-        },
+                    id: topicIds,
+                    query: buildSocialMediaQuery(),
+                },
             });
         } catch (error) {
-      console.error("Error fetching topic statistics:", error);
-            return res.status(500).json({ 
-        error: "Internal server error",
+            console.error("Error fetching topic statistics:", error);
+            return res.status(500).json({
+                error: "Internal server error",
             });
         }
     },
@@ -503,34 +528,48 @@ const topicCategoriesController = {
     bulkCreateCategories: async (req, res) => {
         try {
             const { categories, topicId } = req.body;
+    
             if (!categories || !Array.isArray(categories) || !topicId) {
                 return res.status(400).json({
                     success: false,
                     error: 'Invalid request body. Categories array and topicId are required.'
                 });
             }
+    
             // Delete all previous categories for this topicId
             await prisma.topic_categories.deleteMany({
                 where: { customer_topic_id: topicId }
             });
-            for (const categoryData of categories) {
-                const categoryTitle = Object.keys(categoryData)[0];
-                const { urls, keywords, hashtags } = categoryData[categoryTitle];
-                // Convert arrays into comma-separated strings
-                const topicUrls = urls.join(', ');
-                const topicKeywords = keywords.join(', ');
-                const topicHashTags = hashtags.join(', ');
-                // Insert data into the database
-                await prisma.topic_categories.create({
-                    data: {
-                        customer_topic_id: topicId,
-                        category_title: categoryTitle,
-                        topic_hash_tags: topicHashTags,
-                        topic_urls: topicUrls,
-                        topic_keywords: topicKeywords,
-                    }
-                });
+    
+            // Process each country object in the categories array
+            for (const countryObject of categories) {
+                // Get the country name (first key in the object)
+                const countryName = Object.keys(countryObject)[0];
+                const countryCategories = countryObject[countryName];
+    
+                // Process each category within the country
+                for (const [categoryTitle, categoryData] of Object.entries(countryCategories)) {
+                    const { urls, keywords, hashtags } = categoryData;
+    
+                    // Convert arrays into comma-separated strings
+                    const topicUrls = urls.join(', ');
+                    const topicKeywords = keywords.join(', ');
+                    const topicHashTags = hashtags.join(', ');
+    
+                    // Insert data into the database
+                    await prisma.topic_categories.create({
+                        data: {
+                            customer_topic_id: topicId,
+                            country: countryName,
+                            category_title: categoryTitle,
+                            topic_hash_tags: topicHashTags,
+                            topic_urls: topicUrls,
+                            topic_keywords: topicKeywords,
+                        }
+                    });
+                }
             }
+    
             return res.json({ success: true });
         } catch (error) {
             console.error('Error inserting categories:', error);
@@ -547,10 +586,10 @@ const topicCategoriesController = {
  */
 function extractTermsFromCategoryData(selectedCategory, categoryData) {
     const allTerms = [];
-    
-  if (selectedCategory === "all") {
+
+    if (selectedCategory === "all") {
         // Combine all keywords, hashtags, and urls from all categories
-    Object.values(categoryData).forEach((data) => {
+        Object.values(categoryData).forEach((data) => {
             if (data.keywords && data.keywords.length > 0) {
                 allTerms.push(...data.keywords);
             }
@@ -573,7 +612,7 @@ function extractTermsFromCategoryData(selectedCategory, categoryData) {
             allTerms.push(...data.urls);
         }
     }
-    
+
     // Remove duplicates and falsy values
     return [...new Set(allTerms)].filter(Boolean);
 }

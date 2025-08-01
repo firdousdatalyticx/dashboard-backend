@@ -1,5 +1,5 @@
 const { elasticClient } = require('../../config/elasticsearch');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 const poiSentimentDistributionController = {
     getDistribution: async (req, res) => {
         try {
@@ -14,8 +14,14 @@ const poiSentimentDistributionController = {
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ distribution: [] });
             }

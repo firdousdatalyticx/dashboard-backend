@@ -1,5 +1,5 @@
 const { elasticClient } = require('../../config/elasticsearch');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 // Helper function to merge trend arrays by date
 function mergeArraysByDate(arr1, arr2) {
     const mergedMap = new Map();
@@ -33,8 +33,14 @@ const leaderboardAnalysisController = {
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ leaderboard: [] });
             }

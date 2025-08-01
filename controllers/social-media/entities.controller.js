@@ -22,15 +22,22 @@ const entitiesController = {
                 unTopic = 'false',
                 limit = 10,
                 maxPostsPerEntity = 200, // Safety limit for max posts to fetch per entity
-                topicId
+                topicId,
+                categoryItems
             } = params;
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ 
                     entitiesData: [] 

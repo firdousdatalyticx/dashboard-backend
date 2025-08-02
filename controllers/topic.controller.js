@@ -975,75 +975,319 @@ const topicController = {
     },
 
     // Get all topics count
-   // Get all topics count
-  getTopicTotalCount: async (req, res) => {
-    try {
-      const userId = req.user.id;
-      const { topicId } = req.query;
+//   getTopicTotalCounts: async (req, res) => {
+//     try {
+//       const userId = req.user.id;
+//       const { topicId } = req.query;
 
-      // Validate inputs
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          error: "User ID is required",
-        });
-      }
+//       // Validate inputs
+//       if (!userId) {
+//         return res.status(400).json({
+//           success: false,
+//           error: "User ID is required",
+//         });
+//       }
 
-      const numericUserId = Number(userId);
-      const numericTopicId =
-        topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
+//       const numericUserId = Number(userId);
+//       const numericTopicId =
+//         topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
 
-      // Check if this is the special topicId
-      const isSpecialTopic = numericTopicId === 2600;
+//       // Check if this is the special topicId
+//       const isSpecialTopic = numericTopicId === 2600;
 
-      // Helper function for Elasticsearch count queries
-      const countClient = async (query) => {
-        try {
-          const response = await elasticClient.count({
-            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: { query },
-          });
-          return response.count;
-        } catch (error) {
-          console.error("Elasticsearch count error:", error);
-          throw error;
-        }
+//       // Helper function for Elasticsearch count queries
+//       const countClient = async (query) => {
+//         try {
+//           const response = await elasticClient.count({
+//             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+//             body: { query },
+//           });
+//           return response.count;
+//         } catch (error) {
+//           console.error("Elasticsearch count error:", error);
+//           throw error;
+//         }
+//       };
+
+//       // Get topics for the user
+//       const customerTopics = await prisma.customer_topics.findMany({
+//         where: {
+//           topic_user_id: numericUserId,
+//           topic_is_deleted: {
+//             not: "Y",
+//           },
+//           ...(numericTopicId && { topic_id: numericTopicId }), // Filter by topicId if provided
+//         },
+//         select: {
+//           topic_id: true,
+//           topic_hash_tags: true,
+//           topic_urls: true,
+//           topic_keywords: true,
+//         },
+//       });
+
+//       // Get topic IDs
+//       const topicIds = customerTopics.map((t) => t.topic_id);
+
+//       // Get categories for these topics
+//       const topicCategories = await prisma.topic_categories.findMany({
+//         where: {
+//           customer_topic_id: { in: topicIds },
+//         },
+//         select: {
+//           topic_hash_tags: true,
+//           topic_urls: true,
+//           topic_keywords: true,
+//           customer_topic_id:true,
+//         },
+//       });
+
+//       // Extract Google URLs
+//       const googleUrls = [
+//         ...new Set(
+//           customerTopics
+//             .filter((t) => !numericTopicId || t.topic_id === numericTopicId)
+//             .flatMap((t) => t.topic_urls?.split("|") || [])
+//             .filter(
+//               (url) =>
+//                 url !== null && url !== undefined && url.includes("google.com")
+//             )
+//         ),
+//       ].filter(Boolean);
+
+
+
+//       // Extract social media data
+//       const socialMediaData = [
+//         ...topicCategories.flatMap((t) => [
+//           ...(t.topic_hash_tags?.split(", ") || []),
+//           ...(t.topic_urls?.split(", ") || []),
+//           ...(t.topic_keywords?.split(", ") || []),
+//         ]),
+//       ].filter(Boolean);
+
+//       // Determine social media sources based on special topic
+//       const socialSources = topicIds.includes(2619)
+//         ? ["LinkedIn", "Linkedin"]
+//         : isSpecialTopic
+//         ? ["Facebook", "Twitter"]
+//         : [
+//             "Facebook",
+//             "Twitter",
+//             "Instagram",
+//             "Youtube",
+//             "Pinterest",
+//             "Reddit",
+//             "LinkedIn",
+//             "Linkedin",
+//             "TikTok",
+//             "Web",
+//           ];
+
+//       const must = [
+//         {
+//           terms: {
+//             "source.keyword": socialSources,
+//           },
+//         },
+//       ];
+
+//       const goolgeMust = [
+//         {
+//           terms: {
+//             "u_source.keyword": googleUrls,
+//           },
+//         },
+//       ];
+
+//       // Build query for social media
+//       const buildQuery = () => ({
+//         bool: {
+//           must: must,
+//           should: [
+//             // Split keywords/hashtags into individual terms
+//             ...socialMediaData.flatMap((item) => {
+//               // Split by comma if it's a comma-separated list
+//               const items = item.includes(",")
+//                 ? item.split(",").map((i) => i.trim())
+//                 : [item];
+
+//               return items.flatMap((individualItem) =>
+//                 [
+//                   // Individual keyword/hashtag matches
+//                   {
+//                     multi_match: {
+//                       query: individualItem,
+//                       fields: [
+//                         "p_message_text",
+//                         "p_message",
+//                         "keywords",
+//                         "title",
+//                         "hashtags",
+//                         "u_source",
+//                       ],
+//                       type: "phrase",
+//                     },
+//                   },
+//                   // URL match if applicable
+//                   individualItem.startsWith("http")
+//                     ? {
+//                         term: { p_url: individualItem },
+//                       }
+//                     : null,
+//                 ].filter(Boolean)
+//               );
+//             }),
+//           ],
+//           minimum_should_match: 1,
+//         },
+//       });
+
+//       // Build query for Google
+//       const buildGoogleQuery = () => ({
+//         bool: {
+//           must: goolgeMust,
+//         },
+//       });
+
+//       // Execute both queries in parallel and get valid POI count
+//       const [googleCount, nonGoogleCount, validPOIs] = await Promise.all([
+//         countClient(buildGoogleQuery()), // Query for Google
+//         countClient(buildQuery()), // Query for Social Media (non-Google)
+//         elasticClient
+//           .search({
+//             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+//             body: {
+//               size: 0,
+//               query: buildGoogleQuery(),
+//               aggs: {
+//                 unique_urls: {
+//                   terms: {
+//                     field: "u_source.keyword",
+//                     size: 10000,
+//                     min_doc_count: 1,
+//                   },
+//                   aggs: {
+//                     place_data: {
+//                       top_hits: {
+//                         size: 1,
+//                         _source: ["lat", "long"],
+//                       },
+//                     },
+//                   },
+//                 },
+//               },
+//             },
+//           })
+//           .then((response) => {
+//             // Count only POIs with valid coordinates and reviews
+//             const validPOICount = (
+//               response.aggregations?.unique_urls?.buckets || []
+//             ).filter((bucket) => {
+//               const placeData = bucket.place_data?.hits?.hits[0]?._source;
+//               return placeData?.lat != null && placeData?.long != null;
+//             }).length;
+//             return validPOICount;
+//           }),
+//       ]);
+
+//       return res.json({
+//         success: true,
+//         query: buildQuery(),
+//         topicCategories,
+//         googleQuery: buildGoogleQuery(),
+//         data: {
+//           googleCount,
+//           socialMediaCount: socialMediaData.length > 0 ? nonGoogleCount : 0,
+//           googlePOIs: validPOIs,
+//           googlePOIsCount: googleUrls.length,
+//           socialMediaPOIs: topicCategories.length,
+
+//         },
+//       });
+//     } catch (error) {
+//       console.error("Error fetching total counts:", error);
+//       return res.status(500).json({
+//         success: false,
+//         error: "Failed to fetch total counts",
+//       });
+//     }
+//   },
+getTopicTotalCount: async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { topicId } = req.query;
+
+    // Validate inputs
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: "User ID is required",
+      });
+    }
+
+    const numericUserId = Number(userId);
+    const numericTopicId = topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
+
+    // Get topics for the user
+    const customerTopics = await prisma.customer_topics.findMany({
+      where: {
+        topic_user_id: numericUserId,
+        topic_is_deleted: {
+          not: "Y",
+        },
+        ...(numericTopicId && { topic_id: numericTopicId }), // Filter by topicId if provided
+      },
+      select: {
+        topic_id: true,
+        topic_hash_tags: true,
+        topic_urls: true,
+        topic_keywords: true,
+      },
+    });
+
+    // Get topic IDs
+    const topicIds = customerTopics.map((t) => t.topic_id);
+
+    // Get categories for these topics
+    const topicCategories = await prisma.topic_categories.findMany({
+      where: {
+        customer_topic_id: { in: topicIds },
+      },
+      select: {
+        topic_hash_tags: true,
+        topic_urls: true,
+        topic_keywords: true,
+        customer_topic_id: true,
+      },
+    });
+
+    // Group categories by topic ID
+    const topicsWithCategories = customerTopics.map(topic => {
+      return {
+        topic_id: topic.topic_id,
+        topic_hash_tags: topic.topic_hash_tags,
+        topic_urls: topic.topic_urls,
+        topic_keywords: topic.topic_keywords,
+        categories: topicCategories.filter(cat => cat.customer_topic_id === topic.topic_id)
       };
+    });
 
-      // Get topics for the user
-      const customerTopics = await prisma.customer_topics.findMany({
-        where: {
-          topic_user_id: numericUserId,
-          topic_is_deleted: {
-            not: "Y",
-          },
-          ...(numericTopicId && { topic_id: numericTopicId }), // Filter by topicId if provided
-        },
-        select: {
-          topic_id: true,
-          topic_hash_tags: true,
-          topic_urls: true,
-          topic_keywords: true,
-        },
-      });
+    console.log(topicsWithCategories.length)
+    if(topicsWithCategories.length===0){
+     return res.json({
+      success: true,
+      data: {
+        googleCount:0,
+        googlePOIs: 0,
+        googlePOIsCount: 0,
+        socialMediaCount: 0,
+        socialMediaPOIs:0,
+      },
+    });
+}
 
-      // Get topic IDs
-      const topicIds = customerTopics.map((t) => t.topic_id);
-
-      // Get categories for these topics
-      const topicCategories = await prisma.topic_categories.findMany({
-        where: {
-          customer_topic_id: { in: topicIds },
-        },
-        select: {
-          topic_hash_tags: true,
-          topic_urls: true,
-          topic_keywords: true,
-          customer_topic_id:true,
-        },
-      });
-
-      // Extract Google URLs
+   // Extract Google URLs
       const googleUrls = [
         ...new Set(
           customerTopics
@@ -1058,64 +1302,79 @@ const topicController = {
 
 
 
-      // Extract social media data
-      const socialMediaData = [
-        ...topicCategories.flatMap((t) => [
-          ...(t.topic_hash_tags?.split(", ") || []),
-          ...(t.topic_urls?.split(", ") || []),
-          ...(t.topic_keywords?.split(", ") || []),
-        ]),
-      ].filter(Boolean);
+    // Helper function to get social sources based on topic ID
+    const getSocialSources = (topicId) => {
+      if (topicId === 2619) {
+        return ["LinkedIn", "Linkedin"];
+      } else if (topicId === 2600) { // Special topic
+        return ["Facebook", "Twitter"];
+      } else {
+        return [
+          "Facebook",
+          "Twitter",
+          "Instagram",
+          "Youtube",
+          "Pinterest",
+          "Reddit",
+          "LinkedIn",
+          "Linkedin",
+          "TikTok",
+          "Web",
+        ];
+      }
+    };
 
-      // Determine social media sources based on special topic
-      const socialSources = topicIds.includes(2619)
-        ? ["LinkedIn", "Linkedin"]
-        : isSpecialTopic
-        ? ["Facebook", "Twitter"]
-        : [
-            "Facebook",
-            "Twitter",
-            "Instagram",
-            "Youtube",
-            "Pinterest",
-            "Reddit",
-            "LinkedIn",
-            "Linkedin",
-            "TikTok",
-            "Web",
-          ];
-
-      const must = [
-        {
-          terms: {
-            "source.keyword": socialSources,
-          },
-        },
+    // Helper function to get all social media data for a topic (combining topic and its categories)
+    const getSocialMediaDataForTopic = (topic) => {
+      const allData = [
+        ...(topic.topic_hash_tags?.split("|") || []),
+        ...(topic.topic_urls?.split("|") || []),
+        ...(topic.topic_keywords?.split("|") || []),
+        ...topic.categories.flatMap(cat => [
+          ...(cat.topic_hash_tags?.split(", ") || []),
+          ...(cat.topic_urls?.split(", ") || []),
+          ...(cat.topic_keywords?.split(", ") || [])
+        ])
       ];
+      return [...new Set(allData)].filter(Boolean);
+    };
 
-      const goolgeMust = [
-        {
-          terms: {
-            "u_source.keyword": googleUrls,
-          },
-        },
-      ];
+    // Helper function for Elasticsearch count queries
+    const countClient = async (query) => {
+      try {
+        const response = await elasticClient.count({
+          index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+          body: { query },
+        });
+        return response.count;
+      } catch (error) {
+        console.error("Elasticsearch count error:", error);
+        throw error;
+      }
+    };
 
-      // Build query for social media
-      const buildQuery = () => ({
+    // Build query for a specific topic (combining all its categories)
+    const buildTopicQuery = (topic) => {
+      const socialSources = getSocialSources(topic.topic_id);
+      const socialMediaData = getSocialMediaDataForTopic(topic);
+
+      return {
         bool: {
-          must: must,
+          must: [
+            {
+              terms: {
+                "source.keyword": socialSources,
+              },
+            },
+          ],
           should: [
-            // Split keywords/hashtags into individual terms
             ...socialMediaData.flatMap((item) => {
-              // Split by comma if it's a comma-separated list
               const items = item.includes(",")
                 ? item.split(",").map((i) => i.trim())
                 : [item];
 
               return items.flatMap((individualItem) =>
                 [
-                  // Individual keyword/hashtag matches
                   {
                     multi_match: {
                       query: individualItem,
@@ -1130,7 +1389,6 @@ const topicController = {
                       type: "phrase",
                     },
                   },
-                  // URL match if applicable
                   individualItem.startsWith("http")
                     ? {
                         term: { p_url: individualItem },
@@ -1142,19 +1400,50 @@ const topicController = {
           ],
           minimum_should_match: 1,
         },
-      });
+      };
+    };
 
-      // Build query for Google
-      const buildGoogleQuery = () => ({
-        bool: {
-          must: goolgeMust,
-        },
-      });
+    // Build query for Google
+    const buildGoogleQuery = () => ({
+      bool: {
+        must: [
+          {
+            terms: {
+              "u_source.keyword": googleUrls,
+            },
+          },
+        ],
+      },
+    });
 
-      // Execute both queries in parallel and get valid POI count
-      const [googleCount, nonGoogleCount, validPOIs] = await Promise.all([
-        countClient(buildGoogleQuery()), // Query for Google
-        countClient(buildQuery()), // Query for Social Media (non-Google)
+    // Get counts for each topic (combining all its categories)
+    const topicCounts = await Promise.all(
+      topicsWithCategories.map(async (topic) => {
+        try {
+          const count = await countClient(buildTopicQuery(topic));
+          return {
+            topic_id: topic.topic_id,
+            social_media_count: count,
+            social_sources: getSocialSources(topic.topic_id),
+            keywords: topic.topic_keywords,
+            hashtags: topic.topic_hash_tags,
+            urls: topic.topic_urls,
+            category_count: topic.categories.length
+          };
+        } catch (error) {
+          console.error(`Error counting for topic ${topic.topic_id}:`, error);
+          return {
+            topic_id: topic.topic_id,
+            social_media_count: 0,
+            error: "Failed to get count",
+          };
+        }
+      })
+    );
+
+    // Get Google counts
+    const [googleCount, validPOIs] = await Promise.all([
+      countClient(buildGoogleQuery()),
         elasticClient
           .search({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1180,39 +1469,38 @@ const topicController = {
               },
             },
           })
-          .then((response) => {
-            // Count only POIs with valid coordinates and reviews
-            const validPOICount = (
-              response.aggregations?.unique_urls?.buckets || []
-            ).filter((bucket) => {
-              const placeData = bucket.place_data?.hits?.hits[0]?._source;
-              return placeData?.lat != null && placeData?.long != null;
-            }).length;
-            return validPOICount;
-          }),
-      ]);
+        .then((response) => {
+          const validPOICount = (
+            response.aggregations?.unique_urls?.buckets || []
+          ).filter((bucket) => {
+            const placeData = bucket.place_data?.hits?.hits[0]?._source;
+            return placeData?.lat != null && placeData?.long != null;
+          }).length;
+          return validPOICount;
+        }),
+    ]);
 
-      return res.json({
-        success: true,
-        query: buildQuery(),
-        googleQuery: buildGoogleQuery(),
-        data: {
-          googleCount,
-          socialMediaCount: socialMediaData.length > 0 ? nonGoogleCount : 0,
-          googlePOIs: validPOIs,
-          googlePOIsCount: googleUrls.length,
-          socialMediaPOIs: topicCategories.length,
+    const totalSocialMediaCount = topicCounts.reduce((sum, topic) => sum + topic.social_media_count, 0);
+    
+    return res.json({
+      success: true,
+      data: {
+        googleCount,
+        googlePOIs: validPOIs,
+        googlePOIsCount: googleUrls.length,
+        socialMediaCount: totalSocialMediaCount,
+        socialMediaPOIs:topicCounts.reduce((total, item) => total + item.category_count, 0),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching total counts:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch total counts",
+    });
+  }
+}
 
-        },
-      });
-    } catch (error) {
-      console.error("Error fetching total counts:", error);
-      return res.status(500).json({
-        success: false,
-        error: "Failed to fetch total counts",
-      });
-    }
-  },
 };
 
 module.exports = topicController; 

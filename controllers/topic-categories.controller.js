@@ -356,14 +356,7 @@ const topicCategoriesController = {
                 categoryData
             );
 
-            const today = new Date();
-            const pastDate = new Date();
-            pastDate.setDate(today.getDate() - 90);
-
-            const formatDate = (date) => date.toISOString().split("T")[0];
-
-            // Determine date range based on special topic
-            let dateRange =  { gte: formatDate(pastDate), lte: formatDate(today) };
+       
 
 
             // Determine social media sources based on special topic

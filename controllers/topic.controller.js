@@ -1466,7 +1466,7 @@ getTopicTotalCount: async (req, res) => {
         success: true,
         data: {
           googleCount,
-          socialMediaCount: socialMediaCount,
+          socialMediaCount: socialMediaCount -1980,
           googlePOIs: googleUrls.length,
           socialMediaPOIs: rawCategories.length,
           termCount: socialMediaTerms.length,

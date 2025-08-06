@@ -1600,8 +1600,6 @@ const mentionsChartController = {
       }
 
       // Check if this is the special topicId
-      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(

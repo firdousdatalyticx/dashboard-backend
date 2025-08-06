@@ -14,10 +14,9 @@ const audienceController = {
         toDate,
         sentimentType,
         records = 20,
-        source = 'All'
+        topicId,
+        categoryItems
       } = req.body;
-
-      const availableDataSources = req.processedDataSources || [];
 
       let categoryData = {};
 
@@ -29,6 +28,9 @@ const audienceController = {
         categoryData = req.processedCategories || {};
       }
 
+      // Get available data sources from middleware
+      const availableDataSources = req.processedDataSources || [];
+
       if (Object.keys(categoryData).length === 0) {
         return res.json({
           data_array: [],
@@ -37,8 +39,10 @@ const audienceController = {
 
       const topicQueryString = buildTopicQueryString(categoryData);
       let sourcesQuery = null;
-      if (parseInt(topicId) === 2619) {
-        sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+      if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
+        const sourcesList = availableDataSources.map(source => `"${source}"`).join(' OR ');
+        sourcesQuery = ` AND source:(${sourcesList})`;
       } else {
         sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
       }
@@ -171,6 +175,9 @@ const audienceController = {
         categoryData = req.processedCategories || {};
       }
 
+      // Get available data sources from middleware
+      const availableDataSources = req.processedDataSources || [];
+
       if (Object.keys(categoryData).length === 0) {
         return res.json({
           data_array: [],
@@ -192,8 +199,10 @@ const audienceController = {
 
       const topicQueryString = buildTopicQueryString(categoryData);
       let sourcesQuery = null;
-      if (parseInt(topicId) === 2619) {
-        sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+      if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
+        const sourcesList = availableDataSources.map(source => `"${source}"`).join(' OR ');
+        sourcesQuery = ` AND source:(${sourcesList})`;
       } else {
         sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
       }
@@ -362,7 +371,6 @@ const audienceController = {
         categoryItems
       } = req.body;
 
-      const availableDataSources = req.processedDataSources || [];
       let categoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -372,6 +380,9 @@ const audienceController = {
         // Fall back to middleware data
         categoryData = req.processedCategories || {};
       }
+
+      // Get available data sources from middleware
+      const availableDataSources = req.processedDataSources || [];
       if (Object.keys(categoryData).length === 0) {
         return res.json({
           dates: [],
@@ -380,11 +391,14 @@ const audienceController = {
       }
 
       const topicQueryString = buildTopicQueryString(categoryData);
-      let sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
-      if (parseInt(topicId) === 2619) {
-        sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+      let sourcesQuery = null;
+      if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
+        const sourcesList = availableDataSources.map(source => `"${source}"`).join(' OR ');
+        sourcesQuery = ` AND source:(${sourcesList})`;
+      } else {
+        sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
       }
-
       // Process filters for time range
       const filters = processFilters({
         timeSlot,
@@ -566,6 +580,9 @@ const audienceController = {
         // Fall back to middleware data
         categoryData = req.processedCategories || {};
       }
+
+      // Get available data sources from middleware
+      const availableDataSources = req.processedDataSources || [];
       if (Object.keys(categoryData).length === 0) {
         return res.json({
           data_array: [],
@@ -581,11 +598,14 @@ const audienceController = {
       }
 
       const topicQueryString = buildTopicQueryString(categoryData);
-      let sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
-      if (parseInt(topicId) === 2619) {
-        sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+      let sourcesQuery = null;
+      if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
+        const sourcesList = availableDataSources.map(source => `"${source}"`).join(' OR ');
+        sourcesQuery = ` AND source:(${sourcesList})`;
+      } else {
+        sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
       }
-
       const filters = processFilters({
         timeSlot,
         fromDate,
@@ -1298,6 +1318,9 @@ const audienceController = {
         // Fall back to middleware data
         categoryData = req.processedCategories || {};
       }
+
+      // Get available data sources from middleware
+      const availableDataSources = req.processedDataSources || [];
       if (Object.keys(categoryData).length === 0) {
         return res.json({
           responseArray: [],
@@ -1342,7 +1365,8 @@ const audienceController = {
         queryTimeRange,
         source,
         isSpecialTopic,
-        parseInt(topicId)
+        parseInt(topicId),
+        availableDataSources
       );
 
       // Add category filters
@@ -1442,189 +1466,201 @@ const audienceController = {
         }));
       }
 
-        return res.json({ query, results, responseArray });
+      return res.json({ query, results, responseArray });
 
-        // return res.json({ results,responseArray });
-      } catch (error) {
-        console.error("Error fetching audience distribution data:", error);
-        return res.status(500).json({
-          success: false,
-          error: "Internal server error",
-        });
-      }
-    },
-  };
-
-  /**
-   * Format post data for the frontend
-   * @param {Object} hit - Elasticsearch document hit
-   * @returns {Object} Formatted post data
-   */
-  const formatPostData = (hit, allFilterTerms = []) => {
-    const source = hit._source;
-
-    // Use a default image if a profile picture is not provided
-    const profilePic =
-      source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-    // Social metrics
-    const followers = source.u_followers > 0 ? `${source.u_followers}` : "";
-    const following = source.u_following > 0 ? `${source.u_following}` : "";
-    const posts = source.u_posts > 0 ? `${source.u_posts}` : "";
-    const likes = source.p_likes > 0 ? `${source.p_likes}` : "";
-
-    // Emotion
-    const llm_emotion =
-      source.llm_emotion ||
-      (source.source === "GoogleMyBusiness" && source.rating
-        ? source.rating >= 4
-          ? "Supportive"
-          : source.rating <= 2
-            ? "Frustrated"
-            : "Neutral"
-        : "");
-
-    // Clean up comments URL if available
-    const commentsUrl =
-      source.p_comments_text && source.p_comments_text.trim() !== ""
-        ? source.p_url.trim().replace("https: // ", "https://")
-        : "";
-
-    const comments = `${source.p_comments}`;
-    const shares = source.p_shares > 0 ? `${source.p_shares}` : "";
-    const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : "";
-
-    const content =
-      source.p_content && source.p_content.trim() !== "" ? source.p_content : "";
-    const imageUrl =
-      source.p_picture_url && source.p_picture_url.trim() !== ""
-        ? source.p_picture_url
-        : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-    // Determine sentiment
-    let predicted_sentiment = "";
-    let predicted_category = "";
-
-    if (source.predicted_sentiment_value)
-      predicted_sentiment = `${source.predicted_sentiment_value}`;
-    else if (source.source === "GoogleMyBusiness" && source.rating) {
-      predicted_sentiment =
-        source.rating >= 4
-          ? "Positive"
-          : source.rating <= 2
-            ? "Negative"
-            : "Neutral";
+      // return res.json({ results,responseArray });
+    } catch (error) {
+      console.error("Error fetching audience distribution data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
     }
+  },
+};
 
-    if (source.predicted_category) predicted_category = source.predicted_category;
+/**
+ * Format post data for the frontend
+ * @param {Object} hit - Elasticsearch document hit
+ * @returns {Object} Formatted post data
+ */
+const formatPostData = (hit, allFilterTerms = []) => {
+  const source = hit._source;
 
-    // Handle YouTube-specific fields
-    let youtubeVideoUrl = "";
-    let profilePicture2 = "";
-    if (source.source === "Youtube") {
-      if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
-      else if (source.p_id)
-        youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
-    } else {
-      profilePicture2 = source.p_picture ? source.p_picture : "";
-    }
+  // Use a default image if a profile picture is not provided
+  const profilePic =
+    source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
 
-    // Determine source icon based on source name
-    let sourceIcon = "";
-    const userSource = source.source;
-    if (
-      ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
-        userSource
-      )
+  // Social metrics
+  const followers = source.u_followers > 0 ? `${source.u_followers}` : "";
+  const following = source.u_following > 0 ? `${source.u_following}` : "";
+  const posts = source.u_posts > 0 ? `${source.u_posts}` : "";
+  const likes = source.p_likes > 0 ? `${source.p_likes}` : "";
+
+  // Emotion
+  const llm_emotion =
+    source.llm_emotion ||
+    (source.source === "GoogleMyBusiness" && source.rating
+      ? source.rating >= 4
+        ? "Supportive"
+        : source.rating <= 2
+          ? "Frustrated"
+          : "Neutral"
+      : "");
+
+  // Clean up comments URL if available
+  const commentsUrl =
+    source.p_comments_text && source.p_comments_text.trim() !== ""
+      ? source.p_url.trim().replace("https: // ", "https://")
+      : "";
+
+  const comments = `${source.p_comments}`;
+  const shares = source.p_shares > 0 ? `${source.p_shares}` : "";
+  const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : "";
+
+  const content =
+    source.p_content && source.p_content.trim() !== "" ? source.p_content : "";
+  const imageUrl =
+    source.p_picture_url && source.p_picture_url.trim() !== ""
+      ? source.p_picture_url
+      : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+  // Determine sentiment
+  let predicted_sentiment = "";
+  let predicted_category = "";
+
+  if (source.predicted_sentiment_value)
+    predicted_sentiment = `${source.predicted_sentiment_value}`;
+  else if (source.source === "GoogleMyBusiness" && source.rating) {
+    predicted_sentiment =
+      source.rating >= 4
+        ? "Positive"
+        : source.rating <= 2
+          ? "Negative"
+          : "Neutral";
+  }
+
+  if (source.predicted_category) predicted_category = source.predicted_category;
+
+  // Handle YouTube-specific fields
+  let youtubeVideoUrl = "";
+  let profilePicture2 = "";
+  if (source.source === "Youtube") {
+    if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
+    else if (source.p_id)
+      youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+  } else {
+    profilePicture2 = source.p_picture ? source.p_picture : "";
+  }
+
+  // Determine source icon based on source name
+  let sourceIcon = "";
+  const userSource = source.source;
+  if (
+    ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
+      userSource
     )
-      sourceIcon = "Blog";
-    else if (userSource === "Reddit") sourceIcon = "Reddit";
-    else if (["FakeNews", "News"].includes(userSource)) sourceIcon = "News";
-    else if (userSource === "Tumblr") sourceIcon = "Tumblr";
-    else if (userSource === "Vimeo") sourceIcon = "Vimeo";
-    else if (["Web", "DeepWeb"].includes(userSource)) sourceIcon = "Web";
-    else sourceIcon = userSource;
+  )
+    sourceIcon = "Blog";
+  else if (userSource === "Reddit") sourceIcon = "Reddit";
+  else if (["FakeNews", "News"].includes(userSource)) sourceIcon = "News";
+  else if (userSource === "Tumblr") sourceIcon = "Tumblr";
+  else if (userSource === "Vimeo") sourceIcon = "Vimeo";
+  else if (["Web", "DeepWeb"].includes(userSource)) sourceIcon = "Web";
+  else sourceIcon = userSource;
 
-    // Format message text – with special handling for GoogleMaps/Tripadvisor
-    let message_text = "";
-    if (["GoogleMaps", "Tripadvisor"].includes(source.source)) {
-      const parts = source.p_message_text.split("***|||###");
-      message_text = parts[0].replace(/\n/g, "<br>");
-    } else {
-      message_text = source.p_message_text
-        ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
-        : "";
-    }
+  // Format message text – with special handling for GoogleMaps/Tripadvisor
+  let message_text = "";
+  if (["GoogleMaps", "Tripadvisor"].includes(source.source)) {
+    const parts = source.p_message_text.split("***|||###");
+    message_text = parts[0].replace(/\n/g, "<br>");
+  } else {
+    message_text = source.p_message_text
+      ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
+      : "";
+  }
 
-    // Find matched terms
-    const textFields = [
-      source.p_message_text,
-      source.p_message,
-      source.keywords,
-      source.title,
-      source.hashtags,
-      source.u_source,
-      source.p_url,
-      source.u_fullname
-    ];
-    const matched_terms = allFilterTerms.filter(term =>
-      textFields.some(field => {
-        if (!field) return false;
-        if (Array.isArray(field)) {
-          return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-        }
-        return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-      })
-    );
+  // Find matched terms
+  const textFields = [
+    source.p_message_text,
+    source.p_message,
+    source.keywords,
+    source.title,
+    source.hashtags,
+    source.u_source,
+    source.p_url,
+    source.u_fullname
+  ];
+  const matched_terms = allFilterTerms.filter(term =>
+    textFields.some(field => {
+      if (!field) return false;
+      if (Array.isArray(field)) {
+        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+      }
+      return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+    })
+  );
 
-    return {
-      profilePicture: profilePic,
-      profilePicture2,
-      userFullname: source.u_fullname,
-      user_data_string: "",
-      followers,
-      following,
-      posts,
-      likes,
-      llm_emotion,
-      commentsUrl,
-      comments,
-      shares,
-      engagements,
-      content,
-      image_url: imageUrl,
-      predicted_sentiment,
-      predicted_category,
-      youtube_video_url: youtubeVideoUrl,
-      source_icon: `${source.p_url},${sourceIcon}`,
-      message_text,
-      source: source.source,
-      rating: source.rating,
-      comment: source.comment,
-      businessResponse: source.business_response,
-      uSource: source.u_source,
-      googleName: source.name,
-      created_at: new Date(
-        source.p_created_time || source.created_at
-      ).toLocaleString(),
-      p_comments_data: source.p_comments_data,
-      matched_terms,
-    };
+  return {
+    profilePicture: profilePic,
+    profilePicture2,
+    userFullname: source.u_fullname,
+    user_data_string: "",
+    followers,
+    following,
+    posts,
+    likes,
+    llm_emotion,
+    commentsUrl,
+    comments,
+    shares,
+    engagements,
+    content,
+    image_url: imageUrl,
+    predicted_sentiment,
+    predicted_category,
+    youtube_video_url: youtubeVideoUrl,
+    source_icon: `${source.p_url},${sourceIcon}`,
+    message_text,
+    source: source.source,
+    rating: source.rating,
+    comment: source.comment,
+    businessResponse: source.business_response,
+    uSource: source.u_source,
+    googleName: source.name,
+    created_at: new Date(
+      source.p_created_time || source.created_at
+    ).toLocaleString(),
+    p_comments_data: source.p_comments_data,
+    matched_terms,
   };
+};
 
-  /**
-   * Build a base query string from category data for filters processing
-   * @param {string} selectedCategory - Category to filter by
-   * @param {Object} categoryData - Category data
-   * @returns {string} Query string
-   */
-  function buildBaseQueryString(selectedCategory, categoryData) {
-    let queryString = "";
-const allTerms = [];
+/**
+ * Build a base query string from category data for filters processing
+ * @param {string} selectedCategory - Category to filter by
+ * @param {Object} categoryData - Category data
+ * @returns {string} Query string
+ */
+function buildBaseQueryString(selectedCategory, categoryData) {
+  let queryString = "";
+  const allTerms = [];
 
-if (selectedCategory === "all") {
-  // Combine all keywords, hashtags, and urls from all categories
-  Object.values(categoryData).forEach((data) => {
+  if (selectedCategory === "all") {
+    // Combine all keywords, hashtags, and urls from all categories
+    Object.values(categoryData).forEach((data) => {
+      if (data.keywords && data.keywords.length > 0) {
+        allTerms.push(...data.keywords);
+      }
+      if (data.hashtags && data.hashtags.length > 0) {
+        allTerms.push(...data.hashtags);
+      }
+      if (data.urls && data.urls.length > 0) {
+        allTerms.push(...data.urls);
+      }
+    });
+  } else if (categoryData[selectedCategory]) {
+    const data = categoryData[selectedCategory];
     if (data.keywords && data.keywords.length > 0) {
       allTerms.push(...data.keywords);
     }
@@ -1634,27 +1670,15 @@ if (selectedCategory === "all") {
     if (data.urls && data.urls.length > 0) {
       allTerms.push(...data.urls);
     }
-  });
-} else if (categoryData[selectedCategory]) {
-  const data = categoryData[selectedCategory];
-  if (data.keywords && data.keywords.length > 0) {
-    allTerms.push(...data.keywords);
   }
-  if (data.hashtags && data.hashtags.length > 0) {
-    allTerms.push(...data.hashtags);
-  }
-  if (data.urls && data.urls.length > 0) {
-    allTerms.push(...data.urls);
-  }
-}
 
-// Create a query string with all terms as ORs
-if (allTerms.length > 0) {
-  const terms = allTerms.map((term) => `"${term}"`).join(" OR ");
-  queryString = `(p_message_text:(${terms}) OR u_fullname:(${terms}))`;
-}
+  // Create a query string with all terms as ORs
+  if (allTerms.length > 0) {
+    const terms = allTerms.map((term) => `"${term}"`).join(" OR ");
+    queryString = `(p_message_text:(${terms}) OR u_fullname:(${terms}))`;
+  }
 
-return queryString;
+  return queryString;
 }
 
 /**
@@ -1662,10 +1686,11 @@ return queryString;
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
  * @param {string} source - Source to filter by
  * @param {boolean} isSpecialTopic - Whether this is a special topic
- * @param {Array} availableDataSources - Array of available data sources from middleware
+ * @param {number} topicId - Topic ID
+ * @param {Array} availableDataSources - Available data sources to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableDataSources = []) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, availableDataSources = []) {
   const query = {
     bool: {
       must: [
@@ -1673,33 +1698,32 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableData
           range: {
             p_created_time: {
               gte: dateRange.greaterThanTime,
-              lte: dateRange.lessThanTime
-            }
-          }
+              lte: dateRange.lessThanTime,
+            },
+          },
         },
         {
           range: {
             created_at: {
               gte: dateRange.greaterThanTime,
-              lte: dateRange.lessThanTime
-            }
-          }
-        }
+              lte: dateRange.lessThanTime,
+            },
+          },
+        },
       ],
       must_not: [
         {
           term: {
-            source: 'DM'
-          }
-        }
-      ]
-    }
+            source: "DM",
+          },
+        },
+      ],
+    },
   };
 
-  // Add source filter
-  if (source !== 'All') {
+  if (source !== "All") {
     query.bool.must.push({
-      match_phrase: { source: source }
+      match_phrase: { source: source },
     });
   } else if (availableDataSources && availableDataSources.length > 0) {
     // Use available data sources if present
@@ -1712,6 +1736,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableData
       }
     });
   } else {
+    // Fallback to default sources if no available sources
     query.bool.must.push({
       bool: {
         should: [
@@ -1723,16 +1748,14 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableData
           { match_phrase: { source: "Pinterest" } },
           { match_phrase: { source: "Web" } },
           { match_phrase: { source: "Reddit" } },
-          { match_phrase: { source: "TikTok" } }
+          { match_phrase: { source: "TikTok" } },
         ],
-        minimum_should_match: 1
-      }
+        minimum_should_match: 1,
+      },
     });
   }
+  return query;
 }
-
-
-
 
 /**
  * Add category filters to the query

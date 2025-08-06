@@ -861,64 +861,40 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableData
             ]
         }
     };
-    if (topicId === 2619) {
+     // Add source filter if a specific source is selected
+     if (source !== 'All') {
         query.bool.must.push({
-            bool: {
-                should: [
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Linkedin" } }
-                ],
-                minimum_should_match: 1
-            }
+            match_phrase: { source: source }
         });
-    }
-    // Handle special topic source filtering
-    else if (isSpecialTopic) {
+    } else if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
         query.bool.must.push({
             bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } }
-                ],
+                should: availableDataSources.map(source => ({
+                    match_phrase: { source: source }
+                })),
                 minimum_should_match: 1
             }
         });
     } else {
-        // Add source filter if a specific source is selected
-        if (source !== 'All') {
-            query.bool.must.push({
-                match_phrase: { source: source }
-            });
-        } else if (availableDataSources && availableDataSources.length > 0) {
-            // Use available data sources if present
-            query.bool.must.push({
-                bool: {
-                    should: availableDataSources.map(source => ({
-                        match_phrase: { source: source }
-                    })),
-                    minimum_should_match: 1
-                }
-            });
-        } else {
-            // Fallback to default sources if no available sources
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                        { match_phrase: { source: "Linkedin" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        }
+        // Fallback to default sources if no available sources
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
     }
 
     return query;

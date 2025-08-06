@@ -30,6 +30,9 @@ const socialsDistributionsController = {
               // Fall back to middleware data
               categoryData = req.processedCategories || {};
             }
+
+            // Get available data sources from middleware
+            const availableDataSources = req.processedDataSources || [];
             // If there's nothing to search for, return zero counts
             if (Object.keys(categoryData).length === 0) {
                 return res.json({});
@@ -65,7 +68,7 @@ const socialsDistributionsController = {
                         const query = buildBaseQuery({
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
-                        }, source, isSpecialTopic,parseInt(topicId));
+                        }, source, isSpecialTopic, parseInt(topicId), availableDataSources);
             
                         // Add category filters
                         addCategoryFilters(query, category, categoryData);
@@ -289,7 +292,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, availableDataSources = []) {
     const query = {
         bool: {
             must: [
@@ -339,7 +342,18 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
             query.bool.must.push({
                 match_phrase: { source: source }
             });
+        } else if (availableDataSources && availableDataSources.length > 0) {
+            // Use available data sources if present
+            query.bool.must.push({
+                bool: {
+                    should: availableDataSources.map(source => ({
+                        match_phrase: { source: source }
+                    })),
+                    minimum_should_match: 1
+                }
+            });
         } else {
+            // Fallback to default sources if no available sources
             query.bool.must.push({
                 bool: {
                     should: [

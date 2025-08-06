@@ -4,7 +4,56 @@ const router = express.Router();
 const prisma = require("../../config/database");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
-const buildQueryString = async (topicId, isScadUser, selectedTab) => {
+const buildSourceQueryString = (req, source = 'All', isSpecialTopic = false) => {
+  // If specific source is provided, use it
+  if (source && source !== 'All') {
+    return ` AND source:("${source}")`;
+  }
+
+  // Get available data sources from middleware
+  let availableDataSources = [];
+  
+  try {
+    // Check if req.processedDataSources exists and is an array
+    if (req && req.processedDataSources && Array.isArray(req.processedDataSources) && req.processedDataSources.length > 0) {
+      availableDataSources = req.processedDataSources;
+    } else {
+      // Fallback to default sources
+      availableDataSources = [
+        "Twitter",
+        "Facebook",
+        "Instagram",
+        "Youtube",
+        "Pinterest",
+        "LinkedIn",
+        "Web",
+        "Reddit",
+        "TikTok"
+      ];
+    }
+  } catch (error) {
+    console.error('Error accessing processedDataSources:', error);
+    // Fallback to default sources
+    availableDataSources = [
+      "Twitter",
+      "Facebook",
+      "Instagram",
+      "Youtube",
+      "Pinterest",
+      "LinkedIn",
+      "Web",
+      "Reddit",
+      "TikTok"
+    ];
+  }
+
+  // Build the source query string
+  const sourceStr = availableDataSources.map(source => `"${source}"`).join(" OR ");
+  return ` AND source:(${sourceStr})`;
+};
+
+
+const buildQueryString = async (topicId, isScadUser, selectedTab, req, sources = 'All') => {
   const topicData = await prisma.customer_topics.findUnique({
     where: { topic_id: Number(topicId) },
   });
@@ -158,6 +207,7 @@ const buildQueryString = async (topicId, isScadUser, selectedTab) => {
 
   // Additional filters
   strToSearch += ` AND NOT source:("DM") AND NOT manual_entry_type:("review")`;
+
 
   return strToSearch;
 };
@@ -551,7 +601,7 @@ const getPosts = async (
     let llm_emotion = esData._source.llm_emotion || "";
     let commentsUrl =
       esData._source.p_comments_text &&
-      esData._source.p_comments_text.trim() !== ""
+        esData._source.p_comments_text.trim() !== ""
         ? `${esData._source.p_url.trim().replace("https: // ", "https://")}`
         : "";
     let comments = `${esData._source.p_comments}`;
@@ -922,9 +972,6 @@ const mentionsChartController = {
         categoryData = req.processedCategories || {};
       }
 
-      // Check if this is the special topicId
-      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -936,15 +983,9 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      if (topicId && parseInt(topicId) === 2619) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
  
       // Fetch mention actions in **one** query
@@ -953,7 +994,7 @@ const mentionsChartController = {
         toDate,
         topicQueryString,
         sentimentType,
-        categoryData
+        categoryData,
       );
 
       return res.status(200).json(response);
@@ -996,7 +1037,7 @@ const mentionsChartController = {
       else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
+        topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
       }
 
 
@@ -1182,15 +1223,8 @@ const mentionsChartController = {
         // Apply special topic source filtering
       }
       // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        if (sources == "All") {
-          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-        } else {
-          topicQueryString = `${topicQueryString} AND source:(${sources})`;
-        }
-      }
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
       const params = {
         size: 0,
@@ -1331,11 +1365,8 @@ const mentionsChartController = {
         // Apply special topic source filtering
       }
       // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
    
       // **Single Aggregation Query**
@@ -1464,14 +1495,9 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      if (parseInt(topicId) === 2619) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      } else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Apply special topic source filtering
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
 
 
@@ -1593,8 +1619,6 @@ const mentionsChartController = {
       }
 
       // Check if this is the special topicId
-      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1608,11 +1632,8 @@ const mentionsChartController = {
         // Apply special topic source filtering
       }
       // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
@@ -1750,11 +1771,8 @@ const mentionsChartController = {
         // Apply special topic source filtering
       }
       // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
 
 
@@ -1913,14 +1931,10 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      } else if (isSpecialTopic) {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "LinkedIn" OR "Web")`;
-      }
+
+      // Apply special topic source filtering
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
    
 
@@ -2091,11 +2105,8 @@ const mentionsChartController = {
         // Apply special topic source filtering
       }
       // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
    
 
@@ -2270,9 +2281,9 @@ const mentionsChartController = {
 
           const types = Array.isArray(audienceBuckets)
             ? audienceBuckets.reduce((acc, bucket) => {
-                acc[bucket.key] = bucket.doc_count;
-                return acc;
-              }, {})
+              acc[bucket.key] = bucket.doc_count;
+              return acc;
+            }, {})
             : {};
 
           return {
@@ -2331,14 +2342,10 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      } else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+
+      // Apply special topic source filtering
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
     
 
@@ -2597,27 +2604,8 @@ const mentionsChartController = {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
       }
       // Apply special topic source filtering
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
 
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        if (source != "All") {
-          // Only allow Facebook or Twitter for special topic
-          if (source === "Facebook" || source === "Twitter") {
-            topicQueryString = `${topicQueryString} AND source:("${source}")`;
-          } else {
-            // If source is not Facebook or Twitter, use Facebook and Twitter
-            topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-          }
-        } else {
-          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-        }
-      } else {
-        if (source != "All") {
-          topicQueryString = `${topicQueryString} AND source:("${source}")`;
-        } else {
-          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-        }
-      }
 
     
 
@@ -2657,12 +2645,8 @@ const mentionsChartController = {
         return res.status(200).json({ responseOutput: {} });
       }
 
-      if (topicId && parseInt(topicId) === 2619) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-      } else {
-        // Expanded list of sources (now fully dynamic)
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Expanded list of sources (now fully dynamic)
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
 
       // **Single Aggregation Query**
       const query = {
@@ -2772,11 +2756,8 @@ const mentionsChartController = {
       //   return res.status(200).json({ responseOutput:{} });
       // }
       // Apply special topic source filtering
-      if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
-      }
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
             // Apply special topic date range
       const effectiveFromDate =
@@ -2947,7 +2928,7 @@ const mentionsChartController = {
           if (complaintContent?.count > 0) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = complaintContent?.count;
@@ -3021,7 +3002,7 @@ const mentionsChartController = {
           if (content?.count > 0) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = content?.count;
@@ -3071,7 +3052,7 @@ const mentionsChartController = {
           if (content?.count > 0) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = content?.count;
@@ -3115,7 +3096,7 @@ const mentionsChartController = {
           if (content?.count > 0) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = content?.count;
@@ -3208,7 +3189,7 @@ const mentionsChartController = {
           ) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = {
@@ -3272,7 +3253,7 @@ const mentionsChartController = {
           if (content?.count > 0) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = content?.count;
@@ -3379,7 +3360,7 @@ const mentionsChartController = {
           ) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = {
@@ -3543,7 +3524,7 @@ const mentionsChartController = {
           ) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = {
@@ -3624,7 +3605,7 @@ const mentionsChartController = {
           ) {
             responseOutput[
               sourcesArray[i] ===
-              "Customer Service (Phone, Email, or Live Chat)"
+                "Customer Service (Phone, Email, or Live Chat)"
                 ? "Customer Service"
                 : sourcesArray[i]
             ] = {
@@ -3661,11 +3642,7 @@ const mentionsChartController = {
       );
 
       // Apply special topic source filtering
-      if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
-      }
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
 
 
 
@@ -3953,11 +3930,8 @@ const mentionsChartController = {
       );
 
       // Apply special topic source filtering
-      if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+
 
   
 
@@ -4117,11 +4091,7 @@ const mentionsChartController = {
       const isScadUser = false;
       const selectedTab = "Social";
 
-      let topicQueryString = await buildQueryString(
-        topicId,
-        isScadUser,
-        selectedTab
-      );
+      let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
 
       const allowedSources = isSpecialTopic
         ? `"Twitter" OR "Facebook"`
@@ -4388,7 +4358,6 @@ const mentionsChartController = {
 
           mergedMap.set(normalized, current);
         }
-      }
 
       let pieData = Array.from(mergedMap.values()).map((entry) => ({
         name: entry.name,
@@ -4412,15 +4381,19 @@ const mentionsChartController = {
         total: totalDocs,
         query,
       });
-    } catch (error) {
-      console.error("Error fetching event type data:", error);
-      return res.status(500).json({
-        success: false,
-        error: "Internal server error",
-        details: error.message,
-      });
-    }
-  },
+    } 
+    
+  
+  }
+  catch (error) {
+    console.error("Error fetching event type data:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      details: error.message,
+    });
+  }
+},
 
   llmMotivationSentimentTrend: async (req, res) => {
     try {

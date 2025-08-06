@@ -40,7 +40,7 @@ async function seedDashboardData() {
                 component_enum: 'LanguageSummary',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -68,7 +68,7 @@ async function seedDashboardData() {
                 component_enum: 'MentionsUrgency',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 
@@ -110,7 +110,7 @@ async function seedDashboardData() {
                 component_enum: 'MentionsRecurrence',
                 api_endpoint: '/api/social-media/mentions-trend',
                 supported_sources: 'facebook,twitter,instagram,youtube,linkedin,tiktok,reddit,pinterest,news_web',
-                is_default: true,
+                is_default: false,
                 sort_order: 2
             },
 

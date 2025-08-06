@@ -3,7 +3,7 @@ const { PrismaClient } = require("@prisma/client");
 const { buildQueryString } = require("../utils/query.utils");
 const { format } = require("date-fns");
 const prisma = new PrismaClient();
-
+const processCategoryItems = require('../helpers/processedCategoryItems');
 /**
  * Safely format a date for Elasticsearch (yyyy-MM-dd)
  */
@@ -49,6 +49,9 @@ const buildElasticsearchQuery = (params) => {
   // Build query_string parts in an array
   const qsParts = [];
   if (topicQueryString) qsParts.push(topicQueryString);
+  if(topicId===2619){
+ qsParts.push('source:("LinkedIn" OR "Linkedin")');
+  }else
 
   // Source filtering - handle specific sources first
   if (postTypeSource !== 'All' && postTypeSource !== undefined) {
@@ -168,7 +171,6 @@ const buildElasticsearchQuery = (params) => {
   // Add emotion filter
   if (emotion && emotion !== "undefined" && emotion !== "null") {
     if (postTypeSource === "GoogleMyBusiness") {
-      console.log("emotion", emotion);
     } else {
       // Use a should query that supports both exact and partial matching
       must.push({
@@ -183,7 +185,6 @@ const buildElasticsearchQuery = (params) => {
           minimum_should_match: 1,
         },
       });
-      console.log("Applied emotion filter for:", emotion);
     }
   }
 
@@ -206,13 +207,11 @@ const buildElasticsearchQuery = (params) => {
         },
       };
       must.push(sentimentFilter);
-      console.log("Applied sentiment filter for:", sentiment);
     } else {
       // Handle single sentiment type
       must.push({
         term: { "predicted_sentiment_value.keyword": sentiment.trim() },
       });
-      console.log("Applied sentiment filter for:", sentiment);
     }
   } else if (sentiment && sentiment != "") {
     must.push({
@@ -506,6 +505,8 @@ const formatPostData = async (hit) => {
     uSource: source.u_source,
     googleName: source.name,
     created_at: new Date(source.p_created_time).toLocaleString(),
+    p_comments_data:source.p_comments_data,
+    
   };
 };
 
@@ -645,6 +646,8 @@ const postsController = {
         category,
         click = "false",
         llm_mention_type,
+        type,
+        categoryItems
       } = req.query;
 
       console.log('Request query parameters:', {
@@ -660,8 +663,27 @@ const postsController = {
       // Get googleUrls from middleware
       const googleUrls = req.googleUrls || [];
 
+      // Parse categoryItems from URL-encoded comma-separated string
+      let parsedCategoryItems = [];
+      if (categoryItems && typeof categoryItems === 'string') {
+        // Decode URL encoding and split by comma
+        const decodedItems = decodeURIComponent(categoryItems);
+        parsedCategoryItems = decodedItems.split(',').map(item => item.trim()).filter(item => item.length > 0);
+      }
+
+
+
       // Get category data from middleware if available.
-      const categoryData = req.processedCategories || {};
+      let categoryData = {};
+      
+      if (parsedCategoryItems && parsedCategoryItems.length > 0) {
+        categoryData = processCategoryItems(parsedCategoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }    
+
+      console.log(categoryData, "categoryData");
 
       // Parse and validate rating if provided.
       const requestedRatingValue = rating ? parseInt(rating, 10) : null;
@@ -681,22 +703,11 @@ const postsController = {
       let greaterThanTime = inputGreaterThanTime;
       let lessThanTime = inputLessThanTime;
 
-      // Handle special topic date range logic
-      if (isSpecialTopic) {
-        // For special topic, use wider range if no dates provided
-        if (!greaterThanTime && !lessThanTime) {
-          greaterThanTime = "2020-01-01";
-          lessThanTime = "now";
-        } else {
-          // Use provided dates or fall back to environment defaults
-          greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
-          lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
-        }
-      } else {
+ 
         // Original logic for regular topics
         greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
         lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
-      }
+      
 
       // For GoogleMyBusiness, make sure time is properly formatted for consistency with review-trends
       if (postTypeSource === "GoogleMyBusiness") {
@@ -766,15 +777,11 @@ const postsController = {
       if (isSocialMedia && topicId && Object.keys(categoryData).length > 0) {
         if (category && category !== "all") {
           // If a specific category is selected, apply that filter
-          console.log(`Applying specific category filter for ${category}`);
           addCategoryFilters(esQuery.query, category, categoryData);
         } else {
           // If no specific category is selected but we have category data from topicId,
           // apply a combined filter from all categories
-          console.log(
-            `Applying combined category filters for topicId: ${topicId}`
-          );
-
+         
           const categoryKeys = Object.keys(categoryData);
           if (categoryKeys.length > 0) {
             const shouldClauses = [];
@@ -844,6 +851,34 @@ const postsController = {
         }
       }
 
+      if(type==="Popular Posts"){
+        esQuery.sort=[
+          {
+            "p_engagement": {
+                "order": "desc",
+                "missing": "_last"
+            }
+        },
+        {
+            "p_likes": {
+                "order": "desc",
+                "missing": "_last"
+            }
+        },
+        {
+            "p_comments": {
+                "order": "desc",
+                "missing": "_last"
+            }
+        },
+        {
+            "p_shares": {
+                "order": "desc",
+                "missing": "_last"
+            }
+        }
+      ];
+      }
       // Execute the Elasticsearch query.
       const results = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,

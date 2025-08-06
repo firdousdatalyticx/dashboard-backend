@@ -1,5 +1,6 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 const getSentimentTrendData = async ({ query, formattedMinDate, formattedMaxDate, calendarInterval, formatPattern, analysisType }) => {
   const aggregations = {
@@ -76,7 +77,15 @@ const sentimentsController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
+
 
 
             if (Object.keys(categoryData).length === 0) {
@@ -346,6 +355,48 @@ const sentimentsController = {
                 });
             }
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+            // For each post in timeIntervalsWithPosts, add matched_terms
+            for (const interval of timeIntervalsWithPosts) {
+                for (const sentiment of interval.sentiments) {
+                    if (sentiment.posts && Array.isArray(sentiment.posts)) {
+                        sentiment.posts = sentiment.posts.map(post => {
+                            const textFields = [
+                                post.message_text,
+                                post.content,
+                                post.keywords,
+                                post.title,
+                                post.hashtags,
+                                post.uSource,
+                                post.source,
+                                post.p_url,
+                                post.userFullname
+                            ];
+                            return {
+                                ...post,
+                                matched_terms: allFilterTerms.filter(term =>
+                                    textFields.some(field => {
+                                        if (!field) return false;
+                                        if (Array.isArray(field)) {
+                                            return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                        }
+                                        return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                    })
+                                )
+                            };
+                        });
+                    }
+                }
+            }
+
             return res.json({
                 success: true,
                 sentiments,
@@ -399,11 +450,17 @@ llmMotivationSentimentTrend: async (req, res) => {
 
     const topicIdNum = parseInt(topicId);
     const isSpecialTopic = topicIdNum === 2600;
-    const isTopic2603 = topicIdNum === 2603;
-    const isTopic2604 = topicIdNum === 2604;
+    const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
+    const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
 
-    const categoryData = req.processedCategories || {};
-    if (Object.keys(categoryData).length === 0) {
+    let categoryData = {};
+      
+    if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+      categoryData = processCategoryItems(req.body.categoryItems);
+    } else {
+      // Fall back to middleware data
+      categoryData = req.processedCategories || {};
+    }    if (Object.keys(categoryData).length === 0) {
       return res.json({
         success: true,
         sentiments: [],
@@ -436,7 +493,7 @@ llmMotivationSentimentTrend: async (req, res) => {
     const formattedMinDate = format(parseISO(greaterThanTime), formatPattern);
     const formattedMaxDate = format(parseISO(lessThanTime), formatPattern);
 
-    const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic);
+    const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic, topicIdNum);
     addCategoryFilters(query, category, categoryData);
 
     if (sentiment && sentiment !== "" && sentiment !== "All") {
@@ -1084,7 +1141,9 @@ const formatPostData = (hit) => {
         businessResponse: source.business_response,
         uSource: source.u_source,
         googleName: source.name,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+        p_comments_data:source.p_comments_data,
+
     };
 };
 

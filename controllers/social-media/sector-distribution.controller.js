@@ -1,6 +1,6 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays } = require('date-fns');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 const sectorDistributionController = {
     /**
      * Get sector distribution analysis data for social media posts
@@ -23,8 +23,14 @@ const sectorDistributionController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -37,18 +43,7 @@ const sectorDistributionController = {
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use provided dates or wider range
-                if (greaterThanTime && lessThanTime) {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                } else {
-                    // Default to wider range for special topic
-                    const twoYearsAgo = subDays(now, 730);
-                    effectiveGreaterThanTime = format(twoYearsAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = format(now, 'yyyy-MM-dd');
-                }
-            } else {
+         
                 // For regular topics, use 90 days default if not provided
                 if (!greaterThanTime || !lessThanTime) {
                     const ninetyDaysAgo = subDays(now, 90);
@@ -58,7 +53,7 @@ const sectorDistributionController = {
                     effectiveGreaterThanTime = greaterThanTime;
                     effectiveLessThanTime = lessThanTime;
                 }
-            }
+            
 
             // Build base query
             const query = buildBaseQuery({
@@ -186,6 +181,49 @@ const sectorDistributionController = {
 
             // Sort by count descending
             sectorsArray.sort((a, b) => b.count - a.count);
+
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
+            // For each post in sectorsArray[].posts, add matched_terms
+            if (sectorsArray && Array.isArray(sectorsArray)) {
+                sectorsArray.forEach(sectorObj => {
+                    if (sectorObj.posts && Array.isArray(sectorObj.posts)) {
+                        sectorObj.posts = sectorObj.posts.map(post => {
+                            const textFields = [
+                                post.message_text,
+                                post.content,
+                                post.keywords,
+                                post.title,
+                                post.hashtags,
+                                post.uSource,
+                                post.source,
+                                post.p_url,
+                                post.userFullname
+                            ];
+                            return {
+                                ...post,
+                                matched_terms: allFilterTerms.filter(term =>
+                                    textFields.some(field => {
+                                        if (!field) return false;
+                                        if (Array.isArray(field)) {
+                                            return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                        }
+                                        return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                    })
+                                )
+                            };
+                        });
+                    }
+                });
+            }
 
             return res.json({
                 success: true,

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../../middleware/auth.middleware');
+const transformCategoryData = require('../../middleware/categoryTransform.middleware');
 
 const keywordsRoute = require('./keywords.route');
 const dashboardIdRoute = require('./dashboardId.routes');
@@ -17,8 +18,8 @@ router.use(express.json());
 router.use(authMiddleware);
 
 // Mount dashboard related routes
-router.use('/keywords', keywordsRoute);
-router.use('/dashboardId', dashboardIdRoute);
+router.use('/keywords', transformCategoryData,   keywordsRoute);
+router.use('/dashboardId', transformCategoryData, dashboardIdRoute);
 
 
 

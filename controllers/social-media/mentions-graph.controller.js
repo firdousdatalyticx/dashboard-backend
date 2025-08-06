@@ -1,11 +1,17 @@
 const { clientmetiontrends } = require('../../config/elasticsearch');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 const mentionsGraphController = {
     getMentionsGraph: async (req, res) => {
         try {
             const { interval = 'monthly', category = 'all', source = 'All' } = req.body;
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ 
                     mentionsGraphData: '', 
@@ -212,6 +218,21 @@ const mentionsGraphController = {
 
             const mentionsGraphData = datesArray.join('|');
             const maxMentionData = `${maxDate},${maxMentions}`;
+
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
+            // If posts are returned, add matched_terms to each post
+            // (Assume posts are in datesArray or similar)
+            // This part of the logic needs to be implemented based on how posts are returned
+            // For now, we'll just return the data as is.
 
             return res.json({
                 mentionsGraphData,

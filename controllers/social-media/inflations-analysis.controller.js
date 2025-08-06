@@ -1,5 +1,6 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 const inflationController = {
     /**
@@ -21,8 +22,14 @@ const inflationController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -34,16 +41,12 @@ const inflationController = {
             const now = new Date();
             let greaterThanTime, lessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use wider range
-                greaterThanTime = '2020-01-01';
-                lessThanTime = format(now, 'yyyy-MM-dd');
-            } else {
+           
                 // Original logic with 90 days default
                 const ninetyDaysAgo = subDays(now, 90);
                 greaterThanTime = format(ninetyDaysAgo, 'yyyy-MM-dd');
                 lessThanTime = format(now, 'yyyy-MM-dd');
-            }
+            
 
             // Set calendar interval based on requested interval
             let calendarInterval = 'month';
@@ -252,6 +255,49 @@ const inflationController = {
                     inflations: emotionsInInterval
                 });
                 
+            }
+
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
+            // For each post in timeIntervalsWithPosts, add matched_terms
+            for (const interval of timeIntervalsWithPosts) {
+                for (const emotion of interval.inflations) {
+                    if (emotion.posts && Array.isArray(emotion.posts)) {
+                        emotion.posts = emotion.posts.map(post => {
+                            const textFields = [
+                                post.message_text,
+                                post.content,
+                                post.keywords,
+                                post.title,
+                                post.hashtags,
+                                post.uSource,
+                                post.source,
+                                post.p_url,
+                                post.userFullname
+                            ];
+                            return {
+                                ...post,
+                                matched_terms: allFilterTerms.filter(term =>
+                                    textFields.some(field => {
+                                        if (!field) return false;
+                                        if (Array.isArray(field)) {
+                                            return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                        }
+                                        return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                    })
+                                )
+                            };
+                        });
+                    }
+                }
             }
 
             return res.json({

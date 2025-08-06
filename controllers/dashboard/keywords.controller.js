@@ -3,6 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const { format, toDate } = require('date-fns');
 const { processFilters } = require('../social-media/filter.utils');
 const prisma = new PrismaClient();
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 /**
  * Helper function to execute Elasticsearch count query
@@ -13,7 +14,8 @@ const executeElasticSearchCount = async (params) => {
     try {
         const response = await elasticClient.count({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: params.body
+            body: params.body,
+            preference: '_local'  // Prefer local shard execution
         });
         return response;
     } catch (error) {
@@ -31,7 +33,9 @@ const executeElasticSearchQuery = async (params) => {
     try {
         const response = await elasticClient.search({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: params
+            body: params,
+            preference: '_local',  // Prefer local shard execution
+            timeout: '30s'  // Set reasonable timeout
         });
         return response;
     } catch (error) {
@@ -46,28 +50,37 @@ const executeElasticSearchQuery = async (params) => {
  * @returns {Promise<String>} Elasticsearch query string
  */
 const buildTouchpointQueryString = async (touchpointId) => {
+    // Cache the touchpoint data in memory
+    if (!buildTouchpointQueryString.cache) {
+        buildTouchpointQueryString.cache = new Map();
+    }
+
+    // Check cache first
+    const cached = buildTouchpointQueryString.cache.get(touchpointId);
+    if (cached) {
+        return cached;
+    }
+
     const touchpoint = await prisma.touch_points.findMany({
         where: { tp_id: touchpointId },
         select: { tp_keywords: true }
     });
 
     if (!touchpoint || touchpoint.length === 0 || !touchpoint[0].tp_keywords) {
+        buildTouchpointQueryString.cache.set(touchpointId, '');
         return '';
     }
 
     const keywordsArray = touchpoint[0].tp_keywords.split(',');
-    let keywordsQueryString = '';
+    const keywordsQueryString = keywordsArray
+        .map(keyword => keyword.trim())
+        .filter(keyword => keyword !== '')
+        .map(keyword => `"${keyword}"`)
+        .join(' OR ');
 
-    for (const keyword of keywordsArray) {
-        if (keyword.trim() !== '') {
-            keywordsQueryString += `"${keyword.trim()}" OR `;
-        }
-    }
-
-    // Remove the last ' OR '
-    keywordsQueryString = keywordsQueryString.slice(0, -4);
-
-    return `p_message_text:(${keywordsQueryString})`;
+    const result = keywordsQueryString ? `p_message_text:(${keywordsQueryString})` : '';
+    buildTouchpointQueryString.cache.set(touchpointId, result);
+    return result;
 };
 
 /**
@@ -76,12 +89,25 @@ const buildTouchpointQueryString = async (touchpointId) => {
  * @returns {Promise<Array>} Array of touchpoints
  */
 const getAllTouchpoints = async (subtopicId) => {
+    // Cache the touchpoints data in memory
+    if (!getAllTouchpoints.cache) {
+        getAllTouchpoints.cache = new Map();
+    }
+
+    // Check cache first
+    const cached = getAllTouchpoints.cache.get(subtopicId);
+    if (cached) {
+        return cached;
+    }
+
     const touchpoints = await prisma.cx_touch_points.findMany({
         where: { cx_tp_cx_id: subtopicId },
         select: { cx_tp_tp_id: true }
     });
 
-    return touchpoints.length > 0 ? touchpoints : [];
+    const result = touchpoints.length > 0 ? touchpoints : [];
+    getAllTouchpoints.cache.set(subtopicId, result);
+    return result;
 };
 
 /**
@@ -90,9 +116,23 @@ const getAllTouchpoints = async (subtopicId) => {
  * @returns {Promise<Array>} Touchpoint data
  */
 const getTouchpointData = async (touchpointId) => {
-    return prisma.touch_points.findMany({
+    // Cache the touchpoint data in memory
+    if (!getTouchpointData.cache) {
+        getTouchpointData.cache = new Map();
+    }
+
+    // Check cache first
+    const cached = getTouchpointData.cache.get(touchpointId);
+    if (cached) {
+        return cached;
+    }
+
+    const result = await prisma.touch_points.findMany({
         where: { tp_id: touchpointId }
     });
+
+    getTouchpointData.cache.set(touchpointId, result);
+    return result;
 };
 
 const keywordsController = {
@@ -113,7 +153,8 @@ const keywordsController = {
                 category = 'all',
                 source = 'All',
                 unTopic = 'false',
-                sentimentType
+                sentimentType,
+                categoryItems
             } = req.body;
 
             const isScadUser="true";
@@ -181,10 +222,110 @@ const keywordsController = {
                         })
                     }
 
+                    // Add category filters to the query
+                    if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                        const categoryData = processCategoryItems(req.body.categoryItems);
+                        if (Object.keys(categoryData).length > 0) {
+                            const categoryFilters = [];
+                            
+                            Object.values(categoryData).forEach(data => {
+                                if (data.keywords && data.keywords.length > 0) {
+                                    data.keywords.forEach(keyword => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: keyword,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                                if (data.hashtags && data.hashtags.length > 0) {
+                                    data.hashtags.forEach(hashtag => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: hashtag,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                                if (data.urls && data.urls.length > 0) {
+                                    data.urls.forEach(url => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: url,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                            });
+
+                            if (categoryFilters.length > 0) {
+                                params.body.query.bool.must.push({
+                                    bool: {
+                                        should: categoryFilters,
+                                        minimum_should_match: 1
+                                    }
+                                });
+                            }
+                        }
+                    } else if (req.processedCategories && Object.keys(req.processedCategories).length > 0) {
+                        const categoryFilters = [];
+                        
+                        Object.values(req.processedCategories).forEach(data => {
+                            if (data.keywords && data.keywords.length > 0) {
+                                data.keywords.forEach(keyword => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: keyword,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                            if (data.hashtags && data.hashtags.length > 0) {
+                                data.hashtags.forEach(hashtag => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: hashtag,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                            if (data.urls && data.urls.length > 0) {
+                                data.urls.forEach(url => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: url,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                        });
+
+                        if (categoryFilters.length > 0) {
+                            params.body.query.bool.must.push({
+                                bool: {
+                                    should: categoryFilters,
+                                    minimum_should_match: 1
+                                }
+                            });
+                        }
+                    }
+
                     const es_data = await executeElasticSearchCount(params)
         
                     // Fetch posts for this touchpoint
-                    const MAX_POSTS_PER_KEYWORD = 30;
+                    const MAX_POSTS_PER_KEYWORD = 10;
                     const limit = Math.min(es_data.count, MAX_POSTS_PER_KEYWORD);
                     
                     let posts = [];
@@ -193,7 +334,30 @@ const keywordsController = {
                             const postsQuery = {
                                 size: limit,
                                 query: params.body.query,
-                                sort: [{ created_at: { order: 'desc' } }]
+                                sort: [{ p_created_time: { order: 'desc' } }],
+                                _source: {
+                                    includes: [
+                                        'p_content',
+                                        'p_url',
+                                        'p_picture_url',
+                                        'predicted_sentiment_value',
+                                        'source',
+                                        'u_fullname',
+                                        'p_created_time',
+                                        'created_at',
+                                        'p_engagement',
+                                        'p_likes',
+                                        'p_comments',
+                                        'p_shares',
+                                        'rating',
+                                        'comment',
+                                        'business_response',
+                                        'u_source',
+                                        'name',
+                                        'p_message_text',
+                                        'p_comments_data'
+                                    ]
+                                }
                             };
                             
                             const postsResponse = await executeElasticSearchQuery(postsQuery);
@@ -299,11 +463,111 @@ const keywordsController = {
                         match: { predicted_sentiment_value: sentimentType.trim() }
                         })
                     }
-            
+
+                    // Add category filters to the query
+                    if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                        const categoryData = processCategoryItems(req.body.categoryItems);
+                        if (Object.keys(categoryData).length > 0) {
+                            const categoryFilters = [];
+                            
+                            Object.values(categoryData).forEach(data => {
+                                if (data.keywords && data.keywords.length > 0) {
+                                    data.keywords.forEach(keyword => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: keyword,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                                if (data.hashtags && data.hashtags.length > 0) {
+                                    data.hashtags.forEach(hashtag => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: hashtag,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                                if (data.urls && data.urls.length > 0) {
+                                    data.urls.forEach(url => {
+                                        categoryFilters.push({
+                                            multi_match: {
+                                                query: url,
+                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                                type: 'phrase'
+                                            }
+                                        });
+                                    });
+                                }
+                            });
+
+                            if (categoryFilters.length > 0) {
+                                params.body.query.bool.must.push({
+                                    bool: {
+                                        should: categoryFilters,
+                                        minimum_should_match: 1
+                                    }
+                                });
+                            }
+                        }
+                    } else if (req.processedCategories && Object.keys(req.processedCategories).length > 0) {
+                        const categoryFilters = [];
+                        
+                        Object.values(req.processedCategories).forEach(data => {
+                            if (data.keywords && data.keywords.length > 0) {
+                                data.keywords.forEach(keyword => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: keyword,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                            if (data.hashtags && data.hashtags.length > 0) {
+                                data.hashtags.forEach(hashtag => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: hashtag,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                            if (data.urls && data.urls.length > 0) {
+                                data.urls.forEach(url => {
+                                    categoryFilters.push({
+                                        multi_match: {
+                                            query: url,
+                                            fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                            type: 'phrase'
+                                        }
+                                    });
+                                });
+                            }
+                        });
+
+                        if (categoryFilters.length > 0) {
+                            params.body.query.bool.must.push({
+                                bool: {
+                                    should: categoryFilters,
+                                    minimum_should_match: 1
+                                }
+                            });
+                        }
+                    }
+
                     const results = await executeElasticSearchCount(params)
             
                     // Fetch posts for this keyword
-                    const MAX_POSTS_PER_KEYWORD = 30;
+                    const MAX_POSTS_PER_KEYWORD = 10;
                     const limit = Math.min(results.count, MAX_POSTS_PER_KEYWORD);
                     
                     let posts = [];
@@ -312,7 +576,30 @@ const keywordsController = {
                             const postsQuery = {
                                 size: limit,
                                 query: params.body.query,
-                                sort: [{ created_at: { order: 'desc' } }]
+                                sort: [{ p_created_time: { order: 'desc' } }],
+                                _source: {
+                                    includes: [
+                                        'p_content',
+                                        'p_url',
+                                        'p_picture_url',
+                                        'predicted_sentiment_value',
+                                        'source',
+                                        'u_fullname',
+                                        'p_created_time',
+                                        'created_at',
+                                        'p_engagement',
+                                        'p_likes',
+                                        'p_comments',
+                                        'p_shares',
+                                        'rating',
+                                        'comment',
+                                        'business_response',
+                                        'u_source',
+                                        'name',
+                                        'p_message_text',
+                                        'p_comments_data'
+                                    ]
+                                }
                             };
                             
                             const postsResponse = await executeElasticSearchQuery(postsQuery);
@@ -333,6 +620,71 @@ const keywordsController = {
             
                 // Sort array by key_count descending
                 responseArray.sort((a, b) => b.key_count - a.key_count)
+                // Determine which category data to use
+                let categoryData = {};
+                
+                if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                  categoryData = processCategoryItems(req.body.categoryItems);
+                } else {
+                  // Fall back to middleware data
+                  categoryData = req.processedCategories || {};
+                }
+
+                // Gather all filter terms from category data
+                let allFilterTerms = [];
+                if (categoryData && Object.keys(categoryData).length > 0) {
+                  Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                  });
+                }
+
+                // After posts are fetched for each keyword/touchpoint, add matched_terms to each post
+                responseArray.forEach(item => {
+                  item.posts = item.posts.map(post => {
+                    const textFields = [
+                      post.p_message_text,
+                      post.p_message,
+                      post.keywords,
+                      post.title,
+                      post.hashtags,
+                      post.u_source,
+                      post.p_url,
+                      post.u_fullname
+                    ];
+                    let matched = Array.isArray(allFilterTerms) && allFilterTerms.length > 0 ? allFilterTerms.filter(term =>
+                      textFields.some(field => {
+                        if (!field) return false;
+                        if (Array.isArray(field)) {
+                          return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                        }
+                        return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                      })
+                    ) : [];
+                    // If for some reason no term is found, do a secondary check (should not happen if ES query is correct)
+                    if (matched.length === 0 && allFilterTerms.length > 0) {
+                      for (const term of allFilterTerms) {
+                        for (const field of textFields) {
+                          if (!field) continue;
+                          if (Array.isArray(field)) {
+                            if (field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()))) {
+                              matched.push(term);
+                              break;
+                            }
+                          } else if (typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase())) {
+                            matched.push(term);
+                            break;
+                          }
+                        }
+                      }
+                      // Remove duplicates
+                      matched = [...new Set(matched)];
+                    }
+                    post.matched_terms = matched;
+                    return post;
+                  });
+                });
             
                 return res.status(200).json({ success: true, responseArray })
 
@@ -464,7 +816,8 @@ const formatPostData = (hit) => {
         businessResponse: source.business_response,
         uSource: source.u_source,
         googleName: source.name,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+         p_comments_data:source.p_comments_data,
     };
 };
 

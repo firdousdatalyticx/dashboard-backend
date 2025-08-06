@@ -45,6 +45,26 @@ router.post('/', topicCategoriesController.createCategories);
  */
 router.get('/topic/:topicId', transformCategoryData, topicCategoriesController.getCategoriesByTopicId);
 
+
+
+/**
+ * @swagger
+ * /topic-categories/topic/{topicId}:
+ *   get:
+ *     summary: Get topic categories and sub-categories
+ *     description: Retrieves all categories and sub-categories for a specific topic. Requires authentication. The response is transformed by categoryTransform middleware.
+ *     tags: [Topic Categories]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: topicId
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID of the topic to get categories for
+ */
+router.get('/topic/subcategories/:topicId', transformCategoryData, topicCategoriesController.getSubCategoriesByTopicId);
 /**
  * @swagger
  * /topic-categories/{id}:
@@ -97,5 +117,8 @@ router.post('/check', transformCategoryData, topicCategoriesController.checkCate
 
 // Route to get topic statistics with Google and social media counts
 router.get('/stats', transformCategoryData, topicCategoriesController.getTopicStats);
+
+// Bulk create topic categories (no Swagger)
+router.post('/bulk', express.json(), topicCategoriesController.bulkCreateCategories);
 
 module.exports = router; 

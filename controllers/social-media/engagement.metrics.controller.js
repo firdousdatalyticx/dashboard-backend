@@ -1,6 +1,7 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { buildTopicQueryString } = require('../../utils/queryBuilder');
 const { processFilters } = require('./filter.utils');
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 /**
  * Helper function to build Elasticsearch query template with performance optimizations
@@ -207,14 +208,21 @@ const engagementController = {
                 comparisonEndDate,
                 source = 'All',
                 category = 'all',
-                topicId
+                topicId,
+                categoryItems
             } = req.body;
 
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-            const categoryData = req.processedCategories || {};
-            
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }            
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -233,7 +241,6 @@ const engagementController = {
                     toDate,
                     sentimentType,
                     queryString: query,
-                    isSpecialTopic // Pass special topic flag
                 });
                    // // Handle special case for unTopic
             let queryTimeRange = {
@@ -245,7 +252,7 @@ const engagementController = {
               const queryRange = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic);
+            }, source, isSpecialTopic,parseInt(topicId));
 
             
             // Add caching headers to the response
@@ -263,9 +270,8 @@ const engagementController = {
                 greaterThanTime = '2023-01-01';
                 lessThanTime = '2023-04-30';
             }
-
+            console.log(filters.queryString)
             let response, graphData, totalCount;
-
             if (type === 'shares') {
                 const aggsShares = {
                     total_shares: { sum: { field: 'p_shares' } }
@@ -461,7 +467,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 * @param {string} source - Source to filter by
 * @returns {Object} Elasticsearch query object
 */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
     const query = {
         bool: {
             must: [

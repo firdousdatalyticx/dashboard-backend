@@ -1,6 +1,6 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays } = require('date-fns');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 const touchpointsAnalysisController = {
     /**
      * Get touchpoints analysis data grouped by sentiment for stacked bar chart
@@ -23,8 +23,14 @@ const touchpointsAnalysisController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -37,18 +43,7 @@ const touchpointsAnalysisController = {
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use provided dates or wider range
-                if (greaterThanTime && lessThanTime) {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                } else {
-                    // Default to wider range for special topic
-                    const twoYearsAgo = subDays(now, 730);
-                    effectiveGreaterThanTime = format(twoYearsAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = format(now, 'yyyy-MM-dd');
-                }
-            } else {
+            
                 // For regular topics, use 90 days default if not provided
                 if (!greaterThanTime || !lessThanTime) {
                     const ninetyDaysAgo = subDays(now, 90);
@@ -58,7 +53,7 @@ const touchpointsAnalysisController = {
                     effectiveGreaterThanTime = greaterThanTime;
                     effectiveLessThanTime = lessThanTime;
                 }
-            }
+            
 
             // Build base query
             const query = buildBaseQuery({
@@ -167,75 +162,164 @@ const touchpointsAnalysisController = {
                         // Create post details object for this post
                         const postDetails = formatPostData(hit);
                         
-                        // Process each touchpoint in the document
-                        Object.entries(touchpoints).forEach(([touchpointName, touchpointSentiment]) => {
-                            const touchpointKey = touchpointName.trim();
-                            const sentimentKey = touchpointSentiment.trim();
-                            
-                            if (!touchpointsMap.has(touchpointKey)) {
-                                touchpointsMap.set(touchpointKey, {
-                                    touchpoint: touchpointKey,
-                                    sentiments: {
-                                        'Positive': { count: 0, posts: [] },
-                                        'Negative': { count: 0, posts: [] },
-                                        'Neutral': { count: 0, posts: [] },
-                                        'Distrustful': { count: 0, posts: [] },
-                                        'Supportive': { count: 0, posts: [] }
-                                    },
-                                    totalCount: 0
-                                });
-                            }
-                            
-                            const touchpointData = touchpointsMap.get(touchpointKey);
-                            touchpointData.totalCount++;
-                            
-                            // Initialize sentiment if it doesn't exist
-                            if (!touchpointData.sentiments[sentimentKey]) {
-                                touchpointData.sentiments[sentimentKey] = { count: 0, posts: [] };
-                            }
-                            
-                            touchpointData.sentiments[sentimentKey].count++;
-                            touchpointData.sentiments[sentimentKey].posts.push(postDetails);
-                            
-                            totalCount++;
-                        });
+                      // Process each touchpoint in the document
+Object.entries(touchpoints).forEach(([touchpointName, touchpointSentiment]) => {
+    const touchpointKey = touchpointName.trim();
+    const sentimentKey = touchpointSentiment.trim();
+
+    const predictedSentiment = postDetails.predicted_sentiment?.trim().toLowerCase();
+    const touchpointSentimentLower = sentimentKey.toLowerCase();
+
+    // ✅ Only process if predicted sentiment matches touchpoint sentiment
+    if (predictedSentiment === touchpointSentimentLower) {
+        if (!touchpointsMap.has(touchpointKey)) {
+            touchpointsMap.set(touchpointKey, {
+                touchpoint: touchpointKey,
+                sentiments: {
+                    'Positive': { count: 0, posts: [] },
+                    'Negative': { count: 0, posts: [] },
+                    'Neutral': { count: 0, posts: [] },
+                    'Distrustful': { count: 0, posts: [] },
+                    'Supportive': { count: 0, posts: [] }
+                },
+                totalCount: 0
+            });
+        }
+
+        const touchpointData = touchpointsMap.get(touchpointKey);
+        touchpointData.totalCount++;
+
+        // Initialize sentiment if it doesn't exist
+        if (!touchpointData.sentiments[sentimentKey]) {
+            touchpointData.sentiments[sentimentKey] = { count: 0, posts: [] };
+        }
+
+        touchpointData.sentiments[sentimentKey].count++;
+        touchpointData.sentiments[sentimentKey].posts.push(postDetails);
+
+        totalCount++;
+    }
+});
+
                     } catch (error) {
                         console.error('Error parsing touchpoints JSON:', error, touchpointsStr);
                     }
                 }
             });
 
-            // Convert maps to arrays and format for chart
-            const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
-                // Convert sentiments object to array, filtering out zero counts
-                const sentiments = Object.entries(touchpoint.sentiments)
-                    .filter(([_, data]) => data.count > 0)
-                    .map(([sentimentName, data]) => ({
-                        name: sentimentName,
-                        count: data.count,
-                        percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
-                        posts: data.posts
-                    }))
-                    .sort((a, b) => b.count - a.count); // Sort by count descending
+            // // Convert maps to arrays and format for chart
+            // const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
+            //     console.log(touchpoint.sentiments)
+            //     // Convert sentiments object to array, filtering out zero counts
+            //     const sentiments = Object.entries(touchpoint.sentiments)
+            //         .filter(([_, data]) => data.count > 0)
+            //         .map(([sentimentName, data]) => ({
+            //             name: sentimentName,
+            //             count: data.count,
+            //             percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
+            //             posts: data.posts
+            //         }))
+            //         .sort((a, b) => b.count - a.count); // Sort by count descending
 
-                return {
-                    touchpoint: touchpoint.touchpoint,
-                    sentiments: sentiments,
-                    totalCount: touchpoint.totalCount,
-                    // Add individual sentiment counts for easy chart building
-                    positive: touchpoint.sentiments['Positive']?.count || 0,
-                    negative: touchpoint.sentiments['Negative']?.count || 0,
-                    neutral: touchpoint.sentiments['Neutral']?.count || 0,
-                    distrustful: touchpoint.sentiments['Distrustful']?.count || 0,
-                    supportive: touchpoint.sentiments['Supportive']?.count || 0
-                };
-            });
+            //     return {
+            //         touchpoint: touchpoint.touchpoint,
+            //         sentiments: sentiments,
+            //         totalCount: touchpoint.totalCount,
+            //         // Add individual sentiment counts for easy chart building
+            //         positive: touchpoint.sentiments['Positive']?.count || 0,
+            //         negative: touchpoint.sentiments['Negative']?.count || 0,
+            //         neutral: touchpoint.sentiments['Neutral']?.count || 0,
+            //         distrustful: touchpoint.sentiments['Distrustful']?.count || 0,
+            //         supportive: touchpoint.sentiments['Supportive']?.count || 0
+            //     };
+            // });
+
+
+const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
+    const sentiments = Object.entries(touchpoint.sentiments)
+        .filter(([name, data]) => {
+            if (sentiment === 'All' || sentiment==="") return data.count > 0;
+            return name.toLowerCase() === sentiment && data.count > 0;
+        })
+        .map(([sentimentName, data]) => ({
+            name: sentimentName,
+            count: data.count,
+            percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
+            posts: data.posts
+        }))
+        .sort((a, b) => b.count - a.count);
+
+    // Normalize sentiment access based on sentiment
+    const getCount = (sentiment) =>
+        sentiment === 'All' || sentiment==="" || sentiment === sentiment.toLowerCase()
+            ? touchpoint.sentiments[sentiment]?.count || 0
+            : 0;
+
+    return {
+        touchpoint: touchpoint.touchpoint,
+        sentiments,
+        totalCount: touchpoint.totalCount,
+        positive: getCount('Positive'),
+        negative: getCount('Negative'),
+        neutral: getCount('Neutral'),
+        distrustful: getCount('Distrustful'),
+        supportive: getCount('Supportive')
+    };
+});
+
 
             // Sort touchpoints by total count descending (highest bars first)
             touchpointsArray.sort((a, b) => b.totalCount - a.totalCount);
 
             // Limit to top 10 touchpoints
             const top10Touchpoints = touchpointsArray.slice(0, 15);
+
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
+            // For each post in touchpointsArray[].sentiments[].posts, add matched_terms
+            if (touchpointsArray && Array.isArray(touchpointsArray)) {
+                touchpointsArray.forEach(tpObj => {
+                    if (tpObj.sentiments && Array.isArray(tpObj.sentiments)) {
+                        tpObj.sentiments.forEach(sentimentObj => {
+                            if (sentimentObj.posts && Array.isArray(sentimentObj.posts)) {
+                                sentimentObj.posts = sentimentObj.posts.map(post => {
+                                    const textFields = [
+                                        post.message_text,
+                                        post.content,
+                                        post.keywords,
+                                        post.title,
+                                        post.hashtags,
+                                        post.uSource,
+                                        post.source,
+                                        post.p_url,
+                                        post.userFullname
+                                    ];
+                                    return {
+                                        ...post,
+                                        matched_terms: allFilterTerms.filter(term =>
+                                            textFields.some(field => {
+                                                if (!field) return false;
+                                                if (Array.isArray(field)) {
+                                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                                }
+                                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                            })
+                                        )
+                                    };
+                                });
+                            }
+                        });
+                    }
+                });
+            }
 
             return res.json({
                 success: true,

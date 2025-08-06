@@ -14,19 +14,17 @@ const socialsDistributionsController = {
                 sources = 'All',
                 unTopic='false',
                 llm_mention_type,
-          
+                countries, // Add countries parameter
+                keywords, // Accept keywords in payload
+                organizations, // Accept organizations in payload
+                cities // Accept cities in payload
             } = req.body;
             const source = sources;
-
-            const availableDataSources = req.processedDataSources || [];
-
-            // Log middleware data for debugging
-            console.log('Middleware data sources:', availableDataSources);
-            console.log('Requested sources:', sources);
 
             // Get category data from middleware
             const categoryData = req.processedCategories || {};
 
+            const availableDataSources = req.processedDataSources || [];
             // If there's nothing to search for, return zero counts
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
@@ -67,11 +65,11 @@ const socialsDistributionsController = {
                             };
                         }
             
-                        // Build base query with middleware source filtering
+                        // Build base query
                         const query = buildBaseQuery({
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
-                        }, source, availableDataSources);
+                        }, source);
             
                         // Add category filters
                         addCategoryFilters(query, category, categoryData);
@@ -135,6 +133,55 @@ const socialsDistributionsController = {
                         }
                     }
                 }
+          
+            // Apply country filter if provided
+            if (countries && Array.isArray(countries) && countries.length > 0) {
+                query.bool.must.push({
+                    terms: {
+                        "u_city.keyword": countries
+                    }
+                });
+            }
+
+            // Add keywords filter if provided
+            if (keywords && Array.isArray(keywords) && keywords.length > 0) {
+                const keywordsFilter = {
+                    bool: {
+                        should: keywords.map(keyword => ({
+                            multi_match: {
+                                query: keyword,
+                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                type: 'phrase'
+                            }
+                        })),
+                        minimum_should_match: 1
+                    }
+                };
+                query.bool.must.push(keywordsFilter);
+            }
+
+            // Apply cities filter if provided
+            if (cities && Array.isArray(cities) && cities.length > 0) {
+                query.bool.must.push({
+                    bool: {
+                        should: cities.flatMap(city => ([
+                            { match_phrase: { 'llm_specific_locations': city } }
+                        ])),
+                        minimum_should_match: 1
+                    }
+                });
+            }
+            // Apply organizations filter if provided
+            if (organizations && Array.isArray(organizations) && organizations.length > 0) {
+                query.bool.must.push({
+                    bool: {
+                        should: organizations.flatMap(org => ([
+                            { term: { 'llm_business_name.keyword': org } }
+                        ])),
+                        minimum_should_match: 1
+                    }
+                });
+            }
 
             // Now create the aggregation query with the same base query
             const aggQuery = {
@@ -178,6 +225,28 @@ const socialsDistributionsController = {
                             ]
                         }
                     };
+                    // Add cities filter if provided
+                    if (cities && Array.isArray(cities) && cities.length > 0) {
+                        postsQuery.bool.must.push({
+                            bool: {
+                                should: cities.flatMap(city => ([
+                                    { match_phrase: { 'llm_specific_locations': city } }
+                                ])),
+                                minimum_should_match: 1
+                            }
+                        });
+                    }
+                    // Add organizations filter if provided
+                    if (organizations && Array.isArray(organizations) && organizations.length > 0) {
+                        postsQuery.bool.must.push({
+                            bool: {
+                                should: organizations.flatMap(org => ([
+                                    { term: { 'llm_business_name.keyword': org } }
+                                ])),
+                                minimum_should_match: 1
+                            }
+                        });
+                    }
 
                     const postsResponse = await elasticClient.search({
                         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -299,10 +368,9 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
  * @param {string} source - Source to filter by
- * @param {Array} availableDataSources - Array of available data sources from middleware
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, availableDataSources = []) {
+function buildBaseQuery(dateRange, source) {
     const query = {
         bool: {
             must: [
@@ -333,7 +401,7 @@ function buildBaseQuery(dateRange, source, availableDataSources = []) {
         }
     };
 
-    // Add source filter
+    // Add source filter if a specific source is selected
     if (source !== 'All') {
         let sourceArray = [];
         if (typeof source === 'string' && source.includes(',')) {
@@ -356,32 +424,14 @@ function buildBaseQuery(dateRange, source, availableDataSources = []) {
                 }
             });
         }
-    } else if (availableDataSources && availableDataSources.length > 0) {
-        // Use available data sources if present
-        console.log('Using middleware data sources for filtering:', availableDataSources);
-        query.bool.must.push({
-            bool: {
-                should: availableDataSources.map(source => ({
-                    match_phrase: { source: source }
-                })),
-                minimum_should_match: 1
-            }
-        });
     } else {
-        // Fallback to default sources if no middleware data
-        console.log('No middleware data sources available, using default sources');
         query.bool.must.push({
             bool: {
                 should: [
                     { match_phrase: { source: "Facebook" } },
                     { match_phrase: { source: "Twitter" } },
                     { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } },
-                    { match_phrase: { source: "TikTok" } }
+          
                 ],
                 minimum_should_match: 1
             }

@@ -2,6 +2,7 @@ const prisma = require("../../config/database");
 const { elasticClient } = require("../../config/elasticsearch");
 const { buildTopicQueryString } = require("../../utils/queryBuilder");
 const { processFilters } = require("./filter.utils");
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 //Benchmarking presence & sentiment - IGOs / NGOs / Countries
 const distributionbyCountryPostsController = {
@@ -35,7 +36,15 @@ const distributionbyCountryPostsController = {
         // Check if this is the special topicId
         const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-                          const categoryData = req.processedCategories || {};
+                          // Determine which category data to use
+                          let categoryData = {};
+                          
+                          if (req.query.categoryItems && Array.isArray(req.query.categoryItems) && req.query.categoryItems.length > 0) {
+                            categoryData = processCategoryItems(req.query.categoryItems);
+                          } else {
+                            // Fall back to middleware data
+                            categoryData = req.processedCategories || {};
+                          }
 
                           if (Object.keys(categoryData).length === 0) {
                               return res.json({ 
@@ -74,7 +83,7 @@ const distributionbyCountryPostsController = {
                         const query = buildBaseQuery({
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
-                        }, source, isSpecialTopic);
+                        }, source, isSpecialTopic,parseInt(topicId));
             
                         // Add category filters
                         addCategoryFilters(query, "all", categoryData);
@@ -124,6 +133,15 @@ const distributionbyCountryPostsController = {
         // Execute the Elasticsearch query.
         const results = await elasticClient.search(params);
         const responseArray =[];
+        // Gather all filter terms
+        let allFilterTerms = [];
+        if (categoryData) {
+          Object.values(categoryData).forEach((data) => {
+            if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+            if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+            if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+          });
+        }
         for (let l = 0; l < results?.hits?.hits?.length; l++) {
             let esData = results?.hits?.hits[l]
             let user_data_string = ''
@@ -254,7 +272,26 @@ const distributionbyCountryPostsController = {
               googleName: esData._source.name,
               created_at: new Date(esData._source.p_created_time).toLocaleString()
             }
-    
+            // Add matched_terms
+            const textFields = [
+              esData._source.p_message_text,
+              esData._source.p_message,
+              esData._source.keywords,
+              esData._source.title,
+              esData._source.hashtags,
+              esData._source.u_source,
+              esData._source.p_url,
+              esData._source.u_fullname
+            ];
+            cardData.matched_terms = allFilterTerms.filter(term =>
+              textFields.some(field => {
+                if (!field) return false;
+                if (Array.isArray(field)) {
+                  return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                }
+                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+              })
+            );
             responseArray.push(cardData)
           }
   

@@ -1,6 +1,6 @@
 const { elasticClient } = require("../../config/elasticsearch");
 const { buildTopicQueryString } = require("../../utils/queryBuilder");
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 /**
  * Helper function to build Elasticsearch query params for word cloud data
  * @param {Object} options Query options
@@ -20,7 +20,8 @@ const buildWordCloudParams = (options) => {
       gte: fromDate != null ? fromDate : "now-90d",
       lte: toDate != null ? toDate : "now",
     },
-    llm_mention_type
+    llm_mention_type,
+    topicId
   } = options;
 
   const [sortField, sortOrder] = sort.split(":");
@@ -136,7 +137,8 @@ const buildPostsByPhraseParams = (options) => {
       gte: fromDate != null ? fromDate : "now-90d",
       lte: toDate != null ? toDate : "now",
     },
-    llm_mention_type
+    llm_mention_type,
+    topicId
   } = options;
 
   const [sortField, sortOrder] = sort.split(":");
@@ -168,6 +170,8 @@ const buildPostsByPhraseParams = (options) => {
     sentimentType === "positive"
       ? "llm_positive_points.keyword"
       : "llm_negative_points.keyword";
+
+    const sourceData =   source != "All" ? source : topicId && parseInt(topicId)===2619?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
 
   // Base query structure
   const baseQuery = {
@@ -230,9 +234,15 @@ const wordCloudController = {
    */
   getWordPhrases: async (req, res) => {
     try {
-      const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type } = req.body;
-      const categoryData = req.processedCategories || {};
-
+      const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type,topicId } = req.body;
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -284,7 +294,8 @@ const wordCloudController = {
         fromDate,
         toDate,
         source,
-        llm_mention_type
+        llm_mention_type,
+        topicId
       });
 
 
@@ -317,6 +328,7 @@ const wordCloudController = {
           value: term.doc_count,
         })),
         total: posts.length,
+        query:params
         
       });
     } catch (error) {
@@ -346,11 +358,18 @@ const wordCloudController = {
         page = 1,
         size = 100,
         sort = "p_created_time:desc",
-        llm_mention_type
+        llm_mention_type,
+        topicId
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
-
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
       if (!phrase) {
         return res.status(400).json({
           success: false,
@@ -411,7 +430,8 @@ const wordCloudController = {
         fromDate,
         toDate,
         source,
-        llm_mention_type
+        llm_mention_type,
+        topicId
       });
 
       const response = await elasticClient.search({
@@ -440,6 +460,7 @@ const wordCloudController = {
         total: response.hits.total.value,
         page,
         size,
+        params
       });
     } catch (error) {
       console.error("Error fetching posts by phrase:", error);

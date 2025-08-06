@@ -1,5 +1,5 @@
 const { elasticClient } = require('../../config/elasticsearch');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 // Helper function to merge trend arrays by date
 function mergeArraysByDate(arr1, arr2) {
     const mergedMap = new Map();
@@ -33,25 +33,26 @@ const leaderboardAnalysisController = {
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ leaderboard: [] });
             }
 
             // Calculate date filter - for special topic, use wider range
             let dateFilter;
-            if (isSpecialTopic) {
-                // For special topic, use a wider range instead of 90 days
-                const twoYearsAgo = new Date();
-                twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-                dateFilter = twoYearsAgo.toISOString();
-            } else {
+          
                 // Calculate date 90 days ago
                 const ninetyDaysAgo = new Date();
                 ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
                 dateFilter = ninetyDaysAgo.toISOString();
-            }
+            
 
 
                         let dateRange;
@@ -331,7 +332,7 @@ const leaderboardAnalysisController = {
                             minimum_should_match: 1
                         }
                     };
-                    query.bool.must.push(sentimentFilter);
+                    params.body.query.bool.must.push(sentimentFilter);
                 } else {
                     // Handle single sentiment type
                     params.body.query.bool.must.push({
@@ -354,6 +355,15 @@ const leaderboardAnalysisController = {
                 }
             const result = await elasticClient.search(params);
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
             let leaderboard = Object.entries(result.aggregations?.categories?.buckets || {}).map(
                 ([category, data]) => {
                     const sentiments = data.sentiments.buckets;
@@ -396,18 +406,37 @@ const leaderboardAnalysisController = {
                             }));
                             return mergeArraysByDate(acc, trends);
                         }, []),
-                        sampleReviews: data.sentiments.buckets.reduce((acc, sentiment) => {
-                            return [
-                                ...acc,
-                                ...sentiment.sample_reviews.hits.hits.map((review) => ({
-                                    message: review._source.p_message,
-                                    date: review._source.created_at,
-                                    sentiment: review._source.predicted_sentiment_value,
-                                    keywords: review._source.keywords,
-                                    relevanceScore: review._score
-                                }))
-                            ];
-                        }, [])
+                        sampleReviews: data.sentiments.buckets
+                            .reduce((acc, sentiment) => {
+                                return [
+                                    ...acc,
+                                    ...sentiment.sample_reviews.hits.hits.map((review) => {
+                                        const textFields = [
+                                            review._source.p_message,
+                                            review._source.p_message_text,
+                                            review._source.keywords,
+                                            review._source.title,
+                                            review._source.hashtags,
+                                            review._source.u_source,
+                                            review._source.p_url,
+                                            review._source.u_fullname
+                                        ];
+                                        return {
+                                            ...review._source,
+                                            relevanceScore: review._score,
+                                            matched_terms: allFilterTerms.filter(term =>
+                                                textFields.some(field => {
+                                                    if (!field) return false;
+                                                    if (Array.isArray(field)) {
+                                                        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                                    }
+                                                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                                })
+                                            )
+                                        };
+                                    })
+                                ];
+                            }, [])
                     };
                 }
             );

@@ -437,13 +437,21 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { buildTopicQueryString } = require('../../utils/queryBuilder');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 const emotionPolarityController = {
     getEmotionPolarity: async (req, res) => {
         try {
-            const categoryData = req.processedCategories || {};
             const availableDataSources = req.processedDataSources || [];
             
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }            
             // Get request parameters
             const params = req.method === 'POST' ? req.body : req.query;
             const { 
@@ -632,6 +640,16 @@ const emotionPolarityController = {
                 };
             });
 
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
             // Now fetch posts for each top emotion
             const emotionsWithPostsPromises = topEmotions.map(async emotionBucket => {
                 const emotionName = emotionBucket.key;
@@ -664,7 +682,33 @@ const emotionPolarityController = {
                 };
                 
                 // Get all posts for this emotion
-                const allPosts = await fetchAllPostsForEmotion(emotionQuery, parseInt(maxPostsPerEmotion, 10));
+                const allPostsRaw = await fetchAllPostsForEmotion(emotionQuery, parseInt(maxPostsPerEmotion, 10));
+                // Add matched_terms to each post
+                const allPosts = allPostsRaw.map(post => {
+                    const textFields = [
+                        post.message_text,
+                        post.content,
+                        post.keywords,
+                        post.title,
+                        post.hashtags,
+                        post.uSource,
+                        post.source,
+                        post.p_url,
+                        post.userFullname
+                    ];
+                    return {
+                        ...post,
+                        matched_terms: allFilterTerms.filter(term =>
+                            textFields.some(field => {
+                                if (!field) return false;
+                                if (Array.isArray(field)) {
+                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                }
+                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                            })
+                        )
+                    };
+                });
                 
                 // Skip emotions with no posts if skipEmptyEmotions is true
                 if (skipEmptyEmotions && allPosts.length === 0) {
@@ -907,7 +951,9 @@ const formatPostData = async (hit) => {
         message_text,
         source: source.source,
         uSource: source.u_source,
-        created_at: new Date(source.p_created_time).toLocaleString()
+        created_at: new Date(source.p_created_time).toLocaleString(),
+        p_comments_data:source.p_comments_data,
+
     };
 };
 

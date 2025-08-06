@@ -1,6 +1,6 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays } = require('date-fns');
-
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 const themesSentimentAnalysisController = {
     /**
      * Get themes grouped by sentiment analysis for stacked bar chart
@@ -23,8 +23,14 @@ const themesSentimentAnalysisController = {
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -37,18 +43,7 @@ const themesSentimentAnalysisController = {
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use provided dates or default to last 90 days
-                if (greaterThanTime && lessThanTime) {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                } else {
-                    // No default date restriction for special topic
-                    const ninetyDaysAgo = subDays(now, 90);
-                    effectiveGreaterThanTime = format(ninetyDaysAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = format(now, 'yyyy-MM-dd');
-                }
-            } else {
+       
                 // For regular topics, default to last 90 days if not provided
                 if (!greaterThanTime || !lessThanTime) {
                     const ninetyDaysAgo = subDays(now, 90);
@@ -58,7 +53,7 @@ const themesSentimentAnalysisController = {
                     effectiveGreaterThanTime = greaterThanTime;
                     effectiveLessThanTime = lessThanTime;
                 }
-            }
+            
 
             // Build base query
             const query = buildBaseQuery({
@@ -94,6 +89,15 @@ const themesSentimentAnalysisController = {
                         }
                     });
                 }
+            }else{
+                const aggs = {
+                    sentiment_counts: {
+                    terms: {
+                        field: 'predicted_sentiment_value.keyword',
+                        size: 10
+                    }
+                    }
+                };
             }
 
             // Add category filters
@@ -106,7 +110,6 @@ const themesSentimentAnalysisController = {
                 }
             });
 
-            console.log('Themes Sentiment Analysis Query:', JSON.stringify(query, null, 2));
 
             // Execute the query to get all documents with themes_sentiments
             const params = {
@@ -154,8 +157,9 @@ const themesSentimentAnalysisController = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: params
             });
+            // console.log('Themes Sentiment Analysis Query:', JSON.stringify(query, null, 2));
 
-            console.log('Themes Sentiment Analysis Response hits:', response.hits.hits.length);
+            // console.log('Themes Sentiment Analysis Response hits:', response.hits.hits.length);
 
             // Process the themes sentiment data
             const themesSentimentMap = new Map();
@@ -168,33 +172,42 @@ const themesSentimentAnalysisController = {
                 if (themesStr && themesStr.trim() !== '') {
                     try {
                         const themes = JSON.parse(themesStr);
+                        console.log("themes",themes)
                         
                         // Create post details object for this post
                         const postDetails = formatPostData(hit);
+                        // if(themesStr==postDetails?.predicted_sentiment){
                         
                         // Process each theme and its sentiment in the document
-                        Object.entries(themes).forEach(([themeName, themeSentiment]) => {
-                            const cleanThemeName = themeName.trim();
-                            const cleanSentiment = themeSentiment.trim();
-                            
-                            sentimentTypes.add(cleanSentiment);
-                            
-                            if (!themesSentimentMap.has(cleanThemeName)) {
-                                themesSentimentMap.set(cleanThemeName, new Map());
-                            }
-                            
-                            const themeData = themesSentimentMap.get(cleanThemeName);
-                            
-                            if (!themeData.has(cleanSentiment)) {
-                                themeData.set(cleanSentiment, { count: 0, posts: [] });
-                            }
-                            
-                            const sentimentData = themeData.get(cleanSentiment);
-                            sentimentData.count++;
-                            sentimentData.posts.push(postDetails);
-                            
-                            totalCount++;
-                        });
+                      Object.entries(themes).forEach(([themeName, themeSentiment]) => {
+    const cleanThemeName = themeName.trim();
+    const cleanSentiment = themeSentiment.trim();
+    
+    sentimentTypes.add(cleanSentiment);
+    
+    if (!themesSentimentMap.has(cleanThemeName)) {
+        themesSentimentMap.set(cleanThemeName, new Map());
+    }
+    
+    const themeData = themesSentimentMap.get(cleanThemeName);
+    
+    if (!themeData.has(cleanSentiment)) {
+        themeData.set(cleanSentiment, { count: 0, posts: [] });
+    }
+
+    const predictedSentiment = postDetails.predicted_sentiment?.trim().toLowerCase();
+    const themeSentimentLower = cleanSentiment.toLowerCase();
+
+    // ✅ Match predicted sentiment with theme sentiment
+    if (predictedSentiment === themeSentimentLower) {
+        const sentimentData = themeData.get(cleanSentiment);
+        sentimentData.count++;
+        sentimentData.posts.push(postDetails);
+        totalCount++;
+    }
+});
+
+                    // }
                     } catch (error) {
                         console.error('Error parsing themes_sentiments JSON:', error, themesStr);
                     }
@@ -205,60 +218,111 @@ const themesSentimentAnalysisController = {
             console.log('Themes sentiment data:', themesSentimentMap);
 
             // Convert to chart-friendly format for stacked bar chart
-            const chartData = [];
-            const sortedThemes = Array.from(themesSentimentMap.keys()).sort();
-            const sortedSentiments = Array.from(sentimentTypes).sort();
+    const selectedSentiment = sentiment;
+const chartData = [];
+const sortedThemes = Array.from(themesSentimentMap.keys()).sort();
+const sortedSentiments = Array.from(sentimentTypes).sort();
 
-            sortedThemes.forEach(themeName => {
-                const themeData = themesSentimentMap.get(themeName);
-                const sentimentCounts = {};
-                let themeTotal = 0;
+sortedThemes.forEach(themeName => {
+    const themeData = themesSentimentMap.get(themeName);
+    const sentimentCounts = {};
+    let themeTotal = 0;
 
-                // Initialize all sentiment types with 0
-                sortedSentiments.forEach(sentiment => {
-                    sentimentCounts[sentiment] = {
-                        count: 0,
-                        posts: []
-                    };
-                });
+    // Initialize all sentiments with 0
+    sortedSentiments.forEach(sentiment => {
+        sentimentCounts[sentiment] = {
+            count: 0,
+            posts: []
+        };
+    });
 
-                // Fill in actual data
-                themeData.forEach((sentimentData, sentiment) => {
-                    sentimentCounts[sentiment] = sentimentData;
-                    themeTotal += sentimentData.count;
-                });
+    // Fill only matching sentiment (if not 'all')
+    themeData.forEach((sentimentData, sentiment) => {
+        if (
+            selectedSentiment === 'all' || selectedSentiment === '' ||
+            sentiment.toLowerCase() === selectedSentiment
+        ) {
+            sentimentCounts[sentiment] = sentimentData;
+            themeTotal += sentimentData.count;
+        }
+    });
 
-                chartData.push({
-                    theme: themeName,
-                    sentiments: sentimentCounts,
-                    totalCount: themeTotal
-                });
+    chartData.push({
+        theme: themeName,
+        sentiments: sentimentCounts,
+        totalCount: themeTotal
+    });
+});
+
+// Sort themes by total count descending
+chartData.sort((a, b) => b.totalCount - a.totalCount);
+
+// Prepare data for stacked bar chart
+const stackedBarData = chartData.map(themeData => {
+    const result = {
+        category: themeData.theme,
+        total: themeData.totalCount
+    };
+
+    sortedSentiments.forEach(sentiment => {
+        result[sentiment] = themeData.sentiments[sentiment].count;
+    });
+
+    return result;
+});
+
+// Gather all filter terms
+let allFilterTerms = [];
+if (categoryData) {
+    Object.values(categoryData).forEach((data) => {
+        if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+        if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+        if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+    });
+}
+
+// For each post in chartData[].sentiments[].posts, add matched_terms
+if (chartData && Array.isArray(chartData)) {
+    chartData.forEach(themeObj => {
+        if (themeObj.sentiments && typeof themeObj.sentiments === 'object') {
+            Object.values(themeObj.sentiments).forEach(sentimentObj => {
+                if (sentimentObj.posts && Array.isArray(sentimentObj.posts)) {
+                    sentimentObj.posts = sentimentObj.posts.map(post => {
+                        const textFields = [
+                            post.message_text,
+                            post.content,
+                            post.keywords,
+                            post.title,
+                            post.hashtags,
+                            post.uSource,
+                            post.source,
+                            post.p_url,
+                            post.userFullname
+                        ];
+                        return {
+                            ...post,
+                            matched_terms: allFilterTerms.filter(term =>
+                                textFields.some(field => {
+                                    if (!field) return false;
+                                    if (Array.isArray(field)) {
+                                        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                    }
+                                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                                })
+                            )
+                        };
+                    });
+                }
             });
+        }
+    });
+}
 
-            // Sort themes by total count descending
-            chartData.sort((a, b) => b.totalCount - a.totalCount);
-
-            // Prepare data for stacked bar chart format
-            const stackedBarData = chartData.map(themeData => {
-                const result = {
-                    category: themeData.theme,
-                    total: themeData.totalCount
-                };
-
-                // Add each sentiment as a separate property
-                sortedSentiments.forEach(sentiment => {
-                    result[sentiment] = themeData.sentiments[sentiment].count;
-                });
-
-                return result;
-            });
-
-            return res.json({
-                success: true,
-                detailedData: chartData,
-              
-             
-            });
+return res.json({
+    success: true,
+    detailedData: chartData,
+    params
+});
 
         } catch (error) {
             console.error('Error fetching themes sentiment analysis data:', error);

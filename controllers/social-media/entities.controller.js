@@ -22,15 +22,22 @@ const entitiesController = {
                 unTopic = 'false',
                 limit = 10,
                 maxPostsPerEntity = 200, // Safety limit for max posts to fetch per entity
-                topicId
+                topicId,
+                categoryItems
             } = params;
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
             // Get category data from middleware
-            const categoryData = req.processedCategories || {};
-
+            let categoryData = {};
+      
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+              categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+              // Fall back to middleware data
+              categoryData = req.processedCategories || {};
+            }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ 
                     entitiesData: [] 
@@ -47,7 +54,6 @@ const entitiesController = {
                 fromDate,
                 toDate,
                 queryString: baseQueryString,
-                isSpecialTopic // Pass special topic flag
             });
             
             // Set date range based on filters or special case
@@ -60,11 +66,7 @@ const entitiesController = {
                 effectiveLessThanTime = '2023-04-30';
             }
             
-            // For special topic, use wider range if no dates provided
-            if (isSpecialTopic && !fromDate && !toDate) {
-                effectiveGreaterThanTime = '2020-01-01';
-                effectiveLessThanTime = 'now';
-            }
+          
             
             // If input dates were provided, they take precedence
             if (inputGreaterThanTime) {
@@ -129,7 +131,6 @@ const entitiesController = {
                         match: { predicted_sentiment_value: sentimentType.trim() }
                     });
                 }
-                console.log("Applied sentiment filter for:", sentimentType);
             }
             
             // For compatibility with posts controller
@@ -168,7 +169,6 @@ const entitiesController = {
             };
 
             // Log query for debugging
-            console.log('Entities query:', JSON.stringify(esParams));
 
             const response = await elasticClient.search({   
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -182,6 +182,15 @@ const entitiesController = {
             const intLimit = parseInt(limit, 10);
             const intMaxPostsPerEntity = parseInt(maxPostsPerEntity, 10);
             
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
             // Process entities one at a time to ensure consistency 
             for (const entity of entityBuckets) {
                 // Skip processing more entities once we've reached our limit
@@ -207,7 +216,33 @@ const entitiesController = {
                 };
                 
                 // Get all matching posts for this entity
-                const allPosts = await fetchAllPostsForEntity(entityPostsQuery, intMaxPostsPerEntity);
+                const allPostsRaw = await fetchAllPostsForEntity(entityPostsQuery, intMaxPostsPerEntity);
+                // Add matched_terms to each post
+                const allPosts = allPostsRaw.map(post => {
+                    const textFields = [
+                        post.message_text,
+                        post.content,
+                        post.keywords,
+                        post.title,
+                        post.hashtags,
+                        post.uSource,
+                        post.source,
+                        post.p_url,
+                        post.userFullname
+                    ];
+                    return {
+                        ...post,
+                        matched_terms: allFilterTerms.filter(term =>
+                            textFields.some(field => {
+                                if (!field) return false;
+                                if (Array.isArray(field)) {
+                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                                }
+                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                            })
+                        )
+                    };
+                });
                 
                 // Skip entities with no posts
                 if (allPosts.length === 0) {

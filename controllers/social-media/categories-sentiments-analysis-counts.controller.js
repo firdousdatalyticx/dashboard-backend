@@ -1,6 +1,7 @@
 const prisma = require("../../config/database");
 const { elasticClient } = require("../../config/elasticsearch");
 const { format, parseISO, subDays } = require("date-fns");
+const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 const sentimentsMultipleCategoriesController = {
   // ... existing getSentimentsAnalysis method ...
@@ -27,8 +28,15 @@ const sentimentsMultipleCategoriesController = {
         });
       }
 
-      // Get category data from middleware
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -223,8 +231,15 @@ const sentimentsMultipleCategoriesController = {
           }
       }
 
-      // Get category data from middleware
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -237,16 +252,12 @@ const sentimentsMultipleCategoriesController = {
       const now = new Date();
       let greaterThanTime, lessThanTime;
       
-      if (isSpecialTopic) {
-        // For special topic, use wider range if no dates provided
-        greaterThanTime = fromDate && fromDate != null ? fromDate : "2020-01-01";
-        lessThanTime = toDate && toDate != null ? toDate : "now";
-      } else {
+    
         // Original logic with 90 days default
         const ninetyDaysAgo = subDays(now, 90);
         greaterThanTime = fromDate && fromDate != null ? fromDate : "now-90d";
         lessThanTime = toDate && toDate != null ? toDate : "now";
-      }
+      
 
       // Build base query (without category filters)
       const baseQuery = buildBaseQuery(
@@ -353,7 +364,6 @@ const sentimentsMultipleCategoriesController = {
         }
       }
 
-      console.log("baseQuery",JSON.stringify(baseQuery))
 
       // Execute single query with all category aggregations
       const params = {
@@ -462,8 +472,15 @@ const sentimentsMultipleCategoriesController = {
         });
       }
 
-      // Get category data from middleware
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      
+      if (req.query.categoryItems && Array.isArray(req.query.categoryItems) && req.query.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.query.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -603,6 +620,15 @@ const sentimentsMultipleCategoriesController = {
         body: params,
       });
       const responseArray = [];
+      // Gather all filter terms
+      let allFilterTerms = [];
+      if (categoryData) {
+        Object.values(categoryData).forEach((data) => {
+          if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+          if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+          if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+        });
+      }
       for (let l = 0; l < results?.hits?.hits?.length; l++) {
         let esData = results?.hits?.hits[l];
         let user_data_string = "";
@@ -754,7 +780,26 @@ const sentimentsMultipleCategoriesController = {
           googleName: esData._source.name,
           created_at: new Date(esData._source.p_created_time).toLocaleString(),
         };
-
+        // Add matched_terms
+        const textFields = [
+          esData._source.p_message_text,
+          esData._source.p_message,
+          esData._source.keywords,
+          esData._source.title,
+          esData._source.hashtags,
+          esData._source.u_source,
+          esData._source.p_url,
+          esData._source.u_fullname
+        ];
+        cardData.matched_terms = allFilterTerms.filter(term =>
+          textFields.some(field => {
+            if (!field) return false;
+            if (Array.isArray(field)) {
+              return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+            }
+            return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+          })
+        );
         responseArray.push(cardData);
       }
 

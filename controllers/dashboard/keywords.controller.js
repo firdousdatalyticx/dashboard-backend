@@ -164,7 +164,6 @@ const keywordsController = {
             
             // Get available data sources from middleware
             const availableDataSources = req.processedDataSources || [];
-            console.log('Available data sources from middleware:', availableDataSources);
             
             // Build source filter string
             let sourceFilterString = '';
@@ -173,7 +172,6 @@ const keywordsController = {
             } else if (availableDataSources.length > 0) {
                 const sourceFilter = availableDataSources.map(source => `"${source}"`).join(' OR ');
                 sourceFilterString = `source:(${sourceFilter})`;
-                console.log('Applied source filter:', sourceFilterString);
             }
         
             if (subtopicId) {

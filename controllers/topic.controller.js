@@ -206,7 +206,6 @@ const topicController = {
 
                     // Add new enabled graphs if any
                     if (parsedEnabledGraphs.length > 0) {
-                        console.log('Parsed enabledGraphs in update:', parsedEnabledGraphs);
                         
                         // Validate that all provided graph IDs exist and are active
                         const validGraphs = await prisma.available_graphs.findMany({
@@ -451,8 +450,6 @@ const topicController = {
                 topic_archive_interval_type
             } = req.body;
 
-
-            console.log(req.body);
         
             
 
@@ -645,7 +642,6 @@ const topicController = {
                 }
 
                 if (Array.isArray(parsedEnabledGraphs) && parsedEnabledGraphs.length > 0) {
-                    console.log('Parsed enabledGraphs:', parsedEnabledGraphs);
                     
                     // Validate that all provided graph IDs exist and are active
                     const validGraphs = await prisma.available_graphs.findMany({

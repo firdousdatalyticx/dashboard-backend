@@ -68,8 +68,6 @@ const reportsController = {
         try {
             const { title, report_data, user_id } = req.body;
 
-            console.log(req.body)
-
             if (!title || !report_data || !user_id) {
                 return res.status(400).json({
                     success: false,

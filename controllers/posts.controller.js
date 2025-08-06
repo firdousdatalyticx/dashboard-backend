@@ -75,7 +75,6 @@ const buildElasticsearchQuery = (params) => {
   } else {
     // Get available data sources from middleware
     const availableDataSources = req?.processedDataSources || [];
-    console.log('Available data sources from middleware:', availableDataSources);
     
     // For special topic, only use Facebook and Twitter
     if (isSpecialTopic) {
@@ -87,7 +86,6 @@ const buildElasticsearchQuery = (params) => {
       if (availableDataSources.length > 0) {
         const sourceFilter = availableDataSources.map(source => `"${source}"`).join(' OR ');
         qsParts.push(`source:(${sourceFilter})`);
-        console.log('Applied source filter:', `source:(${sourceFilter})`);
       } else {
         console.log('Warning: No data sources available from middleware');
       }
@@ -286,7 +284,6 @@ const buildElasticsearchQuery = (params) => {
       must.push({
         term: { rating: ratingValue },
       });
-      console.log(`Filtering for exact rating: ${ratingValue}`);
     } else if (sentiment === "Positive" && !emotion && click != "true") {
       // Only apply sentiment filters if no emotion filter is already applied
       must.push({ range: { rating: { gte: 4, lte: 5 } } });
@@ -650,13 +647,7 @@ const postsController = {
         categoryItems
       } = req.query;
 
-      console.log('Request query parameters:', {
-        topicId,
-        postTypeSource,
-        postType,
-        processedDataSources: req.processedDataSources
-      });
-
+ 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
@@ -682,8 +673,6 @@ const postsController = {
         // Fall back to middleware data
         categoryData = req.processedCategories || {};
       }    
-
-      console.log(categoryData, "categoryData");
 
       // Parse and validate rating if provided.
       const requestedRatingValue = rating ? parseInt(rating, 10) : null;
@@ -755,8 +744,6 @@ const postsController = {
 
       const esQuery = buildElasticsearchQuery(queryParams);
       
-      console.log('Final Elasticsearch query:', JSON.stringify(esQuery, null, 2));
-
       // Apply category filters if needed (for social media sources).
       const isSocialMedia =
         !postTypeSource ||

@@ -10,12 +10,10 @@ const prisma = new PrismaClient();
  */
 const getCustomerReviewElasticId = async (parentAccid) => {
     if (!parentAccid || parentAccid === null) {
-        console.log('parentAccountId is required');
         return null;
     }
     const parentAccountId = Number(parentAccid);
     if (isNaN(parentAccountId)) {
-        console.log('Invalid ID');
         return null;
     }
     try {
@@ -29,7 +27,6 @@ const getCustomerReviewElasticId = async (parentAccid) => {
         });
 
         if (!customer) {
-            console.log('Customer not found');
             return null;
         }
 

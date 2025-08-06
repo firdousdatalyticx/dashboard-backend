@@ -222,7 +222,10 @@ const engagementController = {
             } else {
               // Fall back to middleware data
               categoryData = req.processedCategories || {};
-            }            
+            }
+
+            // Get available data sources from middleware
+            const availableDataSources = req.processedDataSources || [];            
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
@@ -252,7 +255,7 @@ const engagementController = {
               const queryRange = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic,parseInt(topicId));
+            }, source, isSpecialTopic, parseInt(topicId), availableDataSources);
 
             
             // Add caching headers to the response
@@ -465,9 +468,12 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 * Build base query with date range and source filter
 * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
 * @param {string} source - Source to filter by
+* @param {boolean} isSpecialTopic - Whether this is a special topic
+* @param {number} topicId - Topic ID
+* @param {Array} availableDataSources - Available data sources to filter by
 * @returns {Object} Elasticsearch query object
 */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, availableDataSources = []) {
     const query = {
         bool: {
             must: [
@@ -498,54 +504,40 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
         }
     };
   
-    console.log("topicId",topicId)
-  // Handle special topic source filtering
-    if (topicId===2619) {
+      // Add source filter if a specific source is selected
+      if (source !== 'All') {
         query.bool.must.push({
-            bool: {
-                should: [
-                      { match_phrase: { source: "LinkedIn" } },
-                         { match_phrase: { source: "Linkedin" } },
-                ],
-                minimum_should_match: 1
-            }
+            match_phrase: { source: source }
         });
-    }
-    if (isSpecialTopic) {
+    } else if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
         query.bool.must.push({
             bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } }
-                ],
+                should: availableDataSources.map(source => ({
+                    match_phrase: { source: source }
+                })),
                 minimum_should_match: 1
             }
         });
     } else {
-        // Add source filter if a specific source is selected
-        if (source !== 'All') {
-            query.bool.must.push({
-                match_phrase: { source: source }
-            });
-        } else {
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                         { match_phrase: { source: "Linkedin" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        }
+        // Fallback to default sources if no available sources
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                     { match_phrase: { source: "Linkedin" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
     }
   
     return query;

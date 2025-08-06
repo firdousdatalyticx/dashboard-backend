@@ -43,7 +43,8 @@ const buildElasticsearchQuery = (params) => {
     click,
     isSpecialTopic = false,
     llm_mention_type,
-    req // Add req parameter to access middleware data
+    topicId,
+    req
   } = params;
 
   // Build query_string parts in an array
@@ -70,7 +71,7 @@ const buildElasticsearchQuery = (params) => {
         qsParts.push('source:("GoogleMyBusiness")');
         break;
       default:
-        qsParts.push(`source:("${postTypeSource}")`);
+          qsParts.push(`source:("${postTypeSource}")`);
     }
   } else {
     // Get available data sources from middleware
@@ -284,6 +285,7 @@ const buildElasticsearchQuery = (params) => {
       must.push({
         term: { rating: ratingValue },
       });
+      console.log(`Filtering for exact rating: ${ratingValue}`);
     } else if (sentiment === "Positive" && !emotion && click != "true") {
       // Only apply sentiment filters if no emotion filter is already applied
       must.push({ range: { rating: { gte: 4, lte: 5 } } });
@@ -647,7 +649,7 @@ const postsController = {
         categoryItems
       } = req.query;
 
- 
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
@@ -673,6 +675,8 @@ const postsController = {
         // Fall back to middleware data
         categoryData = req.processedCategories || {};
       }    
+
+      console.log(categoryData, "categoryData");
 
       // Parse and validate rating if provided.
       const requestedRatingValue = rating ? parseInt(rating, 10) : null;
@@ -739,11 +743,12 @@ const postsController = {
         click,
         isSpecialTopic,
         llm_mention_type,
-        req // Pass the request object to access middleware data
+        topicId:parseInt(topicId),
+        req
       };
 
       const esQuery = buildElasticsearchQuery(queryParams);
-      
+
       // Apply category filters if needed (for social media sources).
       const isSocialMedia =
         !postTypeSource ||

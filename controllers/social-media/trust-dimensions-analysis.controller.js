@@ -21,12 +21,33 @@ const trustDimensionsAnalysisController = {
                 tone = "Distrustful"
             } = req.body;
 
-            // Debug logging
-            console.log('Trust Dimensions Analysis Request:');
-            console.log('- topicId:', topicId);
-            console.log('- tone filter:', tone);
-            console.log('- source:', source);
-            console.log('- category:', category);
+                // Allowed countries list (22 countries)
+            const allowedCountries = [
+                'Algeria',
+                'Arab Countries',
+                'Bahrain',
+                'Djibouti',
+                'Egypt',
+                'Iraq',
+                'Jordan',
+                'Kuwait',
+                'Lebanon',
+                'Libya',
+                'Mauritania',
+                'Morocco',
+                'Oman',
+                'Palestine',
+                'Qatar',
+                'Saudi Arabia',
+                'Somalia',
+                'Sudan',
+                'Syria',
+                'Tunisia',
+                'UAE',
+                'Yemen'
+            ];
+
+
 
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -125,6 +146,12 @@ const trustDimensionsAnalysisController = {
                 exists: {
                     field: 'u_country'
                 }
+            });
+
+            // Restrict to the 22 allowed countries
+            query.bool.filter = query.bool.filter || [];
+            query.bool.filter.push({
+                terms: { 'u_country.keyword': allowedCountries }
             });
 
             // Execute the query to get all documents with trust_dimensions and u_country

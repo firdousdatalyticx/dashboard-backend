@@ -2,6 +2,9 @@ const prisma = require('../../config/database');
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+// Cap the number of posts we attach per theme in the word cloud to keep
+// processing and payload light without changing the response structure
+const WORDCLOUD_POSTS_CAP = 20;
 const trustDimensionsController = {
     /**
      * Get trust dimensions analysis data for social media posts
@@ -531,7 +534,8 @@ const trustDimensionsController = {
 
         // Set up the search parameters
         const params = {
-            size: 10000, // Increased size to get more documents for processing
+            size: 10000, // upper bound; increase only if strictly necessary
+            track_total_hits: false, // avoid expensive total-hit counting
             query: query,
             _source: [
                 "trust_dimensions", 
@@ -564,7 +568,8 @@ const trustDimensionsController = {
         // Execute the search
         const response = await elasticClient.search({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: params
+            body: params,
+            timeout: '10s'
         });
 
 
@@ -701,7 +706,9 @@ for (const esData of hits) {
         toneArr.push({ text: themeText, value: 1, posts: [cardData] });
       } else {
         found.value++;
-        found.posts.push(cardData);
+        if (found.posts.length < WORDCLOUD_POSTS_CAP) {
+          found.posts.push(cardData);
+        }
       }
     }
   }

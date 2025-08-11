@@ -1,6 +1,6 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { processFilters } = require('./filter.utils');
-const { format } = require('date-fns');
+// Removed date-fns import as counts endpoint no longer needs date formatting
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 const socialsDistributionsController = {
     getDistributions: async (req, res) => {
@@ -12,7 +12,6 @@ const socialsDistributionsController = {
                 sentimentType,
                 category = 'all',
                 source = 'All',
-                unTopic='false',
                 topicId,
                 llm_mention_type
             } = req.body;
@@ -47,11 +46,20 @@ const socialsDistributionsController = {
                             queryString: baseQueryString,
                         });
             
-                        // Handle special case for unTopic
-                        let queryTimeRange = {
-                            gte: filters.greaterThanTime,
-                            lte: filters.lessThanTime
-                        };
+                        // Build time range: if no dates are provided, DO NOT apply default last90days
+                        const noDateProvided = (
+                            (timeSlot === null || timeSlot === undefined || timeSlot === '') &&
+                            (fromDate === null || fromDate === undefined || fromDate === '') &&
+                            (toDate === null || toDate === undefined || toDate === '')
+                        );
+
+                        let queryTimeRange = null;
+                        if (!noDateProvided) {
+                            queryTimeRange = {
+                                gte: filters.greaterThanTime,
+                                lte: filters.lessThanTime
+                            };
+                        }
 
                         if (Number(topicId) == 2473) {
                             queryTimeRange = {
@@ -62,10 +70,15 @@ const socialsDistributionsController = {
             
         
                         // Build base query
-                        const query = buildBaseQuery({
-                            greaterThanTime: queryTimeRange.gte,
-                            lessThanTime: queryTimeRange.lte
-                        }, source, isSpecialTopic,parseInt(topicId));
+                        const query = buildBaseQuery(
+                            queryTimeRange ? {
+                                greaterThanTime: queryTimeRange.gte,
+                                lessThanTime: queryTimeRange.lte
+                            } : null,
+                            source,
+                            isSpecialTopic,
+                            parseInt(topicId)
+                        );
             
                         // Add category filters
                         addCategoryFilters(query, category, categoryData);
@@ -145,15 +158,8 @@ const socialsDistributionsController = {
             });
 
             // Get total count using the same query (for comparison with mentions-trend)
-            const totalCountQuery = {
-                query: query,
-                size: 0
-            };
-            const totalCountResponse = await elasticClient.search({
-                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: totalCountQuery
-            });
-            const totalCount = totalCountResponse.hits.total.value || totalCountResponse.hits.total || 0;
+            // Note: total count is not returned in this endpoint for performance
+            // If needed, it can be added back with a lightweight count aggregation
 
             // Extract the aggregation buckets
             const buckets = aggResponse.aggregations.source_counts.buckets;
@@ -164,70 +170,7 @@ const socialsDistributionsController = {
                 }
                 return acc;
             }, {});
-
-            // Merge LinkedIn variants into a single count and fetch posts for each source
-            const finalSourceCounts = {};
-            let linkedinCount = 0;
-            const sourcePostsPromises = [];
-
-            // 1. Gather all terms used for filtering
-            let allFilterTerms = [];
-            if (category === 'all') {
-                Object.values(categoryData).forEach(data => {
-                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
-                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
-                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
-                });
-            } else if (categoryData[category]) {
-                const data = categoryData[category];
-                if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
-                if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
-                if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
-            }
-
-            // First, merge LinkedIn variants and prepare post fetching
-            for (const [source, count] of Object.entries(sourceCounts)) {
-                if (source === 'LinkedIn' || source === 'Linkedin') {
-                    linkedinCount += count;
-                } else {
-                    finalSourceCounts[source] = count;
-                    // Add promise to fetch posts for this source
-                    sourcePostsPromises.push(fetchPostsForSource(source, query, 30, allFilterTerms));
-                }
-            }
-
-            // Add combined LinkedIn count and fetch LinkedIn posts if there are any
-            if (linkedinCount > 0) {
-                finalSourceCounts['LinkedIn'] = linkedinCount;
-                // Fetch posts for LinkedIn (including both variants)
-                sourcePostsPromises.push(fetchPostsForLinkedIn(query, 30, allFilterTerms));
-            }
-
-            // Wait for all post fetching to complete
-            const postsResults = await Promise.all(sourcePostsPromises);
-            
-            // Build final response with posts
-            const finalResponse = {};
-            let postIndex = 0;
-            
-            for (const [source, count] of Object.entries(finalSourceCounts)) {
-                if (source === 'LinkedIn') {
-                    // LinkedIn posts are fetched separately (last in the array if exists)
-                    const linkedInPosts = linkedinCount > 0 ? postsResults[postsResults.length - 1] : [];
-                    finalResponse[source] = {
-                        count: count,
-                        posts: linkedInPosts
-                    };
-                } else {
-                    finalResponse[source] = {
-                        count: count,
-                        posts: postsResults[postIndex] || []
-                    };
-                    postIndex++;
-                }
-            }
-
-            return res.json(finalResponse);
+            return res.json(sourceCounts);
         } catch (error) {
             console.error('Error fetching social media distributions:', error);
             return res.status(500).json({ 
@@ -292,16 +235,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
     const query = {
         bool: {
-            must: [
-                {
-                    range: {
-                        p_created_time: {
-                            gte: dateRange.greaterThanTime,
-                            lte: dateRange.lessThanTime
-                        }
-                    }
-                }
-            ],
+            must: [],
             must_not: [
                 {
                     term: {
@@ -311,6 +245,17 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
             ]
         }
     };
+    // Only apply time range if provided
+    if (dateRange && dateRange.greaterThanTime && dateRange.lessThanTime) {
+        query.bool.must.push({
+            range: {
+                p_created_time: {
+                    gte: dateRange.greaterThanTime,
+                    lte: dateRange.lessThanTime
+                }
+            }
+        });
+    }
     if(topicId===2619){
             query.bool.must.push({
                         bool: {
@@ -456,231 +401,6 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
     }
 }
 
-/**
- * Fetch posts for a specific source
- * @param {string} sourceName - Name of the source
- * @param {Object} baseQuery - Base Elasticsearch query
- * @param {number} maxPosts - Maximum number of posts to fetch
- * @returns {Array} Array of formatted posts
- */
-async function fetchPostsForSource(sourceName, baseQuery, maxPosts = 30, allFilterTerms = []) {
-    try {
-        const sourceQuery = {
-            bool: {
-                must: [
-                    ...baseQuery.bool.must,
-                    {
-                        match_phrase: { source: sourceName }
-                    }
-                ],
-                must_not: baseQuery.bool.must_not || []
-            }
-        };
-
-        const postsQuery = {
-            size: maxPosts,
-            query: sourceQuery,
-            sort: [{ p_created_time: { order: 'desc' } }]
-        };
-
-        const response = await elasticClient.search({
-            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: postsQuery
-        });
-
-        return response.hits.hits.map(hit => formatPostData(hit, allFilterTerms));
-    } catch (error) {
-        console.error(`Error fetching posts for source ${sourceName}:`, error);
-        return [];
-    }
-}
-
-/**
- * Fetch posts for LinkedIn (both LinkedIn and Linkedin variants)
- * @param {Object} baseQuery - Base Elasticsearch query
- * @param {number} maxPosts - Maximum number of posts to fetch
- * @returns {Array} Array of formatted posts
- */
-async function fetchPostsForLinkedIn(baseQuery, maxPosts = 30, allFilterTerms = []) {
-    try {
-        const linkedInQuery = {
-            bool: {
-                must: [
-                    ...baseQuery.bool.must,
-                    {
-                        bool: {
-                            should: [
-                                { match_phrase: { source: "LinkedIn" } },
-                                { match_phrase: { source: "Linkedin" } }
-                            ],
-                            minimum_should_match: 1
-                        }
-                    }
-                ],
-                must_not: baseQuery.bool.must_not || []
-            }
-        };
-
-        const postsQuery = {
-            size: maxPosts,
-            query: linkedInQuery,
-            sort: [{ p_created_time: { order: 'desc' } }]
-        };
-
-        const response = await elasticClient.search({
-            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: postsQuery
-        });
-
-        return response.hits.hits.map(hit => formatPostData(hit, allFilterTerms));
-    } catch (error) {
-        console.error('Error fetching posts for LinkedIn:', error);
-        return [];
-    }
-}
-
-/**
- * Format post data for the frontend
- * @param {Object} hit - Elasticsearch document hit
- * @returns {Object} Formatted post data
- */
-const formatPostData = (hit, allFilterTerms = []) => {
-    const source = hit._source;
-
-    // Use a default image if a profile picture is not provided
-    const profilePic = source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-    // Social metrics
-    const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
-    const following = source.u_following > 0 ? `${source.u_following}` : '';
-    const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
-    const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
-
-    // Emotion
-    const llm_emotion = source.llm_emotion ||
-        (source.source === 'GoogleMyBusiness' && source.rating
-            ? (source.rating >= 4 ? 'Supportive'
-                : source.rating <= 2 ? 'Frustrated'
-                    : 'Neutral')
-            : '');
-
-    // Clean up comments URL if available
-    const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
-        ? source.p_url.trim().replace('https: // ', 'https://')
-        : '';
-
-    const comments = `${source.p_comments}`;
-    const shares = source.p_shares > 0 ? `${source.p_shares}` : '';
-    const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : '';
-
-    const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
-    const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ''
-        ? source.p_picture_url
-        : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-    // Determine sentiment
-    let predicted_sentiment = '';
-    let predicted_category = '';
-    
-    if (source.predicted_sentiment_value)
-        predicted_sentiment = `${source.predicted_sentiment_value}`;
-    else if (source.source === 'GoogleMyBusiness' && source.rating) {
-        predicted_sentiment = source.rating >= 4 ? 'Positive'
-            : source.rating <= 2 ? 'Negative'
-                : 'Neutral';
-    }
-
-    if (source.predicted_category) predicted_category = source.predicted_category;
-
-    // Handle YouTube-specific fields
-    let youtubeVideoUrl = '';
-    let profilePicture2 = '';
-    if (source.source === 'Youtube') {
-        if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
-        else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
-    } else {
-        profilePicture2 = source.p_picture ? source.p_picture : '';
-    }
-
-    // Determine source icon based on source name
-    let sourceIcon = '';
-    const userSource = source.source;
-    if (['khaleej_times', 'Omanobserver', 'Time of oman', 'Blogs'].includes(userSource))
-        sourceIcon = 'Blog';
-    else if (userSource === 'Reddit')
-        sourceIcon = 'Reddit';
-    else if (['FakeNews', 'News'].includes(userSource))
-        sourceIcon = 'News';
-    else if (userSource === 'Tumblr')
-        sourceIcon = 'Tumblr';
-    else if (userSource === 'Vimeo')
-        sourceIcon = 'Vimeo';
-    else if (['Web', 'DeepWeb'].includes(userSource))
-        sourceIcon = 'Web';
-    else
-        sourceIcon = userSource;
-
-    // Format message text – with special handling for GoogleMaps/Tripadvisor
-    let message_text = '';
-    if (['GoogleMaps', 'Tripadvisor'].includes(source.source)) {
-        const parts = source.p_message_text.split('***|||###');
-        message_text = parts[0].replace(/\n/g, '<br>');
-    } else {
-        message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
-    }
-
-    // Find matched terms
-    const textFields = [
-        source.p_message_text,
-        source.p_message,
-        source.keywords,
-        source.title,
-        source.hashtags,
-        source.u_source,
-        source.p_url,
-        source.u_fullname
-    ];
-    const matched_terms = allFilterTerms.filter(term =>
-        textFields.some(field => {
-            if (!field) return false;
-            if (Array.isArray(field)) {
-                return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-            }
-            return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-        })
-    );
-
-    return {
-        profilePicture: profilePic,
-        profilePicture2,
-        userFullname: source.u_fullname,
-        user_data_string: '',
-        followers,
-        following,
-        posts,
-        likes,
-        llm_emotion,
-        commentsUrl,
-        comments,
-        shares,
-        engagements,
-        content,
-        image_url: imageUrl,
-        predicted_sentiment,
-        predicted_category,
-        youtube_video_url: youtubeVideoUrl,
-        source_icon: `${source.p_url},${sourceIcon}`,
-        message_text,
-        source: source.source,
-        rating: source.rating,
-        comment: source.comment,
-        businessResponse: source.business_response,
-        uSource: source.u_source,
-        googleName: source.name,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
-        p_comments_data: source.p_comments_data,
-        matched_terms,
-    };
-};
+// Removed post formatting and helpers to keep this controller lean for counts-only
 
 module.exports = socialsDistributionsController;

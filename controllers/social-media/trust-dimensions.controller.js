@@ -532,204 +532,89 @@ const trustDimensionsController = {
             }
         }
 
-        // Set up the search parameters
+        // Aggregation-based word cloud
         const params = {
-            size: 10000, // upper bound; increase only if strictly necessary
-            track_total_hits: false, // avoid expensive total-hit counting
-            query: query,
-            _source: [
-                "trust_dimensions", 
-                "theme_evidences",
-                "p_message", 
-                "p_message_text", 
-                "created_at", 
-                "source",
-                "u_profile_photo",
-                "u_followers",
-                "u_following",
-                "u_posts",
-                "p_likes",
-                "p_comments_text",
-                "p_url",
-                "p_comments",
-                "p_shares",
-                "p_engagement",
-                "p_content",
-                "p_picture_url",
-                "predicted_sentiment_value",
-                "u_fullname",
-                "p_created_time",
-                "video_embed_url",
-                "p_picture",
-                "p_id"
-            ]
+            size: 0,
+            query,
+            aggs: {
+                themes: {
+                    terms: { field: 'theme_evidences.keyword', size: 300, order: { _count: 'desc' } },
+                    aggs: {
+                        tone: { terms: { field: 'trust_dimensions.keyword', size: 1 } },
+                        posts: {
+                            top_hits: {
+                                size: WORDCLOUD_POSTS_CAP,
+                                sort: [{ p_created_time: { order: 'desc' } }],
+                                _source: [
+                                    'trust_dimensions', 'theme_evidences', 'created_at', 'p_created_time',
+                                    'source', 'p_message', 'p_message_text', 'u_profile_photo', 'u_fullname', 'p_url',
+                                    'p_id', 'p_picture', 'p_picture_url', 'predicted_sentiment_value', 'predicted_category',
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
         };
 
-        // Execute the search
         const response = await elasticClient.search({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
             body: params,
+            request_cache: true,
+            track_total_hits: false,
             timeout: '10s'
         });
 
-
-const hits = response?.hits?.hits || [];
-const trustDimensionsMap = {};
-const dimensionsByTone = {
-  Supportive: [],
-  Distrustful: [],
-  Neutral: [],
-  Mixed: [],
-  "Not Applicable": []
-};
-
-const toneColors = {
-  Supportive: "#52C41A",
-  Distrustful: "#FF4D4F",
-  Neutral: "#1890FF",
-  Mixed: "#FAAD14",
-  "Not Applicable": "#8C8C8C"
-};
-
-let totalTrustPosts = 0;
-
-for (const esData of hits) {
-  const source = esData._source;
-
-  let trustDimensionsData = {};
-  try {
-    trustDimensionsData = typeof source.trust_dimensions === "string"
-      ? JSON.parse(source.trust_dimensions)
-      : source.trust_dimensions || {};
-  } catch (err) {
-    console.error("Invalid trust_dimensions:", err);
-  }
-
-  const themes = source.theme_evidences || [];
-
-  if (Object.keys(trustDimensionsData).length > 0) {
-    totalTrustPosts++;
-
-    const tone = Object.values(trustDimensionsData)[0]?.trim() || "Not Applicable";
-    const color = toneColors[tone] || "#8C8C8C";
-
-    const profilePic = source.u_profile_photo || `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
-    const imageUrl = source.p_picture_url?.trim() !== ""
-      ? source.p_picture_url
-      : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
-
-    const commentsUrl = source.p_comments_text
-      ? source.p_url?.trim().replace("https: // ", "https://")
-      : "";
-
-    let predicted_sentiment = "";
-    const chk_senti = await prisma.customers_label_data.findMany({
-      where: { p_id: esData._id },
-      orderBy: { label_id: "desc" },
-      take: 1,
-    });
-    if (chk_senti.length > 0 && chk_senti[0]?.predicted_sentiment_value_requested) {
-      predicted_sentiment = chk_senti[0].predicted_sentiment_value_requested;
-    } else {
-      predicted_sentiment = source.predicted_sentiment_value || "";
-    }
-
-    const youtubeVideoUrl = source.source === "Youtube"
-      ? (source.video_embed_url || (source.p_id ? `https://www.youtube.com/embed/${source.p_id}` : ""))
-      : "";
-
-    const sourceIcon = (() => {
-      const s = source.source;
-      if (["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(s)) return "Blog";
-      if (s === "Reddit") return "Reddit";
-      if (["FakeNews", "News"].includes(s)) return "News";
-      if (s === "Tumblr") return "Tumblr";
-      if (["Web", "DeepWeb"].includes(s)) return "Web";
-      return s;
-    })();
-
-    const message_text = ["GoogleMaps", "Tripadvisor"].includes(source.source)
-      ? (source.p_message_text?.split("***|||###")[0] || "").replace(/\n/g, "<br>")
-      : (source.p_message_text || "").replace(/<\/?[^>]+(>|$)/g, "");
-
-    const cardData = {
-      profilePicture: profilePic,
-      profilePicture2: source.p_picture || "",
-      userFullname: source.u_fullname,
-      user_data_string: "",
-      followers: source.u_followers > 0 ? `${source.u_followers}` : "",
-      following: source.u_following > 0 ? `${source.u_following}` : "",
-      posts: source.u_posts > 0 ? `${source.u_posts}` : "",
-      likes: source.p_likes > 0 ? `${source.p_likes}` : "",
-      llm_emotion: source.llm_emotion || "",
-      commentsUrl,
-      comments: `${source.p_comments}`,
-      shares: source.p_shares > 0 ? `${source.p_shares}` : "",
-      engagements: source.p_engagement > 0 ? `${source.p_engagement}` : "",
-      content: source.p_content || "",
-      image_url: imageUrl,
-      predicted_sentiment,
-      predicted_category: source.predicted_category || "",
-      youtube_video_url: youtubeVideoUrl,
-      source_icon: `${source.p_url},${sourceIcon}`,
-      message_text,
-      source: source.source,
-      rating: source.rating,
-      comment: source.comment,
-      businessResponse: source.business_response,
-      uSource: source.u_source,
-      googleName: source.name,
-      created_at: new Date(source.p_created_time).toLocaleString(),
-    };
-
-    for (const theme of themes) {
-      const themeText = theme.split(" ").slice(0, 5).join(" ");
-
-      if (!trustDimensionsMap[themeText]) {
-        trustDimensionsMap[themeText] = {
-          text: themeText,
-          value: 1,
-          tone,
-          color,
-          posts: [cardData],
+        const toneColors = {
+            Supportive: '#52C41A',
+            Distrustful: '#FF4D4F',
+            Neutral: '#1890FF',
+            Mixed: '#FAAD14',
+            'Not Applicable': '#8C8C8C',
         };
-      } else {
-        trustDimensionsMap[themeText].value++;
-        trustDimensionsMap[themeText].posts.push(cardData);
-      }
 
-      if (!dimensionsByTone[tone]) dimensionsByTone[tone] = [];
-      const toneArr = dimensionsByTone[tone];
+        const extractTone = (raw) => {
+            if (!raw || typeof raw !== 'string') return 'Not Applicable';
+            const trimmed = raw.trim();
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                try {
+                    const obj = JSON.parse(trimmed);
+                    const vals = Object.values(obj);
+                    return vals.length > 0 ? String(vals[0]).trim() : 'Not Applicable';
+                } catch (_) {
+                    return 'Not Applicable';
+                }
+            }
+            return 'Not Applicable';
+        };
 
-      const found = toneArr.find((d) => d.text === themeText);
-      if (!found) {
-        toneArr.push({ text: themeText, value: 1, posts: [cardData] });
-      } else {
-        found.value++;
-        if (found.posts.length < WORDCLOUD_POSTS_CAP) {
-          found.posts.push(cardData);
+        const themeBuckets = response.aggregations?.themes?.buckets || [];
+        const trustDimensions = [];
+        const dimensionsByTone = {};
+        const toneTotals = {};
+
+        for (const b of themeBuckets) {
+            const text = b.key;
+            const value = b.doc_count;
+            const toneBucket = b.tone?.buckets?.[0];
+            const tone = extractTone(toneBucket?.key);
+            const color = toneColors[tone] || '#8C8C8C';
+            const postsHits = b.posts?.hits?.hits || [];
+            const posts = postsHits.map((h) => formatPostData(h));
+
+            trustDimensions.push({ text, value, tone, color, posts });
+            if (!dimensionsByTone[tone]) dimensionsByTone[tone] = [];
+            dimensionsByTone[tone].push({ text, value, posts });
+            toneTotals[tone] = (toneTotals[tone] || 0) + value;
         }
-      }
-    }
-  }
-}
 
-const toneTotals = {};
-Object.entries(dimensionsByTone).forEach(([tone, dimensions]) => {
-  toneTotals[tone] = dimensions.reduce((acc, d) => acc + d.value, 0);
-});
-
-return res.json({
-  response,
-  success: true,
-  trustDimensions: Object.values(trustDimensionsMap),
-  totalTrustPosts,
-  toneTotals,
-  dimensionsByTone,
-  dateRange: useTimeFilter
-    ? { from: greaterThanTime, to: lessThanTime }
-    : null
-});
+        return res.json({
+            success: true,
+            trustDimensions,
+            toneTotals,
+            dimensionsByTone,
+            dateRange: useTimeFilter ? { from: greaterThanTime, to: lessThanTime } : null,
+        });
 
 } catch (error) {
         console.error('Error fetching trust dimensions analysis data:', error);

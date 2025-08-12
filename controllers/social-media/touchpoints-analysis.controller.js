@@ -148,63 +148,75 @@ const touchpointsAnalysisController = {
                 body: params
             });
 
-            // Process the touchpoints by sentiment data
+            // Process the touchpoints by sentiment data (touchpoints is a string like "Social Welfare Programs")
             const touchpointsMap = new Map();
             let totalCount = 0;
 
             response.hits.hits.forEach(hit => {
-                const touchpointsStr = hit._source.touchpoints;
-                
-                if (touchpointsStr && touchpointsStr.trim() !== '') {
+                const tpRaw = hit._source.touchpoints;
+                if (!tpRaw || String(tpRaw).trim() === '') return;
+
+                const rawStr = String(tpRaw).trim();
+                let touchpointList = [];
+
+                const looksLikeJsonObject = rawStr.startsWith('{') && rawStr.endsWith('}');
+
+                // Case 1: JSON object string like {"Political Change": "Negative"}
+                if (looksLikeJsonObject) {
                     try {
-                        const touchpoints = JSON.parse(touchpointsStr);
-                        
-                        // Create post details object for this post
-                        const postDetails = formatPostData(hit);
-                        
-                      // Process each touchpoint in the document
-Object.entries(touchpoints).forEach(([touchpointName, touchpointSentiment]) => {
-    const touchpointKey = touchpointName.trim();
-    const sentimentKey = touchpointSentiment.trim();
-
-    const predictedSentiment = postDetails.predicted_sentiment?.trim().toLowerCase();
-    const touchpointSentimentLower = sentimentKey.toLowerCase();
-
-    // ✅ Only process if predicted sentiment matches touchpoint sentiment
-    if (predictedSentiment === touchpointSentimentLower) {
-        if (!touchpointsMap.has(touchpointKey)) {
-            touchpointsMap.set(touchpointKey, {
-                touchpoint: touchpointKey,
-                sentiments: {
-                    'Positive': { count: 0, posts: [] },
-                    'Negative': { count: 0, posts: [] },
-                    'Neutral': { count: 0, posts: [] },
-                    'Distrustful': { count: 0, posts: [] },
-                    'Supportive': { count: 0, posts: [] }
-                },
-                totalCount: 0
-            });
-        }
-
-        const touchpointData = touchpointsMap.get(touchpointKey);
-        touchpointData.totalCount++;
-
-        // Initialize sentiment if it doesn't exist
-        if (!touchpointData.sentiments[sentimentKey]) {
-            touchpointData.sentiments[sentimentKey] = { count: 0, posts: [] };
-        }
-
-        touchpointData.sentiments[sentimentKey].count++;
-        touchpointData.sentiments[sentimentKey].posts.push(postDetails);
-
-        totalCount++;
-    }
-});
-
-                    } catch (error) {
-                        console.error('Error parsing touchpoints JSON:', error, touchpointsStr);
+                        const obj = JSON.parse(rawStr);
+                        const keys = Object.keys(obj || {});
+                        // If object has no keys (e.g., "{}"), skip entirely
+                        if (keys.length === 0) {
+                            return; // ignore this hit
+                        }
+                        touchpointList = keys
+                            .map(k => String(k || '').trim())
+                            .filter(k => k.length > 0);
+                    } catch (e) {
+                        // Malformed JSON; ignore JSON branch and try CSV fallback below
                     }
                 }
+
+                // Case 2: Plain string like "Social Welfare Programs" or CSV list
+                if (!looksLikeJsonObject && touchpointList.length === 0) {
+                    touchpointList = rawStr
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(s => s.length > 0 && s !== '{}' && s !== '[]');
+                }
+
+                if (touchpointList.length === 0) return;
+
+                const postDetails = formatPostData(hit);
+                const predicted = (postDetails.predicted_sentiment || '').trim();
+                if (!predicted) return; // skip if no predicted sentiment
+
+                touchpointList.forEach(touchpointKey => {
+                    if (!touchpointsMap.has(touchpointKey)) {
+                        touchpointsMap.set(touchpointKey, {
+                            touchpoint: touchpointKey,
+                            sentiments: {
+                                'Positive': { count: 0, posts: [] },
+                                'Negative': { count: 0, posts: [] },
+                                'Neutral': { count: 0, posts: [] },
+                            },
+                            totalCount: 0,
+                        });
+                    }
+
+                    const tpData = touchpointsMap.get(touchpointKey);
+                    tpData.totalCount++;
+                    if (!tpData.sentiments[predicted]) {
+                        tpData.sentiments[predicted] = { count: 0, posts: [] };
+                    }
+                    tpData.sentiments[predicted].count++;
+                    // Cap to 10 posts per sentiment
+                    if (tpData.sentiments[predicted].posts.length < 10) {
+                        tpData.sentiments[predicted].posts.push(postDetails);
+                    }
+                    totalCount++;
+                });
             });
 
             // // Convert maps to arrays and format for chart
@@ -245,7 +257,7 @@ const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
             name: sentimentName,
             count: data.count,
             percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
-            posts: data.posts
+            posts: data.posts.slice(0, 10)
         }))
         .sort((a, b) => b.count - a.count);
 

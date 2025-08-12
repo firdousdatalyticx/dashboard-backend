@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const fsPromises = require('fs').promises;
 const fs = require('fs');
@@ -58,8 +57,16 @@ async function scrollSearch(query) {
         return { total: allResults.length, results: allResults };
     } catch (error) {
         console.error('Error in scroll search:', error);
-        throw error;  // Propagate the error up
+        throw error;
     }
+}
+
+// Helper function to safely split and clean data
+function safeSplit(str, delimiter = ',') {
+    if (!str || str.trim() === '') return [];
+    return str.split(delimiter)
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
 }
 
 async function generateCategoryJson(topicId) {
@@ -89,46 +96,81 @@ async function generateCategoryJson(topicId) {
             }
         });
 
+
         if (!categoryData || categoryData.length === 0) {
             console.log(`No categories found for topic ID: ${topicId}`);
             return;
         }
 
-        console.log(`Found ${categoryData.length} categories for topic ID: ${topicId}`);
 
-        // Transform the data
-        const categoriesData = categoryData.map(category => ({
-            [category.category_title]: {
-                urls: category.topic_urls ? category.topic_urls.split(', ') : [],
-                keywords: category.topic_keywords ? category.topic_keywords.split(', ') : [],
-                hashtags: category.topic_hash_tags ? category.topic_hash_tags.split(', ') : []
-            }
-        }));
+        // Transform the data with improved parsing logic
+        const categoriesData = categoryData.map(category => {
+            return {
+                [category.category_title]: {
+                    urls: safeSplit(category.topic_urls, ','),
+                    keywords: safeSplit(category.topic_keywords, ','),
+                    hashtags: safeSplit(category.topic_hash_tags, ',')
+                }
+            };
+        });
+
 
         // Process each category
         for (const categoryObj of categoriesData) {
             const categoryName = Object.keys(categoryObj)[0];
             const categoryInfo = categoryObj[categoryName];
 
-            console.log(`Processing category: ${categoryName}`);
+
 
             if (!categoryInfo.urls.length && !categoryInfo.keywords.length && !categoryInfo.hashtags.length) {
                 console.log(`No search terms found for category: ${categoryName}, skipping...`);
                 continue;
             }
 
-            // Combine all search terms
-            const allSearchTerms = [
-                ...categoryInfo.urls,
-                ...categoryInfo.keywords,
-                ...categoryInfo.hashtags,
-                // Add variations for keywords
-                ...categoryInfo.keywords.map(k => `@${k}`),
-                ...categoryInfo.keywords.map(k => `#${k}`)
-            ].filter(Boolean); // Remove empty values
+            // Create comprehensive search terms without duplication
+            const searchTerms = new Set();
+            
+            // Add URLs as-is
+            categoryInfo.urls.forEach(url => {
+                if (url.trim()) searchTerms.add(url.trim());
+            });
+            
+            // Add hashtags as-is
+            categoryInfo.hashtags.forEach(hashtag => {
+                if (hashtag.trim()) searchTerms.add(hashtag.trim());
+            });
+            
+            // Process keywords more intelligently
+            categoryInfo.keywords.forEach(keyword => {
+                const cleanKeyword = keyword.trim();
+                if (!cleanKeyword) return;
+                
+                // Add the original keyword
+                searchTerms.add(cleanKeyword);
+                
+                // If keyword doesn't start with #, also add it with # prefix
+                if (!cleanKeyword.startsWith('#')) {
+                    searchTerms.add(`#${cleanKeyword}`);
+                }
+                
+                // If keyword starts with #, also add it without # for general text matching
+                if (cleanKeyword.startsWith('#')) {
+                    const withoutHash = cleanKeyword.substring(1);
+                    if (withoutHash.trim()) {
+                        searchTerms.add(withoutHash.trim());
+                    }
+                }
+            });
+
+            const allSearchTerms = Array.from(searchTerms).filter(Boolean);
+            
+
+            if (allSearchTerms.length === 0) {
+                console.log(`No valid search terms found for category: ${categoryName}, skipping...`);
+                continue;
+            }
 
             const query = {
-            
                 query: {
                     bool: {
                         must: [
@@ -166,6 +208,14 @@ async function generateCategoryJson(topicId) {
                                     })),
                                     minimum_should_match: 1
                                 }
+                            },
+                            {
+                                range: {
+                                    p_created_time: {
+                                        gte: "2020-01-01T00:00:00.000Z",
+                                        lte: "2025-01-01T23:59:59.999Z"
+                                    }
+                                }
                             }
                         ]
                     }
@@ -173,50 +223,51 @@ async function generateCategoryJson(topicId) {
             };
 
             try {
-                console.log(`Fetching data for category: ${categoryName}`);
+              
+                
                 const { total, results: posts } = await scrollSearch(query);
-
-                if (total === 0) {
-                    console.log(`No results found for category: ${categoryName}`);
-                    continue;
-                }
 
                 console.log(`Found ${total} total results for category: ${categoryName}`);
                 console.log(`Actually fetched ${posts.length} documents`);
 
+                // Skip categories with 0 results
+                if (total === 0 || posts.length === 0) {
+                    console.log(`Skipping category ${categoryName} - no results found (totalSize: ${total})`);
+                    continue;
+                }
+
+                // Create safe filename
                 const fileName = `${categoryName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
                 const filePath = path.join(outputDir, fileName);
 
-                // Write the file header
-                await fsPromises.writeFile(filePath, '{\n');
-                await fsPromises.appendFile(filePath, `  "categoryName": ${JSON.stringify(categoryName)},\n`);
-                await fsPromises.appendFile(filePath, `  "totalSize": ${posts.length},\n`);
-                await fsPromises.appendFile(filePath, '  "posts": [\n');
+                // Create the JSON structure
+                const categoryJsonData = {
+                    categoryName: categoryName,
+                    totalSize: posts.length,
+                    searchTermsUsed: allSearchTerms,
+                    originalData: {
+                        urls: categoryInfo.urls,
+                        keywords: categoryInfo.keywords,
+                        hashtags: categoryInfo.hashtags
+                    },
+                    posts: posts
+                };
 
-                // Write posts one by one
-                for (let i = 0; i < posts.length; i++) {
-                    const postJson = JSON.stringify(posts[i], null, 2)
-                        .split('\n')
-                        .map(line => '    ' + line)
-                        .join('\n');
-                    
-                    await fsPromises.appendFile(
-                        filePath,
-                        postJson + (i < posts.length - 1 ? ',\n' : '\n')
-                    );
-                }
-
-                // Close the JSON structure
-                await fsPromises.appendFile(filePath, '  ]\n}');
+                // Write the complete JSON file
+                await fsPromises.writeFile(filePath, JSON.stringify(categoryJsonData, null, 2));
 
                 console.log(`Generated JSON file for ${categoryName}: ${filePath}`);
+                console.log(`File size: ${(await fsPromises.stat(filePath)).size} bytes`);
+                
             } catch (error) {
                 console.error(`Error processing category ${categoryName}:`, error);
-                throw error;  // Propagate the error up
+                // Log the error but continue with other categories
+                continue;
             }
         }
 
-        console.log('Completed generating JSON files for all categories');
+        console.log('\n=== Completed generating JSON files for all categories ===');
+        
     } catch (error) {
         console.error('Error generating category JSON files:', error);
         throw error;
@@ -225,12 +276,31 @@ async function generateCategoryJson(topicId) {
     }
 }
 
-// Check if topicId is provided as command line argument
-const topicId = process.argv[2];
-if (!topicId) {
-    console.error('Please provide a topic ID as a command line argument');
-    process.exit(1);
+// Main execution
+async function main() {
+    // Check if topicId is provided as command line argument
+    const topicId = process.argv[2];
+    if (!topicId) {
+        console.error('Please provide a topic ID as a command line argument');
+        console.error('Usage: node script.js <topicId>');
+        process.exit(1);
+    }
+
+    if (isNaN(Number(topicId))) {
+        console.error('Topic ID must be a valid number');
+        process.exit(1);
+    }
+
+    console.log(`Starting category JSON generation for topic ID: ${topicId}`);
+    
+    try {
+        await generateCategoryJson(topicId);
+        console.log('Script completed successfully');
+    } catch (error) {
+        console.error('Script failed:', error);
+        process.exit(1);
+    }
 }
 
 // Run the script
-generateCategoryJson(topicId); 
+main();

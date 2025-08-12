@@ -101,45 +101,59 @@ const sectorDistributionController = {
                 }
             });
 
-            // Execute the query to get all documents with sector field
+            // Aggregation query to fetch sector counts and top posts per sector
             const params = {
-                size: 10000,
+                size: 0,
                 query: query,
-                _source: [
-                    'sector',
-                    'created_at', 
-                    'p_created_time',
-                    'source',
-                    'p_message', 
-                    'p_message_text', 
-                    'u_profile_photo',
-                    'u_followers',
-                    'u_following',
-                    'u_posts',
-                    'p_likes',
-                    'p_comments_text',
-                    'p_url',
-                    'p_comments',
-                    'p_shares',
-                    'p_engagement',
-                    'p_content',
-                    'p_picture_url',
-                    'predicted_sentiment_value',
-                    'predicted_category',
-                    'u_fullname',
-                    'video_embed_url',
-                    'p_picture',
-                    'p_id',
-                    'rating',
-                    'comment',
-                    'business_response',
-                    'u_source',
-                    'name',
-                    'llm_emotion'
-                ],
-                sort: [
-                    { p_created_time: { order: 'desc' } }
-                ]
+                aggs: {
+                    sector_counts: {
+                        terms: {
+                            field: 'sector.keyword',
+                            size: 1000,
+                            order: { _count: 'desc' }
+                        },
+                        aggs: {
+                            recent_posts: {
+                                top_hits: {
+                                    size: 100,
+                                    sort: [ { p_created_time: { order: 'desc' } } ],
+                                    _source: [
+                                        'sector',
+                                        'created_at', 
+                                        'p_created_time',
+                                        'source',
+                                        'p_message', 
+                                        'p_message_text', 
+                                        'u_profile_photo',
+                                        'u_followers',
+                                        'u_following',
+                                        'u_posts',
+                                        'p_likes',
+                                        'p_comments_text',
+                                        'p_url',
+                                        'p_comments',
+                                        'p_shares',
+                                        'p_engagement',
+                                        'p_content',
+                                        'p_picture_url',
+                                        'predicted_sentiment_value',
+                                        'predicted_category',
+                                        'u_fullname',
+                                        'video_embed_url',
+                                        'p_picture',
+                                        'p_id',
+                                        'rating',
+                                        'comment',
+                                        'business_response',
+                                        'u_source',
+                                        'name',
+                                        'llm_emotion'
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
             };
 
             const response = await elasticClient.search({
@@ -147,40 +161,19 @@ const sectorDistributionController = {
                 body: params
             });
 
-            // Process the sector data
-            const sectorCounts = new Map();
-            let totalCount = 0;
-
-            response.hits.hits.forEach(hit => {
-                const sector = hit._source.sector;
-                
-                if (sector && sector.trim() !== '') {
-                    const sectorName = sector.trim();
-                    
-                    if (!sectorCounts.has(sectorName)) {
-                        sectorCounts.set(sectorName, {
-                            count: 0,
-                            posts: []
-                        });
-                    }
-                    
-                    const sectorData = sectorCounts.get(sectorName);
-                    sectorData.count++;
-                    sectorData.posts.push(formatPostData(hit));
-                    totalCount++;
-                }
+            // Process aggregation buckets
+            const buckets = response.aggregations?.sector_counts?.buckets || [];
+            const totalCount = buckets.reduce((sum, b) => sum + (b.doc_count || 0), 0);
+            const sectorsArray = buckets.map((bucket) => {
+                const hits = bucket.recent_posts?.hits?.hits || [];
+                const posts = hits.map((h) => formatPostData(h));
+                return {
+                    sector: bucket.key,
+                    count: bucket.doc_count,
+                    percentage: totalCount > 0 ? Math.round((bucket.doc_count / totalCount) * 100) : 0,
+                    posts,
+                };
             });
-
-            // Convert to array and calculate percentages
-            const sectorsArray = Array.from(sectorCounts.entries()).map(([sectorName, data]) => ({
-                sector: sectorName,
-                count: data.count,
-                percentage: totalCount > 0 ? Math.round((data.count / totalCount) * 100) : 0,
-                posts: data.posts
-            }));
-
-            // Sort by count descending
-            sectorsArray.sort((a, b) => b.count - a.count);
 
             // Gather all filter terms
             let allFilterTerms = [];
@@ -229,6 +222,7 @@ const sectorDistributionController = {
                 success: true,
                 sectors: sectorsArray,
                 totalCount: totalCount,
+                sectorsTotalCount: totalCount,
                 dateRange: {
                     from: effectiveGreaterThanTime,
                     to: effectiveLessThanTime

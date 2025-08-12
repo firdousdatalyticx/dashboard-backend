@@ -3766,7 +3766,7 @@ const mentionsChartController = {
       //   isSpecialTopic && !fromDate ? "" : fromDate;
       // const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
-      // **Single Aggregation Query with Overall Sentiment Filtering**
+      // Simplified aggregation: group by migration_topics (topic name) and count sentiments using predicted_sentiment_value
       const query = {
         size: 0,
         query: {
@@ -3789,42 +3789,23 @@ const mentionsChartController = {
           },
         },
         aggs: {
-          // First aggregate by overall sentiment
-          overall_sentiment: {
-            terms: { 
-              field: "predicted_sentiment_value.keyword", 
-              size: 10 
+          topics: {
+            terms: {
+              field: "migration_topics.keyword",
+              size: 1000,
+              order: { _count: "desc" },
             },
             aggs: {
-              // Then by migration topics within each sentiment
-              mention_types: {
-                terms: { 
-                  field: "migration_topics.keyword", 
-                  size: 10 
-                },
-                aggs: {
-                  // Finally by sources
-                  sources: {
-                    terms: { 
-                      field: "source.keyword", 
-                      size: 15 
-                    },
-                  },
+              sentiments: {
+                terms: {
+                  field: "predicted_sentiment_value.keyword",
+                  size: 3,
                 },
               },
             },
           },
         },
       };
-
-      // Apply sentiment filter if provided
-      if (sentimentType && sentimentType != "") {
-        query.query.bool.must.push({
-          match: {
-            predicted_sentiment_value: sentimentType.trim(),
-          },
-        });
-      }
 
       // Add category filters to the query
       if (Object.keys(categoryData).length > 0) {
@@ -3882,53 +3863,43 @@ const mentionsChartController = {
         body: query,
       });
 
-      // Transform the result to match your expected format
-      const transformedResult = {
-        aggregations: {
-          mention_types: {
-            doc_count_error_upper_bound: 0,
-            sum_other_doc_count: 0,
-            buckets: []
+      // Extract topic name from migration_topics JSON string, ignoring embedded sentiment
+      const extractTopicName = (raw) => {
+        if (typeof raw !== 'string') return String(raw || '');
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          try {
+            const obj = JSON.parse(trimmed);
+            const keys = Object.keys(obj);
+            return keys.length > 0 ? keys[0] : '';
+          } catch (_) {
+            // ignore
           }
         }
+        return trimmed;
       };
 
-      // Process the nested aggregations
-      if (result.aggregations?.overall_sentiment?.buckets) {
-        result.aggregations.overall_sentiment.buckets.forEach(sentimentBucket => {
-          const overallSentiment = sentimentBucket.key;
-          
-          if (sentimentBucket.mention_types?.buckets) {
-            sentimentBucket.mention_types.buckets.forEach(topicBucket => {
-              // Parse the migration topic JSON string
-              let migrationTopic;
-              try {
-                migrationTopic = JSON.parse(topicBucket.key);
-              } catch (e) {
-                migrationTopic = { topic: topicBucket.key };
-              }
-              
-              // Create a new key that combines topic with overall sentiment
-              const topicName = Object.keys(migrationTopic)[0] || 'unknown';
-              const newKey = `{"${topicName}": "${overallSentiment}"}`;
-              
-              transformedResult.aggregations.mention_types.buckets.push({
-                key: newKey,
-                doc_count: topicBucket.doc_count,
-                sources: topicBucket.sources || { buckets: [] }
-              });
-            });
-          }
-        });
-      }
+      // Build topics array with sentiment counts from predicted_sentiment_value
+      const topics = (result.aggregations?.topics?.buckets || []).map((bucket) => {
+        const topic = extractTopicName(bucket.key) || 'unknown';
+        const sentiments = bucket.sentiments?.buckets || [];
+        const counts = { Positive: 0, Neutral: 0, Negative: 0 };
+        for (const s of sentiments) {
+          const label = String(s.key || '').toLowerCase();
+          if (label === 'positive') counts.Positive = s.doc_count;
+          else if (label === 'neutral') counts.Neutral = s.doc_count;
+          else if (label === 'negative') counts.Negative = s.doc_count;
+        }
+        return { topic, counts, total: bucket.doc_count };
+      });
 
-      // Sort by doc_count descending
-      transformedResult.aggregations.mention_types.buckets.sort((a, b) => b.doc_count - a.doc_count);
+      const totalCount = topics.reduce((sum, t) => sum + t.total, 0);
 
       return res.status(200).json({ 
-        result: transformedResult, 
-        originalResult: result,
-        query 
+        success: true,
+        topics,
+        totalCount,
+        query,
       });
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -5354,14 +5325,14 @@ trustDimensionsEducationSystem: async (req, res) => {
         },
         aggs: {
           mention_types: {
-            terms: { 
-              field: "trust_dimensions.keyword", 
+            terms: {
+              field: "trust_dimensions.keyword",
               size: 20 
             },
             aggs: {
               sources: {
-                terms: { 
-                  field: "source.keyword", 
+                terms: {
+                  field: "source.keyword",
                   size: 15 
                 },
               },

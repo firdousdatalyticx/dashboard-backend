@@ -22,11 +22,7 @@ const trustDimensionsController = {
                 lessThanTime,
                 sentiment
             } = req.body;
- return res.json({
-                    success: true,
-                    trustDimensions: [],
-                    totalCount: 0
-                });
+
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 

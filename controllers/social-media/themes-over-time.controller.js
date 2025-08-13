@@ -110,6 +110,10 @@ const themesOverTimeController = {
                     field: 'themes_sentiments'
                 }
             });
+            // Exclude empty placeholders to avoid parse errors and noise
+            query.bool.must_not = query.bool.must_not || [];
+            query.bool.must_not.push({ term: { 'themes_sentiments.keyword': '' } });
+            query.bool.must_not.push({ term: { 'themes_sentiments.keyword': '{}' } });
 
             // Set calendar interval based on requested interval
             let calendarInterval = 'month';
@@ -172,7 +176,9 @@ const themesOverTimeController = {
 
             const response = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: params
+                body: params,
+                track_total_hits: false,
+                timeout: '10s'
             });
 
             // Process the themes data by time intervals
@@ -185,42 +191,64 @@ const themesOverTimeController = {
                 themesTimeData.set(timeInterval, new Map());
             });
 
+            const POSTS_PER_INTERVAL_THEME = 20;
             response.hits.hits.forEach(hit => {
-                const themesStr = hit._source.themes_sentiments;
+                const raw = hit._source.themes_sentiments;
                 const postDate = hit._source.p_created_time || hit._source.created_at;
-                
-                if (themesStr && themesStr.trim() !== '' && postDate) {
-                    try {
-                        const themes = JSON.parse(themesStr);
-                        
-                        // Create post details object for this post
-                        const postDetails = formatPostData(hit);
-                        
-                        // Determine which time interval this post belongs to
-                        const postTimeInterval = getTimeInterval(postDate, interval);
-                        
-                        if (themesTimeData.has(postTimeInterval)) {
-                            const intervalThemes = themesTimeData.get(postTimeInterval);
-                            
-                            // Process each theme in the document
-                            Object.entries(themes).forEach(([themeName, themeSentiment]) => {
-                                if (!intervalThemes.has(themeName)) {
-                                    intervalThemes.set(themeName, {
-                                        count: 0,
-                                        posts: []
-                                    });
-                                }
-                                
-                                const themeData = intervalThemes.get(themeName);
-                                themeData.count++;
-                                themeData.posts.push(postDetails);
-                                totalCount++;
-                            });
+                if (!raw || !postDate) return;
+
+                // Normalize theme names from raw
+                let themeNames = [];
+                try {
+                    if (typeof raw === 'string') {
+                        try {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                themeNames = parsed.map(item => {
+                                    if (typeof item === 'string') return item.trim();
+                                    if (item && typeof item === 'object') return (item.theme || item.name || '').toString().trim();
+                                    return '';
+                                }).filter(Boolean);
+                            } else if (parsed && typeof parsed === 'object') {
+                                themeNames = Object.keys(parsed).map(k => k.toString().trim()).filter(Boolean);
+                            }
+                        } catch (_) {
+                            themeNames = raw.split(',').map(s => s.trim()).filter(Boolean);
                         }
-                    } catch (error) {
-                        console.error('Error parsing themes_sentiments JSON:', error, themesStr);
+                    } else if (Array.isArray(raw)) {
+                        themeNames = raw.map(item => {
+                            if (typeof item === 'string') return item.trim();
+                            if (item && typeof item === 'object') return (item.theme || item.name || '').toString().trim();
+                            return '';
+                        }).filter(Boolean);
+                    } else if (raw && typeof raw === 'object') {
+                        themeNames = Object.keys(raw).map(k => k.toString().trim()).filter(Boolean);
                     }
+                } catch (e) {
+                    console.error('Error parsing themes_sentiments JSON:', e, raw);
+                    return;
                 }
+
+                if (themeNames.length === 0) return;
+
+                const postDetails = formatPostData(hit);
+                const postTimeInterval = getTimeInterval(postDate, interval);
+                if (!themesTimeData.has(postTimeInterval)) return;
+                const intervalThemes = themesTimeData.get(postTimeInterval);
+
+                themeNames.forEach(themeName => {
+                    const key = themeName.toString().trim();
+                    if (!key) return;
+                    if (!intervalThemes.has(key)) {
+                        intervalThemes.set(key, { count: 0, posts: [] });
+                    }
+                    const themeData = intervalThemes.get(key);
+                    themeData.count++;
+                    if (themeData.posts.length < POSTS_PER_INTERVAL_THEME) {
+                        themeData.posts.push(postDetails);
+                    }
+                    totalCount++;
+                });
             });
 
             // Get all unique theme names

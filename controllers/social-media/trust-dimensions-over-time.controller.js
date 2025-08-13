@@ -96,127 +96,107 @@ const trustDimensionsOverTimeController = {
             // Add category filters
             addCategoryFilters(query, category, categoryData);
 
-            // Add filter to only include posts with trust_dimensions field
-            query.bool.must.push({
-                exists: {
-                    field: 'trust_dimensions'
-                }
-            });
+			// Add filter to only include posts with trust_dimensions field
+			query.bool.must.push({
+				exists: {
+					field: 'trust_dimensions'
+				}
+			});
+			// Exclude empty placeholders
+			query.bool.must_not = query.bool.must_not || [];
+			query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '' } });
+			query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '{}' } });
 
             console.log('Trust Dimensions Over Time Query:', JSON.stringify(query, null, 2));
 
-            // Execute the query to get all documents with trust_dimensions
-            const params = {
-                size: 10000,
-                query: query,
-                _source: [
-                    'trust_dimensions',
-                    'created_at', 
-                    'p_created_time',
-                    'source',
-                    'p_message', 
-                    'p_message_text', 
-                    'u_profile_photo',
-                    'u_followers',
-                    'u_following',
-                    'u_posts',
-                    'p_likes',
-                    'p_comments_text',
-                    'p_url',
-                    'p_comments',
-                    'p_shares',
-                    'p_engagement',
-                    'p_content',
-                    'p_picture_url',
-                    'predicted_sentiment_value',
-                    'predicted_category',
-                    'u_fullname',
-                    'video_embed_url',
-                    'p_picture',
-                    'p_id',
-                    'rating',
-                    'comment',
-                    'business_response',
-                    'u_source',
-                    'name',
-                    'llm_emotion',
-                    'u_country'
-                ],
-                sort: [
-                    { p_created_time: { order: 'desc' } }
-                ]
-            };
-
-            const response = await elasticClient.search({
-                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: params
-            });
-
-            console.log('Trust Dimensions Over Time Response hits:', response.hits.hits.length);
-
-            // Process the trust dimensions over time data
-            const monthlyData = new Map();
-            const trustDimensionCategories = new Set();
-            let totalCount = 0;
-
-            // Generate month intervals for the date range
-            const startDate = new Date(effectiveGreaterThanTime);
-            const endDate = new Date(effectiveLessThanTime);
-            const monthIntervals = eachMonthOfInterval({ start: startDate, end: endDate });
-
-            // Initialize monthly data structure
-            monthIntervals.forEach(monthDate => {
-                const monthKey = format(monthDate, 'MMM yyyy');
-                monthlyData.set(monthKey, new Map());
-            });
-
-            response.hits.hits.forEach(hit => {
-                const trustDimensionsStr = hit._source.trust_dimensions;
-                const postDate = new Date(hit._source.p_created_time || hit._source.created_at);
-                const monthKey = format(postDate, 'MMM yyyy');
-                
-                if (trustDimensionsStr && trustDimensionsStr.trim() !== '') {
-                    try {
-                        const trustDimensions = JSON.parse(trustDimensionsStr);
-                        
-                        // Create post details object for this post
-                        const postDetails = formatPostData(hit);
-                        
-                        // Process each trust dimension in the document
-                        Object.entries(trustDimensions).forEach(([dimensionName, dimensionTone]) => {
-                            const dimensionKey = dimensionName.trim();
-                            const toneValue = dimensionTone.trim();
-                            
-                            // Filter by tone if specified
-                            if (tone && tone !== 'All' && toneValue.toLowerCase() !== tone.toLowerCase()) {
-                                return;
+			// Aggregation-based approach: date histogram + terms on trust_dimensions JSON string
+			const AGG_SIZE = 200; // per-month distinct trust_dimensions strings
+			const POSTS_PER_BUCKET = 3;
+			const params = {
+				size: 0,
+				query: query,
+				aggs: {
+					time_buckets: {
+                        date_histogram: {
+                            field: 'p_created_time',
+                            calendar_interval: 'month',
+                            min_doc_count: 0,
+                            extended_bounds: {
+                                min: `${effectiveGreaterThanTime}T00:00:00.000Z`,
+                                max: `${effectiveLessThanTime}T23:59:59.999Z`
                             }
-                            
-                            trustDimensionCategories.add(dimensionKey);
-                            
-                            if (!monthlyData.has(monthKey)) {
-                                monthlyData.set(monthKey, new Map());
-                            }
-                            
-                            const monthData = monthlyData.get(monthKey);
-                            const dimensionToneKey = `${dimensionKey}_${toneValue}`;
-                            
-                            if (!monthData.has(dimensionToneKey)) {
-                                monthData.set(dimensionToneKey, { count: 0, posts: [] });
-                            }
-                            
-                            const currentData = monthData.get(dimensionToneKey);
-                            currentData.count++;
-                            currentData.posts.push(postDetails);
-                            monthData.set(dimensionToneKey, currentData);
-                            
-                            totalCount++;
-                        });
-                    } catch (error) {
-                        console.error('Error parsing trust_dimensions JSON:', error, trustDimensionsStr);
-                    }
-                }
-            });
+                        },
+						aggs: {
+							td_json: {
+								terms: { field: 'trust_dimensions.keyword', size: AGG_SIZE, order: { _count: 'desc' } },
+								aggs: {
+									top_posts: {
+										top_hits: {
+											size: POSTS_PER_BUCKET,
+											sort: [{ p_created_time: { order: 'desc' } }],
+											_source: [
+												'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response','u_country'
+											]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				track_total_hits: false,
+				timeout: '10s'
+			};
+
+			const response = await elasticClient.search({
+				index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+				body: params
+			});
+
+			// Prepare structures
+			const monthlyData = new Map();
+			const trustDimensionCategories = new Set();
+			let totalCount = 0;
+			// Pre-build month keys using extended bounds
+			const startDate = new Date(effectiveGreaterThanTime);
+			const endDate = new Date(effectiveLessThanTime);
+			const monthIntervals = eachMonthOfInterval({ start: startDate, end: endDate });
+			monthIntervals.forEach(monthDate => {
+				const monthKey = format(monthDate, 'MMM yyyy');
+				monthlyData.set(monthKey, new Map());
+			});
+
+            const timeBuckets = response.aggregations?.time_buckets?.buckets || [];
+			timeBuckets.forEach(tb => {
+                const monthKey = format(new Date(tb.key), 'MMM yyyy');
+				const tdBuckets = tb.td_json?.buckets || [];
+				const monthMap = monthlyData.get(monthKey) || new Map();
+				tdBuckets.forEach(b => {
+					const keyStr = b.key;
+					if (!keyStr || keyStr === '{}' || keyStr === '""') return;
+					let obj;
+					try { obj = JSON.parse(keyStr); } catch (_) { return; }
+					if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+					const samplePosts = (b.top_posts?.hits?.hits || []).map(h => formatPostData(h));
+					const bucketDocCount = b.doc_count || 0;
+					totalCount += bucketDocCount;
+					Object.entries(obj).forEach(([dimensionName, dimensionTone]) => {
+						const dimensionKey = String(dimensionName).trim();
+						const toneValue = String(dimensionTone || '').trim();
+						if (!dimensionKey) return;
+						// Filter by tone if specified
+						if (tone && tone !== 'All' && toneValue.toLowerCase() !== tone.toLowerCase()) return;
+						trustDimensionCategories.add(dimensionKey);
+						const dimensionToneKey = `${dimensionKey}_${toneValue}`;
+						if (!monthMap.has(dimensionToneKey)) monthMap.set(dimensionToneKey, { count: 0, posts: [] });
+						const cur = monthMap.get(dimensionToneKey);
+						cur.count += bucketDocCount;
+						samplePosts.forEach(p => { if (cur.posts.length < POSTS_PER_BUCKET) cur.posts.push(p); });
+						monthMap.set(dimensionToneKey, cur);
+					});
+				});
+				monthlyData.set(monthKey, monthMap);
+			});
 
             console.log('Trust dimension categories found:', Array.from(trustDimensionCategories));
             console.log('Monthly data:', monthlyData);

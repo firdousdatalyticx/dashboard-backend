@@ -327,11 +327,6 @@ const trustDimensionsController = {
             toDate,
             sentiment
         } = req.body;
-//  return res.json({
-//                 success: true,
-//                 trustDimensions: [],
-//                 totalTrustPosts: 0
-//             });
         // Get category data from middleware
         let categoryData = {};
       

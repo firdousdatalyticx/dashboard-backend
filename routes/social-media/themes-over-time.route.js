@@ -5,6 +5,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
 const themesOverTimeController = require('../../controllers/social-media/themes-over-time.controller');
 
 // Apply middleware and route handler
-router.post('/', express.json(), authMiddleware, transformCategoryData, themesOverTimeController.getThemesOverTimeAnalysis);
+// router.post('/', express.json(), authMiddleware, transformCategoryData, themesOverTimeController.getThemesOverTimeAnalysis);
 
 module.exports = router; 

@@ -5,6 +5,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
 const trustDimensionsController = require('../../controllers/social-media/trust-dimensions.controller');
 
 // Apply middleware and route handler
-router.post('/', express.json(), authMiddleware, transformCategoryData, trustDimensionsController.getTrustDimensionsAnalysis);
+// router.post('/', express.json(), authMiddleware, transformCategoryData, trustDimensionsController.getTrustDimensionsAnalysis);
 
 module.exports = router; 

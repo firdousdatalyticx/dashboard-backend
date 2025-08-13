@@ -226,7 +226,7 @@ const trustDimensionsAnalysisController = {
                             if (tone) {
                                 console.log(`Processing: dimension="${dimensionKey}", tone="${toneKey}", filter="${tone}"`);
                                 console.log(`Match check: "${toneKey.toLowerCase()}" === "${tone.toLowerCase()}" = ${toneKey.toLowerCase() === tone.toLowerCase()}`);
-                            }
+                    }
                             
                             // Apply tone filter if specified - MUST match exactly
                             if (tone && toneKey.toLowerCase() !== tone.toLowerCase()) {
@@ -235,43 +235,43 @@ const trustDimensionsAnalysisController = {
                             }
                             
                             console.log(`PROCESSING: dimension="${dimensionKey}", tone="${toneKey}", country="${normalizedCountry}"`);
-                            
-                            if (!dimensionsMap.has(dimensionKey)) {
-                                dimensionsMap.set(dimensionKey, {
-                                    dimension: dimensionKey,
-                                    countries: new Map(),
-                                    totalCount: 0
-                                });
-                            }
-                            
-                            const dimensionData = dimensionsMap.get(dimensionKey);
-                            dimensionData.totalCount++;
-                            
-                            if (!dimensionData.countries.has(normalizedCountry)) {
-                                dimensionData.countries.set(normalizedCountry, {
-                                    country: normalizedCountry,
-                                    tones: new Map(),
-                                    totalCount: 0
-                                });
-                            }
-                            
-                            const countryData = dimensionData.countries.get(normalizedCountry);
-                            countryData.totalCount++;
-                            
-                            if (!countryData.tones.has(toneKey)) {
-                                countryData.tones.set(toneKey, {
-                                    name: toneKey,
-                                    count: 0,
-                                    posts: []
-                                });
-                            }
-                            
-                            const toneData = countryData.tones.get(toneKey);
-                            toneData.count++;
-                            toneData.posts.push(postDetails);
-                            
-                            totalCount++;
+
+                    if (!dimensionsMap.has(dimensionKey)) {
+                        dimensionsMap.set(dimensionKey, {
+                            dimension: dimensionKey,
+                            countries: new Map(),
+                            totalCount: 0
                         });
+                    }
+
+                    const dimensionData = dimensionsMap.get(dimensionKey);
+                    dimensionData.totalCount++;
+
+                    if (!dimensionData.countries.has(normalizedCountry)) {
+                        dimensionData.countries.set(normalizedCountry, {
+                            country: normalizedCountry,
+                            tones: new Map(),
+                            totalCount: 0
+                        });
+                    }
+
+                    const countryData = dimensionData.countries.get(normalizedCountry);
+                    countryData.totalCount++;
+
+                    if (!countryData.tones.has(toneKey)) {
+                        countryData.tones.set(toneKey, {
+                            name: toneKey,
+                            count: 0,
+                            posts: []
+                        });
+                    }
+
+                    const toneData = countryData.tones.get(toneKey);
+                    toneData.count++;
+                    toneData.posts.push(postDetails);
+                            
+                    totalCount++;
+                });
                     } catch (error) {
                         console.error('Error parsing trust_dimensions JSON:', error, trustDimensionsStr);
                     }

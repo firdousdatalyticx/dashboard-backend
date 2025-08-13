@@ -5301,9 +5301,9 @@ trustDimensionsEducationSystem: async (req, res) => {
 
  
 
-      // **Single Aggregation Query**
+      // Fetch documents and aggregate dimensions by llm_emotion in app logic
       const query = {
-        size: 0,
+        size: 10000,
         query: {
           bool: {
             must: [
@@ -5323,22 +5323,41 @@ trustDimensionsEducationSystem: async (req, res) => {
             ],
           },
         },
-        aggs: {
-          mention_types: {
-            terms: {
-              field: "trust_dimensions.keyword",
-              size: 20 
-            },
-            aggs: {
-              sources: {
-                terms: {
-                  field: "source.keyword",
-                  size: 15 
-                },
-              },
-            },
-          },
-        },
+        _source: [
+          'trust_dimensions',
+          'llm_emotion',
+          'predicted_sentiment_value',
+          'created_at',
+          'p_created_time',
+          'source',
+          'p_message',
+          'p_message_text',
+          'u_profile_photo',
+          'u_followers',
+          'u_following',
+          'u_posts',
+          'p_likes',
+          'p_comments_text',
+          'p_url',
+          'p_comments',
+          'p_shares',
+          'p_engagement',
+          'p_content',
+          'p_picture_url',
+          'predicted_category',
+          'u_fullname',
+          'video_embed_url',
+          'p_picture',
+          'p_id',
+          'rating',
+          'comment',
+          'business_response',
+          'u_source',
+          'name',
+          'u_country'
+        ],
+        track_total_hits: false,
+        timeout: '10s'
       };
 
       // Apply sentiment filter if provided
@@ -5406,7 +5425,128 @@ trustDimensionsEducationSystem: async (req, res) => {
         body: query,
       });
 
-      return res.status(200).json({ result, query });
+      // Build dimension -> emotion -> { count, posts[] } map
+      const POSTS_PER_EMOTION = 20;
+      const dimensionToEmotion = new Map();
+      const localFormatPost = (hit) => {
+        const src = hit._source || {};
+        const profilePic = src.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+        const llm_emotion = src.llm_emotion || '';
+        const commentsUrl = src.p_comments_text && src.p_comments_text.trim() !== ''
+          ? (src.p_url || '').toString().trim().replace('https: // ', 'https://')
+          : '';
+        const imageUrl = src.p_picture_url && src.p_picture_url.trim() !== ''
+          ? src.p_picture_url
+          : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+        let predicted_sentiment = '';
+        if (src.predicted_sentiment_value) predicted_sentiment = `${src.predicted_sentiment_value}`;
+        else if (src.source === 'GoogleMyBusiness' && src.rating) {
+          predicted_sentiment = src.rating >= 4 ? 'Positive' : src.rating <= 2 ? 'Negative' : 'Neutral';
+        }
+        let youtubeVideoUrl = '';
+        let profilePicture2 = '';
+        if (src.source === 'Youtube') {
+          if (src.video_embed_url) youtubeVideoUrl = src.video_embed_url;
+          else if (src.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${src.p_id}`;
+        } else {
+          profilePicture2 = src.p_picture ? src.p_picture : '';
+        }
+        let sourceIcon = '';
+        const userSource = src.source;
+        if (['khaleej_times','Omanobserver','Time of oman','Blogs'].includes(userSource)) sourceIcon = 'Blog';
+        else if (userSource === 'Reddit') sourceIcon = 'Reddit';
+        else if (['FakeNews','News'].includes(userSource)) sourceIcon = 'News';
+        else if (userSource === 'Tumblr') sourceIcon = 'Tumblr';
+        else if (userSource === 'Vimeo') sourceIcon = 'Vimeo';
+        else if (['Web','DeepWeb'].includes(userSource)) sourceIcon = 'Web';
+        else sourceIcon = userSource;
+        let message_text = '';
+        if (['GoogleMaps','Tripadvisor'].includes(src.source)) {
+          const parts = (src.p_message_text || '').split('***|||###');
+          message_text = (parts[0] || '').replace(/\n/g, '<br>');
+        } else {
+          message_text = src.p_message_text ? src.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+        }
+        return {
+          profilePicture: profilePic,
+          profilePicture2,
+          userFullname: src.u_fullname,
+          user_data_string: '',
+          followers: src.u_followers > 0 ? `${src.u_followers}` : '',
+          following: src.u_following > 0 ? `${src.u_following}` : '',
+          posts: src.u_posts > 0 ? `${src.u_posts}` : '',
+          likes: src.p_likes > 0 ? `${src.p_likes}` : '',
+          llm_emotion,
+          commentsUrl,
+          comments: `${src.p_comments}`,
+          shares: src.p_shares > 0 ? `${src.p_shares}` : '',
+          engagements: src.p_engagement > 0 ? `${src.p_engagement}` : '',
+          content: src.p_content && src.p_content.trim() !== '' ? src.p_content : '',
+          image_url: imageUrl,
+          predicted_sentiment,
+          predicted_category: src.predicted_category || '',
+          youtube_video_url: youtubeVideoUrl,
+          source_icon: `${src.p_url},${sourceIcon}`,
+          message_text,
+          source: src.source,
+          rating: src.rating,
+          comment: src.comment,
+          businessResponse: src.business_response,
+          uSource: src.u_source,
+          googleName: src.name,
+          country: src.u_country,
+          created_at: new Date(src.p_created_time || src.created_at).toLocaleString()
+        };
+      };
+
+      const hits = (result.hits && result.hits.hits) || [];
+      for (const hit of hits) {
+        const src = hit._source || {};
+        const raw = src.trust_dimensions;
+        if (!raw) continue;
+
+        let td;
+        try {
+          td = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch (_) {
+          continue;
+        }
+        if (!td || typeof td !== 'object' || Array.isArray(td)) continue;
+
+        const emotion = (src.llm_emotion || '').toString().trim() || 'Unknown';
+        const postObj = localFormatPost(hit);
+
+        Object.keys(td).forEach(dim => {
+          const dimKey = dim.toString().trim();
+          if (!dimKey) return;
+          if (!dimensionToEmotion.has(dimKey)) {
+            dimensionToEmotion.set(dimKey, new Map());
+          }
+          const emoMap = dimensionToEmotion.get(dimKey);
+          if (!emoMap.has(emotion)) {
+            emoMap.set(emotion, { count: 0, posts: [] });
+          }
+          const bucket = emoMap.get(emotion);
+          bucket.count += 1;
+          if (bucket.posts.length < POSTS_PER_EMOTION) {
+            bucket.posts.push(postObj);
+          }
+        });
+      }
+
+      const dataAll = Array.from(dimensionToEmotion.entries()).map(([dimension, emoMap]) => {
+        const emotions = Array.from(emoMap.entries()).map(([emotion, obj]) => ({
+          emotion,
+          count: obj.count,
+          posts: obj.posts
+        })).sort((a, b) => b.count - a.count);
+        const total = emotions.reduce((sum, e) => sum + e.count, 0);
+        return { dimension, emotions, total };
+      }).sort((a, b) => b.total - a.total);
+
+      const data = dataAll.slice(0, 10);
+
+      return res.status(200).json({ success: true, data, total: dataAll.length, totalDocs: hits.length });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });

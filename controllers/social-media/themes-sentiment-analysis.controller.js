@@ -167,51 +167,74 @@ const themesSentimentAnalysisController = {
             let totalCount = 0;
 
             response.hits.hits.forEach(hit => {
-                const themesStr = hit._source.themes_sentiments;
-                
-                if (themesStr && themesStr.trim() !== '') {
-                    try {
-                        const themes = JSON.parse(themesStr);
-                        console.log("themes",themes)
-                        
-                        // Create post details object for this post
-                        const postDetails = formatPostData(hit);
-                        // if(themesStr==postDetails?.predicted_sentiment){
-                        
-                        // Process each theme and its sentiment in the document
-                      Object.entries(themes).forEach(([themeName, themeSentiment]) => {
-    const cleanThemeName = themeName.trim();
-    const cleanSentiment = themeSentiment.trim();
-    
-    sentimentTypes.add(cleanSentiment);
-    
-    if (!themesSentimentMap.has(cleanThemeName)) {
-        themesSentimentMap.set(cleanThemeName, new Map());
-    }
-    
-    const themeData = themesSentimentMap.get(cleanThemeName);
-    
-    if (!themeData.has(cleanSentiment)) {
-        themeData.set(cleanSentiment, { count: 0, posts: [] });
-    }
+                const raw = hit._source.themes_sentiments;
+                if (!raw) return;
 
-    const predictedSentiment = postDetails.predicted_sentiment?.trim().toLowerCase();
-    const themeSentimentLower = cleanSentiment.toLowerCase();
+                // Always take sentiment from predicted_sentiment_value (ignore values inside themes_sentiments)
+                const postDetails = formatPostData(hit);
+                const predictedSentimentLower = (postDetails.predicted_sentiment || '').toLowerCase();
+                const selectedSentimentLower = (sentiment || '').toLowerCase();
 
-    // ✅ Match predicted sentiment with theme sentiment
-    if (predictedSentiment === themeSentimentLower) {
-        const sentimentData = themeData.get(cleanSentiment);
-        sentimentData.count++;
-        sentimentData.posts.push(postDetails);
-        totalCount++;
-    }
-});
-
-                    // }
-                    } catch (error) {
-                        console.error('Error parsing themes_sentiments JSON:', error, themesStr);
+                // Extract theme names robustly from raw (JSON object, array, or CSV string)
+                let themeNames = [];
+                try {
+                    if (typeof raw === 'string') {
+                        try {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                themeNames = parsed.map(item => {
+                                    if (typeof item === 'string') return item.trim();
+                                    if (item && typeof item === 'object') return (item.theme || item.name || '').toString().trim();
+                                    return '';
+                                }).filter(Boolean);
+                            } else if (parsed && typeof parsed === 'object') {
+                                themeNames = Object.keys(parsed).map(k => k.toString().trim()).filter(Boolean);
+                            }
+                        } catch (_) {
+                            themeNames = raw.split(',').map(s => s.trim()).filter(Boolean);
+                        }
+                    } else if (Array.isArray(raw)) {
+                        themeNames = raw.map(item => {
+                            if (typeof item === 'string') return item.trim();
+                            if (item && typeof item === 'object') return (item.theme || item.name || '').toString().trim();
+                            return '';
+                        }).filter(Boolean);
+                    } else if (raw && typeof raw === 'object') {
+                        themeNames = Object.keys(raw).map(k => k.toString().trim()).filter(Boolean);
                     }
+                } catch (e) {
+                    console.error('Error parsing themes_sentiments JSON:', e, raw);
+                    return;
                 }
+
+                // Count each theme under the post's predicted sentiment
+                themeNames.forEach(themeName => {
+                    const cleanThemeName = themeName.trim();
+                    if (!cleanThemeName) return;
+
+                    // Respect sentiment filter if provided
+                    if (selectedSentimentLower && selectedSentimentLower !== 'all' && predictedSentimentLower !== selectedSentimentLower) {
+                        return;
+                    }
+
+                    const displaySentiment = predictedSentimentLower
+                        ? (predictedSentimentLower.charAt(0).toUpperCase() + predictedSentimentLower.slice(1))
+                        : 'Neutral';
+
+                    sentimentTypes.add(displaySentiment);
+
+                    if (!themesSentimentMap.has(cleanThemeName)) {
+                        themesSentimentMap.set(cleanThemeName, new Map());
+                    }
+                    const themeData = themesSentimentMap.get(cleanThemeName);
+                    if (!themeData.has(displaySentiment)) {
+                        themeData.set(displaySentiment, { count: 0, posts: [] });
+                    }
+                    const sentimentData = themeData.get(displaySentiment);
+                    sentimentData.count++;
+                    sentimentData.posts.push(postDetails);
+                    totalCount++;
+                });
             });
 
             console.log('Sentiment types found:', Array.from(sentimentTypes));

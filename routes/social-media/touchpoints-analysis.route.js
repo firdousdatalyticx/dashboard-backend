@@ -5,6 +5,6 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
 const touchpointsAnalysisController = require('../../controllers/social-media/touchpoints-analysis.controller');
 
 // Apply middleware and route handler
-router.post('/', express.json(), authMiddleware, transformCategoryData, touchpointsAnalysisController.getTouchpointsAnalysisBySentiment);
+// router.post('/', express.json(), authMiddleware, transformCategoryData, touchpointsAnalysisController.getTouchpointsAnalysisBySentiment);
 
 module.exports = router; 

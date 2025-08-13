@@ -105,42 +105,35 @@ const trustDimensionsController = {
                 }
             });
 
-            // Execute the query to get all documents with trust_dimensions
+            // Exclude empty or placeholder trust_dimensions values to avoid parsing overhead
+            query.bool.must_not = query.bool.must_not || [];
+            query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '' } });
+            query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '{}' } });
+
+            // Aggregation approach on trust_dimensions keyword to avoid per-hit processing
+            const AGG_SIZE = 300; // number of distinct trust_dimensions JSON variants to consider
+            const TOP_HITS_PER_BUCKET = 5; // small sample for posts per bucket
             const params = {
-                size: 10000, // Increase size to get more documents for processing
+                size: 0,
                 query: query,
-                _source: [
-                    'trust_dimensions', 
-                    'created_at', 
-                    'source',
-                    'p_message', 
-                    'p_message_text', 
-                    'u_profile_photo',
-                    'u_followers',
-                    'u_following',
-                    'u_posts',
-                    'p_likes',
-                    'p_comments_text',
-                    'p_url',
-                    'p_comments',
-                    'p_shares',
-                    'p_engagement',
-                    'p_content',
-                    'p_picture_url',
-                    'predicted_sentiment_value',
-                    'predicted_category',
-                    'u_fullname',
-                    'p_created_time',
-                    'video_embed_url',
-                    'p_picture',
-                    'p_id',
-                    'rating',
-                    'comment',
-                    'business_response',
-                    'u_source',
-                    'name',
-                    'llm_emotion'
-                ]
+                aggs: {
+                    dimensions_raw: {
+                        terms: { field: 'trust_dimensions.keyword', size: AGG_SIZE, order: { _count: 'desc' } },
+                        aggs: {
+                            top_posts: {
+                                top_hits: {
+                                    size: TOP_HITS_PER_BUCKET,
+                                    sort: [{ p_created_time: { order: 'desc' } }],
+                                    _source: [
+                                        'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response'
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                track_total_hits: false,
+                timeout: '10s'
             };
 
             const response = await elasticClient.search({
@@ -148,104 +141,76 @@ const trustDimensionsController = {
                 body: params
             });
 
-            // Process the trust dimensions data
+            // Build result by parsing each aggregated JSON key once and distributing counts
             const trustDimensionsMap = new Map();
             let totalCount = 0;
-
-            response.hits.hits.forEach(hit => {
-                const trustDimensionsStr = hit._source.trust_dimensions;
-                
-                if (trustDimensionsStr && trustDimensionsStr.trim() !== '') {
-                    try {
-                        const trustDimensions = JSON.parse(trustDimensionsStr);
-                        
-                        // Create post details object for this post
-                        const postDetails = formatPostData(hit);
-                        
-                        // Process each trust dimension in the document
-                        Object.entries(trustDimensions).forEach(([dimension, tone]) => {
-                            if (!trustDimensionsMap.has(dimension)) {
-                                trustDimensionsMap.set(dimension, {
-                                    category: dimension,
-                                    totalCount: 0,
-                                    Supportive: 0,
-                                    'Not Applicable': 0,
-                                    Distrustful: 0,
-                                    Neutral: 0,
-                                    Mixed: 0,
-                                    posts: {
-                                        Supportive: [],
-                                        'Not Applicable': [],
-                                        Distrustful: [],
-                                        Neutral: [],
-                                        Mixed: []
-                                    }
-                                });
-                            }
-                            
-                            const dimensionData = trustDimensionsMap.get(dimension);
-                            dimensionData.totalCount++;
-                            
-                            // Normalize tone value and increment count
-                            const normalizedTone = tone.trim();
-                            if (dimensionData.hasOwnProperty(normalizedTone)) {
-                                dimensionData[normalizedTone]++;
-                                dimensionData.posts[normalizedTone].push(postDetails);
-                            } else {
-                                // Handle any unexpected tone values as 'Mixed'
-                                dimensionData.Mixed++;
-                                dimensionData.posts.Mixed.push(postDetails);
-                            }
-                            
-                            totalCount++;
-                        });
-                    } catch (error) {
-                        console.error('Error parsing trust_dimensions JSON:', error, trustDimensionsStr);
-                    }
+            const buckets = response.aggregations?.dimensions_raw?.buckets || [];
+            for (const b of buckets) {
+                const keyStr = b.key;
+                if (!keyStr || keyStr === '{}' || keyStr === '""') continue;
+                let obj;
+                try {
+                    obj = JSON.parse(keyStr);
+                } catch (_) {
+                    continue;
                 }
-            });
+                if (!obj || typeof obj !== 'object' || Array.isArray(obj)) continue;
+                const docCount = b.doc_count || 0;
+                totalCount += docCount;
+                const postsHits = b.top_posts?.hits?.hits || [];
+                const samplePosts = postsHits.map(h => formatPostData(h));
+
+                Object.entries(obj).forEach(([dimension, tone]) => {
+                    const dim = String(dimension).trim();
+                    if (!dim) return;
+                    if (!trustDimensionsMap.has(dim)) {
+                        trustDimensionsMap.set(dim, {
+                            category: dim,
+                            totalCount: 0,
+                            Supportive: 0,
+                            'Not Applicable': 0,
+                            Distrustful: 0,
+                            Neutral: 0,
+                            Mixed: 0,
+                            posts: {
+                                Supportive: [],
+                                'Not Applicable': [],
+                                Distrustful: [],
+                                Neutral: [],
+                                Mixed: []
+                            }
+                        });
+                    }
+                    const rec = trustDimensionsMap.get(dim);
+                    rec.totalCount += docCount;
+                    const normalizedTone = (tone || '').toString().trim();
+                    const toneKey = rec.hasOwnProperty(normalizedTone) && normalizedTone ? normalizedTone : 'Mixed';
+                    rec[toneKey] += docCount;
+                    // attach a few sample posts under this tone bucket
+                    for (const p of samplePosts) {
+                        if (rec.posts[toneKey].length >= TOP_HITS_PER_BUCKET) break;
+                        rec.posts[toneKey].push(p);
+                    }
+                });
+            }
 
             // Convert map to array and calculate percentages
             const trustDimensionsArray = Array.from(trustDimensionsMap.values()).map(dimension => {
                 const totalForDimension = dimension.totalCount;
-                
                 return {
                     category: dimension.category,
                     totalCount: totalForDimension,
                     tones: [
-                        {
-                            name: 'Supportive',
-                            count: dimension.Supportive,
-                            percentage: totalForDimension > 0 ? Math.round((dimension.Supportive / totalForDimension) * 100) : 0,
-                            posts: dimension.posts.Supportive
-                        },
-                        {
-                            name: 'Not Applicable',
-                            count: dimension['Not Applicable'],
-                            percentage: totalForDimension > 0 ? Math.round((dimension['Not Applicable'] / totalForDimension) * 100) : 0,
-                            posts: dimension.posts['Not Applicable']
-                        },
-                        {
-                            name: 'Distrustful',
-                            count: dimension.Distrustful,
-                            percentage: totalForDimension > 0 ? Math.round((dimension.Distrustful / totalForDimension) * 100) : 0,
-                            posts: dimension.posts.Distrustful
-                        },
-                        {
-                            name: 'Neutral',
-                            count: dimension.Neutral,
-                            percentage: totalForDimension > 0 ? Math.round((dimension.Neutral / totalForDimension) * 100) : 0,
-                            posts: dimension.posts.Neutral
-                        },
-                        {
-                            name: 'Mixed',
-                            count: dimension.Mixed,
-                            percentage: totalForDimension > 0 ? Math.round((dimension.Mixed / totalForDimension) * 100) : 0,
-                            posts: dimension.posts.Mixed
-                        }
+                        { name: 'Supportive', count: dimension.Supportive, percentage: totalForDimension > 0 ? Math.round((dimension.Supportive / totalForDimension) * 100) : 0, posts: dimension.posts.Supportive },
+                        { name: 'Not Applicable', count: dimension['Not Applicable'], percentage: totalForDimension > 0 ? Math.round((dimension['Not Applicable'] / totalForDimension) * 100) : 0, posts: dimension.posts['Not Applicable'] },
+                        { name: 'Distrustful', count: dimension.Distrustful, percentage: totalForDimension > 0 ? Math.round((dimension.Distrustful / totalForDimension) * 100) : 0, posts: dimension.posts.Distrustful },
+                        { name: 'Neutral', count: dimension.Neutral, percentage: totalForDimension > 0 ? Math.round((dimension.Neutral / totalForDimension) * 100) : 0, posts: dimension.posts.Neutral },
+                        { name: 'Mixed', count: dimension.Mixed, percentage: totalForDimension > 0 ? Math.round((dimension.Mixed / totalForDimension) * 100) : 0, posts: dimension.posts.Mixed }
                     ]
                 };
             });
+
+
 
             // Sort by total count descending
             trustDimensionsArray.sort((a, b) => b.totalCount - a.totalCount);
@@ -559,7 +524,6 @@ const trustDimensionsController = {
         const response = await elasticClient.search({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
             body: params,
-            request_cache: true,
             track_total_hits: false,
             timeout: '10s'
         });

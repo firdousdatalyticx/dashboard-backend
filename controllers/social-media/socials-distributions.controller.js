@@ -151,11 +151,13 @@ const socialsDistributionsController = {
             };
        
 
+            // return res.send(aggQuery)
             // Execute the aggregation query
             const aggResponse = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: aggQuery
             });
+
 
             // Get total count using the same query (for comparison with mentions-trend)
             // Note: total count is not returned in this endpoint for performance
@@ -323,7 +325,7 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
                         (data.keywords || []).map(keyword => ({
                             multi_match: {
                                 query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                fields: ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
                                 type: 'phrase'
                             }
                         }))
@@ -332,7 +334,7 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
                         (data.hashtags || []).map(hashtag => ({
                             multi_match: {
                                 query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                fields: ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
                                 type: 'phrase'
                             }
                         }))
@@ -341,7 +343,7 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
                         (data.urls || []).map(url => ({
                             multi_match: {
                                 query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                fields: ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
                                 type: 'phrase'
                             }
                         }))
@@ -366,21 +368,21 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
                         ...(data.keywords || []).map(keyword => ({
                             multi_match: {
                                 query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                fields: ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
                                 type: 'phrase'
                             }
                         })),
                         ...(data.hashtags || []).map(hashtag => ({
                             multi_match: {
                                 query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                fields: ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
                                 type: 'phrase'
                             }
                         })),
                         ...(data.urls || []).map(url => ({
                             multi_match: {
                                 query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                fields: ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
                                 type: 'phrase'
                             }
                         }))

@@ -22,7 +22,11 @@ const trustDimensionsController = {
                 lessThanTime,
                 sentiment
             } = req.body;
-
+ return res.json({
+                    success: true,
+                    trustDimensions: [],
+                    totalCount: 0
+                });
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
@@ -323,7 +327,11 @@ const trustDimensionsController = {
             toDate,
             sentiment
         } = req.body;
-
+ return res.json({
+                success: true,
+                trustDimensions: [],
+                totalTrustPosts: 0
+            });
         // Get category data from middleware
         let categoryData = {};
       

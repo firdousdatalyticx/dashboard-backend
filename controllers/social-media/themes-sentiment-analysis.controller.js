@@ -18,7 +18,11 @@ const themesSentimentAnalysisController = {
                 lessThanTime,
                 sentiment
             } = req.body;
-
+  return res.json({
+                    success: true,
+                    themesSentimentData: [],
+                    totalCount: 0
+                });
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 

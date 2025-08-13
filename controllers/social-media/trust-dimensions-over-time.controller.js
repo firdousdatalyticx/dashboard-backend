@@ -19,7 +19,11 @@ const trustDimensionsOverTimeController = {
                 sentiment,
                 tone // 'Supportive', 'Distrustful', or 'All'
             } = req.body;
-
+ return res.json({
+                    success: true,
+                    trustDimensionsOverTime: [],
+                    totalCount: 0
+                });
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 

@@ -19,6 +19,12 @@ const themesOverTimeController = {
                 sentiment
             } = req.body;
 
+               return res.json({
+                    success: true,
+                    themes: [],
+                    timeIntervals: [],
+                    totalCount: 0
+                });
             // Fixed interval for last 4 months
             const interval = 'monthly';
 

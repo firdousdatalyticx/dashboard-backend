@@ -22,6 +22,7 @@ const sentimentsMultipleCategoriesController = require('../../controllers/social
  *             $ref: '#/components/schemas/SentimentsAnalysisRequest'
  */
 router.post('/', express.json(), authMiddleware, transformCategoryData, sentimentsController.getSentimentsAnalysis);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, sentimentsController.getSentimentAnalysisPosts);
 router.post('/sentiments/multiple-categories',express.json(), authMiddleware, transformCategoryData, sentimentsMultipleCategoriesController.getMultipleCategoriesSentimentCountsOptimized);
 router.get('/sentiments/multiple-categories/posts',express.json(), authMiddleware, transformCategoryData, sentimentsMultipleCategoriesController.getMultipleCategoriesSentimentCountsOptimizedPost);
 

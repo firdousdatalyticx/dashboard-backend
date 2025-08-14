@@ -21,5 +21,7 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *             $ref: '#/components/schemas/EmotionsAnalysisRequest'
  */
 router.post('/', express.json(), authMiddleware, transformCategoryData, emotionsController.getEmotionsAnalysis);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, emotionsController.getEmotionAnalysisPosts);
+
 
 module.exports = router; 

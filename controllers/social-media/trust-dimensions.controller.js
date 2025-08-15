@@ -277,7 +277,7 @@ const trustDimensionsController = {
             });
         }
     },
-    getTrustDimensionsAnalysisWordCloud: async (req, res) => {
+    getTrustDimensionsAnalysisWordClouds: async (req, res) => {
     try {
         const {
             interval = 'monthly',
@@ -509,11 +509,11 @@ const trustDimensionsController = {
                             top_hits: {
                                 size: WORDCLOUD_POSTS_CAP,
                                 sort: [{ p_created_time: { order: 'desc' } }],
-                                _source: [
-                                    'trust_dimensions', 'theme_evidences', 'created_at', 'p_created_time',
-                                    'source', 'p_message', 'p_message_text', 'u_profile_photo', 'u_fullname', 'p_url',
-                                    'p_id', 'p_picture', 'p_picture_url', 'predicted_sentiment_value', 'predicted_category',
-                                ]
+                                // _source: [
+                                //     'trust_dimensions', 'theme_evidences', 'created_at', 'p_created_time',
+                                //     'source', 'p_message', 'p_message_text', 'u_profile_photo', 'u_fullname', 'p_url',
+                                //     'p_id', 'p_picture', 'p_picture_url', 'predicted_sentiment_value', 'predicted_category',
+                                // ]
                             }
                         }
                     }
@@ -562,8 +562,9 @@ const trustDimensionsController = {
             const toneBucket = b.tone?.buckets?.[0];
             const tone = extractTone(toneBucket?.key);
             const color = toneColors[tone] || '#8C8C8C';
-            const postsHits = b.posts?.hits?.hits || [];
-            const posts = postsHits.map((h) => formatPostData(h));
+            // const postsHits = b.posts?.hits?.hits || [];
+            const posts =[]
+            //  postsHits.map((h) => formatPostData(h));
 
             trustDimensions.push({ text, value, tone, color, posts });
             if (!dimensionsByTone[tone]) dimensionsByTone[tone] = [];
@@ -573,7 +574,7 @@ const trustDimensionsController = {
 
         return res.json({
             success: true,
-            trustDimensions,
+            // trustDimensions,
             toneTotals,
             dimensionsByTone,
             dateRange: useTimeFilter ? { from: greaterThanTime, to: lessThanTime } : null,
@@ -587,6 +588,639 @@ const trustDimensionsController = {
         });
     }
 },
+// Separate controller for fetching posts when user clicks on word cloud items
+getTrustDimensionsWordCloudPosts: async (req, res) => {
+    try {
+        const {
+            text, // The word cloud text that was clicked
+            tone, // The tone of the clicked item
+            interval = 'monthly',
+            source = 'All',
+            category = 'all',
+            timeSlot,
+            fromDate,
+            toDate,
+            sentiment,
+            page = 1,
+            limit = 20 // Pagination support
+        } = req.body;
+
+        // Validate required parameters
+        if (!text) {
+            return res.status(400).json({
+                success: false,
+                error: 'Text parameter is required'
+            });
+        }
+
+        // Get category data from middleware
+        let categoryData = {};
+      
+        if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+            categoryData = processCategoryItems(req.body.categoryItems);
+        } else {
+            categoryData = req.processedCategories || {};
+        }
+
+        if (Object.keys(categoryData).length === 0) {
+            return res.json({
+                success: true,
+                posts: [],
+                totalPosts: 0,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalPages: 0
+                }
+            });
+        }
+
+        // Handle date range based on timeSlot (same logic as main controller)
+        const now = new Date();
+        let startDate;
+        let endDate = now;
+        let useTimeFilter = true;
+
+        if (!timeSlot && !fromDate && !toDate) {
+            useTimeFilter = false;
+        } else if (timeSlot === 'Custom date' && fromDate && toDate) {
+            startDate = parseISO(fromDate);
+            endDate = parseISO(toDate);
+        } else if (timeSlot) {
+            switch (timeSlot) {
+                case 'last24hours':
+                    startDate = subDays(now, 1);
+                    break;
+                case 'last7days':
+                    startDate = subDays(now, 7);
+                    break;
+                case 'last30days':
+                    startDate = subDays(now, 30);
+                    break;
+                case 'last60days':
+                    startDate = subDays(now, 60);
+                    break;
+                case 'last120days':
+                    startDate = subDays(now, 120);
+                    break;
+                case 'last90days':
+                    startDate = subDays(now, 90);
+                    break;
+                default:
+                    useTimeFilter = false;
+                    break;
+            }
+        } else {
+            useTimeFilter = false;
+        }
+        
+        const greaterThanTime = useTimeFilter ? format(startDate, 'yyyy-MM-dd') : null;
+        const lessThanTime = useTimeFilter ? format(endDate, 'yyyy-MM-dd') : null;
+
+        // Build query - similar to main controller but focused on specific text and tone
+        const query = {
+            bool: {
+                must: [
+                    {
+                        exists: {
+                            field: 'trust_dimensions'
+                        }
+                    },
+                    {
+                        exists: {
+                            field: 'theme_evidences'
+                        }
+                    },
+                    // Match the specific theme evidence text that was clicked
+                    {
+                        term: {
+                            'theme_evidences.keyword': text
+                        }
+                    }
+                ],
+                must_not: [
+                    { term: { "trust_dimensions.keyword": "" } },
+                    { term: { "trust_dimensions.keyword": "{}" } },
+                    { term: { "theme_evidences.keyword": "" } },
+                    { term: { "theme_evidences.keyword": "{}" } },
+                ]
+            }
+        };
+
+        // Add tone filter if provided
+        if (tone) {
+            // Create flexible tone matching similar to main controller
+            const toneQuery = {
+                bool: {
+                    should: [
+                        { wildcard: { "trust_dimensions.keyword": `*"${tone}"*` } },
+                        { wildcard: { "trust_dimensions.keyword": `*${tone}*` } }
+                    ],
+                    minimum_should_match: 1
+                }
+            };
+            query.bool.must.push(toneQuery);
+        }
+
+        // Add sentiment filter if provided (same logic as main controller)
+        if (sentiment) {
+            if (sentiment.toLowerCase() === "all") {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match: { predicted_sentiment_value: "Positive" } },
+                            { match: { predicted_sentiment_value: "positive" } },
+                            { match: { predicted_sentiment_value: "Negative" } },
+                            { match: { predicted_sentiment_value: "negative" } },
+                            { match: { predicted_sentiment_value: "Neutral" } },
+                            { match: { predicted_sentiment_value: "neutral" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            } else if (sentiment !== "All") {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match: { predicted_sentiment_value: sentiment } },
+                            { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                            { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            }
+        }
+
+        // Add date range filter if timeSlot is provided
+        if (useTimeFilter) {
+            query.bool.must.push({
+                range: {
+                    p_created_time: {
+                        gte: `${greaterThanTime}T00:00:00.000Z`,
+                        lte: `${lessThanTime}T23:59:59.999Z`
+                    }
+                }
+            });
+        }
+
+        // Add category filters (same logic as main controller)
+        if (category === 'all') {
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        ...Object.values(categoryData).flatMap(data =>
+                            (data.keywords || []).map(keyword => ({
+                                multi_match: {
+                                    query: keyword,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            }))
+                        ),
+                        ...Object.values(categoryData).flatMap(data =>
+                            (data.hashtags || []).map(hashtag => ({
+                                multi_match: {
+                                    query: hashtag,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            }))
+                        ),
+                        ...Object.values(categoryData).flatMap(data =>
+                            (data.urls || []).map(url => ({
+                                multi_match: {
+                                    query: url,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            }))
+                        )
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        } else if (categoryData[category]) {
+            const data = categoryData[category];
+            const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
+            const hasHashtags = Array.isArray(data.hashtags) && data.hashtags.length > 0;
+            const hasUrls = Array.isArray(data.urls) && data.urls.length > 0;
+
+            if (hasKeywords || hasHashtags || hasUrls) {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            ...(data.keywords || []).map(keyword => ({
+                                multi_match: {
+                                    query: keyword,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            })),
+                            ...(data.hashtags || []).map(hashtag => ({
+                                multi_match: {
+                                    query: hashtag,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            })),
+                            ...(data.urls || []).map(url => ({
+                                multi_match: {
+                                    query: url,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            }))
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            } else {
+                query.bool.must.push({
+                    bool: {
+                        must_not: {
+                            match_all: {}
+                        }
+                    }
+                });
+            }
+        }
+
+        // Calculate pagination
+        const from = (parseInt(page) - 1) * parseInt(limit);
+
+        // Search parameters for posts only
+        const params = {
+            from,
+            size: parseInt(limit),
+            query,
+            sort: [
+                { p_created_time: { order: 'desc' } }
+            ],
+            _source: [
+                'trust_dimensions', 
+                'theme_evidences', 
+                'created_at', 
+                'p_created_time',
+                'source', 
+                'p_message', 
+                'p_message_text', 
+                'u_profile_photo', 
+                'u_fullname', 
+                'p_url',
+                'p_id', 
+                'p_picture', 
+                'p_picture_url', 
+                'predicted_sentiment_value', 
+                'predicted_category',
+                'u_source'
+            ],
+            track_total_hits: true
+        };
+
+        const response = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: params,
+            timeout: '10s'
+        });
+
+        // Format posts
+        const posts = (response.hits?.hits || []).map(hit => formatPostData(hit));
+        const totalPosts = response.hits?.total?.value || 0;
+        const totalPages = Math.ceil(totalPosts / parseInt(limit));
+
+        return res.json({
+            success: true,
+            posts,
+            totalPosts,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages,
+                hasNextPage: parseInt(page) < totalPages,
+                hasPrevPage: parseInt(page) > 1
+            },
+            filters: {
+                text,
+                tone,
+                dateRange: useTimeFilter ? { from: greaterThanTime, to: lessThanTime } : null,
+                category,
+                sentiment
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching word cloud posts:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+},
+
+// Optimized main word cloud controller (without posts in response)
+getTrustDimensionsAnalysisWordCloud: async (req, res) => {
+    try {
+        const {
+            interval = 'monthly',
+            source = 'All',
+            category = 'all',
+            timeSlot,
+            fromDate,
+            toDate,
+            sentiment
+        } = req.body;
+
+        // Get category data from middleware
+        let categoryData = {};
+      
+        if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+            categoryData = processCategoryItems(req.body.categoryItems);
+        } else {
+            categoryData = req.processedCategories || {};
+        }     
+
+        if (Object.keys(categoryData).length === 0) {
+            return res.json({
+                success: true,
+                trustDimensions: [],
+                toneTotals: {},
+                dimensionsByTone: {}
+            });
+        }
+
+        // [Same date handling logic as original...]
+        const now = new Date();
+        let startDate;
+        let endDate = now;
+        let useTimeFilter = true;
+
+        if (!timeSlot && !fromDate && !toDate) {
+            useTimeFilter = false;
+        } else if (timeSlot === 'Custom date' && fromDate && toDate) {
+            startDate = parseISO(fromDate);
+            endDate = parseISO(toDate);
+        } else if (timeSlot) {
+            switch (timeSlot) {
+                case 'last24hours':
+                    startDate = subDays(now, 1);
+                    break;
+                case 'last7days':
+                    startDate = subDays(now, 7);
+                    break;
+                case 'last30days':
+                    startDate = subDays(now, 30);
+                    break;
+                case 'last60days':
+                    startDate = subDays(now, 60);
+                    break;
+                case 'last120days':
+                    startDate = subDays(now, 120);
+                    break;
+                case 'last90days':
+                    startDate = subDays(now, 90);
+                    break;
+                default:
+                    useTimeFilter = false;
+                    break;
+            }
+        } else {
+            useTimeFilter = false;
+        }
+        
+        const greaterThanTime = useTimeFilter ? format(startDate, 'yyyy-MM-dd') : null;
+        const lessThanTime = useTimeFilter ? format(endDate, 'yyyy-MM-dd') : null;
+
+        // [Same query building logic as original but without posts aggregation...]
+        const query = {
+            bool: {
+                must: [
+                    {
+                        exists: {
+                            field: 'trust_dimensions'
+                        }
+                    }
+                ],
+                must_not: [
+                    { term: { "trust_dimensions.keyword": "" } },
+                    { term: { "trust_dimensions.keyword": "{}" } },
+                    { term: { "theme_evidences.keyword": "" } },
+                    { term: { "theme_evidences.keyword": "{}" } },
+                ]
+            }
+        };
+
+            // Add sentiment filter if provided
+        if (sentiment) {
+            if (sentiment.toLowerCase() === "all") {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match: { predicted_sentiment_value: "Positive" } },
+                            { match: { predicted_sentiment_value: "positive" } },
+                            { match: { predicted_sentiment_value: "Negative" } },
+                            { match: { predicted_sentiment_value: "negative" } },
+                            { match: { predicted_sentiment_value: "Neutral" } },
+                            { match: { predicted_sentiment_value: "neutral" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            } else if (sentiment !== "All") {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match: { predicted_sentiment_value: sentiment } },
+                            { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                            { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            }
+        }
+
+        // Only add date range filter if timeSlot is provided
+        if (useTimeFilter) {
+            query.bool.must.push({
+                range: {
+                    p_created_time: {
+                        gte: `${greaterThanTime}T00:00:00.000Z`,
+                        lte: `${lessThanTime}T23:59:59.999Z`
+                    }
+                }
+            });
+        }
+
+        // Add category filters
+        if (category === 'all') {
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        ...Object.values(categoryData).flatMap(data =>
+                            (data.keywords || []).map(keyword => ({
+                                multi_match: {
+                                    query: keyword,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            }))
+                        ),
+                        ...Object.values(categoryData).flatMap(data =>
+                            (data.hashtags || []).map(hashtag => ({
+                                multi_match: {
+                                    query: hashtag,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            }))
+                        ),
+                        ...Object.values(categoryData).flatMap(data =>
+                            (data.urls || []).map(url => ({
+                                multi_match: {
+                                    query: url,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            }))
+                        )
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        } else if (categoryData[category]) {
+            const data = categoryData[category];
+
+            // Check if the category has any filtering criteria
+            const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
+            const hasHashtags = Array.isArray(data.hashtags) && data.hashtags.length > 0;
+            const hasUrls = Array.isArray(data.urls) && data.urls.length > 0;
+
+            // Only add the filter if there's at least one criteria
+            if (hasKeywords || hasHashtags || hasUrls) {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            ...(data.keywords || []).map(keyword => ({
+                                multi_match: {
+                                    query: keyword,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            })),
+                            ...(data.hashtags || []).map(hashtag => ({
+                                multi_match: {
+                                    query: hashtag,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            })),
+                            ...(data.urls || []).map(url => ({
+                                multi_match: {
+                                    query: url,
+                                    fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                                    type: 'phrase'
+                                }
+                            }))
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            } else {
+                // If the category has no filtering criteria, add a condition that will match nothing
+                query.bool.must.push({
+                    bool: {
+                        must_not: {
+                            match_all: {}
+                        }
+                    }
+                });
+            }
+        }
+
+        // Optimized aggregation - no posts included
+        const params = {
+            size: 0,
+            query,
+            aggs: {
+                themes: {
+                    terms: { field: 'theme_evidences.keyword', size: 3000, order: { _count: 'desc' } },
+                    aggs: {
+                        tone: { terms: { field: 'trust_dimensions.keyword', size: 1 } }
+                    }
+                }
+            }
+        };
+
+        const response = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: params,
+            track_total_hits: false,
+            timeout: '10s'
+        });
+
+        const toneColors = {
+            Supportive: '#52C41A',
+            Distrustful: '#FF4D4F',
+            Neutral: '#1890FF',
+            Mixed: '#FAAD14'
+        };
+
+        const extractTone = (raw) => {
+            if (!raw || typeof raw !== 'string') return null;
+            const trimmed = raw.trim();
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                try {
+                    const obj = JSON.parse(trimmed);
+                    const vals = Object.values(obj);
+                    return vals.length > 0 ? String(vals[0]).trim() : null;
+                } catch (_) {
+                    return null;
+                }
+            }
+            return null;
+        };
+
+        const themeBuckets = response.aggregations?.themes?.buckets || [];
+        const trustDimensions = [];
+        const dimensionsByTone = {};
+        const toneTotals = {};
+
+        for (const b of themeBuckets) {
+            const text = b.key;
+            const value = b.doc_count;
+            const toneBucket = b.tone?.buckets?.[0];
+            const tone = extractTone(toneBucket?.key);
+            
+            // Skip items without valid tone
+            if (!tone || !toneColors[tone]) continue;
+            
+            const color = toneColors[tone];
+
+            // No posts included - just metadata
+            trustDimensions.push({ text, value, tone, color });
+            
+            if (!dimensionsByTone[tone]) dimensionsByTone[tone] = [];
+            dimensionsByTone[tone].push({ text, value });
+            toneTotals[tone] = (toneTotals[tone] || 0) + value;
+        }
+
+        return res.json({
+            success: true,
+            trustDimensions,
+            toneTotals,
+            dimensionsByTone,
+            dateRange: useTimeFilter ? { from: greaterThanTime, to: lessThanTime } : null,
+        });
+
+    } catch (error) {
+        console.error('Error fetching trust dimensions analysis data:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+}
 
 };
 

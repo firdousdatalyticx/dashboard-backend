@@ -6,5 +6,7 @@ const trustDimensionsController = require('../../controllers/social-media/trust-
 
 // Apply middleware and route handler
 router.post('/', express.json(), authMiddleware, transformCategoryData, trustDimensionsController.getTrustDimensionsAnalysisWordCloud);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, trustDimensionsController.getTrustDimensionsWordCloudPosts);
+
 
 module.exports = router; 

@@ -467,7 +467,7 @@ const emotionsController = {
     }
 
     // Calculate pagination
-    const from = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
     // Get all filter terms for highlighting matches
     let allFilterTerms = [];
@@ -481,26 +481,10 @@ const emotionsController = {
 
     // Set up posts query with pagination
     const postsQuery = {
-      from: from,
+      from: offset,
       size: limit,
       query: query,
-      sort: [{ p_created_time: { order: "desc" } }],
-      _source: {
-        includes: [
-          "p_created_time",
-          "p_url",
-          "message_text",
-          "content",
-          "title",
-          "keywords",
-          "hashtags",
-          "source",
-          "userFullname",
-          "uSource",
-          "llm_emotion",
-          "predicted_sentiment_value"
-        ]
-      }
+      sort: [{ p_created_time: { order: "desc" } }]
     };
 
     // Execute the query
@@ -542,8 +526,8 @@ const emotionsController = {
       success: true,
       posts: posts,
       total: response.hits.total.value,
-      page: page,
-      limit: limit
+      limit: limit,
+      offset: offset
     });
 
   } catch (error) {
@@ -684,11 +668,12 @@ const formatPostData = (hit) => {
     businessResponse: source.business_response,
     uSource: source.u_source,
     googleName: source.name,
-    created_at: new Date(
-      source.p_created_time || source.created_at
-    ).toLocaleString(),
-    p_comments_data:source.p_comments_data,
-
+    created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+    p_comments_data: source.p_comments_data,
+    p_url: source.p_url,
+    keywords: source.keywords,
+    hashtags: source.hashtags,
+    title: source.title
   };
 };
 

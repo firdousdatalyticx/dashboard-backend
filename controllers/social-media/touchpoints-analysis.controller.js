@@ -99,15 +99,12 @@ const touchpointsAnalysisController = {
                     field: 'touchpoints'
                 }
             });
-            // Exclude empty placeholders
+            // Exclude empty placeholder
             query.bool.must_not = query.bool.must_not || [];
             query.bool.must_not.push({ term: { 'touchpoints.keyword': '' } });
-            query.bool.must_not.push({ term: { 'touchpoints.keyword': '{}' } });
-            query.bool.must_not.push({ term: { 'touchpoints.keyword': '[]' } });
 
             // Aggregation-based approach to avoid per-hit processing
             const AGG_SIZE = 300;
-            const POSTS_PER_SENTIMENT = 5;
             const params = {
                 size: 0,
                 query: query,
@@ -115,21 +112,7 @@ const touchpointsAnalysisController = {
                     touchpoints_raw: {
                         terms: { field: 'touchpoints.keyword', size: AGG_SIZE, order: { _count: 'desc' } },
                         aggs: {
-                            sentiments: { terms: { field: 'predicted_sentiment_value.keyword', size: 3 } },
-                            posts_by_sentiment: {
-                                terms: { field: 'predicted_sentiment_value.keyword', size: 3 },
-                                aggs: {
-                                    top_posts: {
-                                        top_hits: {
-                                            size: POSTS_PER_SENTIMENT,
-                                            sort: [{ p_created_time: { order: 'desc' } }],
-                                            _source: [
-                                                'touchpoints','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response','u_country'
-                                            ]
-                                        }
-                                    }
-                                }
-                            }
+                            sentiments: { terms: { field: 'predicted_sentiment_value.keyword', size: 3 } }
                         }
                     }
                 }
@@ -142,35 +125,17 @@ const touchpointsAnalysisController = {
                 timeout: '10s'
             });
 
-            // Process aggregated results: parse touchpoints JSON/CSV per bucket and distribute counts
+            // Process aggregated results: handle touchpoints as array of strings per document
             const touchpointsMap = new Map();
             let totalCount = 0;
             const buckets = response.aggregations?.touchpoints_raw?.buckets || [];
             for (const b of buckets) {
                 const keyStr = b.key;
-                if (!keyStr || keyStr === '{}' || keyStr === '[]') continue;
+                if (!keyStr) continue;
                 const sentimentsBuckets = b.sentiments?.buckets || [];
-                const postsBySentiment = new Map();
-                const pbs = b.posts_by_sentiment?.buckets || [];
-                pbs.forEach(eb => {
-                    const sKey = eb.key || '';
-                    const hits = eb.top_posts?.hits?.hits || [];
-                    postsBySentiment.set(sKey, hits.map(h => formatPostData(h)));
-                });
 
-                // Derive list of touchpoint names from the raw string
-                let tpList = [];
-                const trimmed = String(keyStr).trim();
-                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                    try {
-                        const obj = JSON.parse(trimmed);
-                        tpList = Object.keys(obj || {}).map(k => String(k).trim()).filter(Boolean);
-                    } catch (_) { /* ignore */ }
-                }
-                if (tpList.length === 0) {
-                    tpList = trimmed.split(',').map(s => s.trim()).filter(s => s.length > 0 && s !== '{}' && s !== '[]');
-                }
-                if (tpList.length === 0) continue;
+                // With array field, each bucket key is a single touchpoint name
+                const tpList = [String(keyStr).trim()].filter(Boolean);
 
                 const bucketDocCount = b.doc_count || 0;
                 totalCount += bucketDocCount;
@@ -181,9 +146,9 @@ const touchpointsAnalysisController = {
                         touchpointsMap.set(key, {
                             touchpoint: key,
                             sentiments: {
-                                'Positive': { count: 0, posts: [] },
-                                'Negative': { count: 0, posts: [] },
-                                'Neutral': { count: 0, posts: [] },
+                                'Positive': { count: 0 },
+                                'Negative': { count: 0 },
+                                'Neutral': { count: 0 },
                             },
                             totalCount: 0,
                         });
@@ -193,12 +158,8 @@ const touchpointsAnalysisController = {
                     sentimentsBuckets.forEach(sb => {
                         const sName = sb.key || '';
                         const sCount = sb.doc_count || 0;
-                        if (!tpData.sentiments[sName]) tpData.sentiments[sName] = { count: 0, posts: [] };
+                        if (!tpData.sentiments[sName]) tpData.sentiments[sName] = { count: 0 };
                         tpData.sentiments[sName].count += sCount;
-                        const samplePosts = postsBySentiment.get(sName) || [];
-                        samplePosts.forEach(p => {
-                            if (tpData.sentiments[sName].posts.length < 10) tpData.sentiments[sName].posts.push(p);
-                        });
                     });
                 }
             }
@@ -240,8 +201,7 @@ const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
         .map(([sentimentName, data]) => ({
             name: sentimentName,
             count: data.count,
-            percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
-            posts: data.posts.slice(0, 10)
+            percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0
         }))
         .sort((a, b) => b.count - a.count);
 
@@ -280,42 +240,7 @@ const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
                 });
             }
 
-            // For each post in touchpointsArray[].sentiments[].posts, add matched_terms
-            if (touchpointsArray && Array.isArray(touchpointsArray)) {
-                touchpointsArray.forEach(tpObj => {
-                    if (tpObj.sentiments && Array.isArray(tpObj.sentiments)) {
-                        tpObj.sentiments.forEach(sentimentObj => {
-                            if (sentimentObj.posts && Array.isArray(sentimentObj.posts)) {
-                                sentimentObj.posts = sentimentObj.posts.map(post => {
-                                    const textFields = [
-                                        post.message_text,
-                                        post.content,
-                                        post.keywords,
-                                        post.title,
-                                        post.hashtags,
-                                        post.uSource,
-                                        post.source,
-                                        post.p_url,
-                                        post.userFullname
-                                    ];
-                                    return {
-                                        ...post,
-                                        matched_terms: allFilterTerms.filter(term =>
-                                            textFields.some(field => {
-                                                if (!field) return false;
-                                                if (Array.isArray(field)) {
-                                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-                                                }
-                                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-                                            })
-                                        )
-                                    };
-                                });
-                            }
-                        });
-                    }
-                });
-            }
+            // No matched_terms processing as posts are not included here
 
             return res.json({
                 success: true,

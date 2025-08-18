@@ -5264,6 +5264,9 @@ const mentionsChartController = {
       });
     }
   },
+
+
+  
 trustDimensionsEducationSystem: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =
@@ -5316,10 +5319,10 @@ trustDimensionsEducationSystem: async (req, res) => {
                   },
                 },
               },
+              { exists: { field: 'trust_dimensions' } }
             ],
             must_not: [
               { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
             ],
           },
         },
@@ -5503,22 +5506,17 @@ trustDimensionsEducationSystem: async (req, res) => {
       for (const hit of hits) {
         const src = hit._source || {};
         const raw = src.trust_dimensions;
-        if (!raw) continue;
+        if (!raw || !Array.isArray(raw)) continue;
 
-        let td;
-        try {
-          td = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        } catch (_) {
-          continue;
-        }
-        if (!td || typeof td !== 'object' || Array.isArray(td)) continue;
+        const dimensions = raw
+          .map(d => (typeof d === 'string' ? d.trim() : ''))
+          .filter(Boolean);
+        if (dimensions.length === 0) continue;
 
         const emotion = (src.llm_emotion || '').toString().trim() || 'Unknown';
         const postObj = localFormatPost(hit);
 
-        Object.keys(td).forEach(dim => {
-          const dimKey = dim.toString().trim();
-          if (!dimKey) return;
+        for (const dimKey of dimensions) {
           if (!dimensionToEmotion.has(dimKey)) {
             dimensionToEmotion.set(dimKey, new Map());
           }
@@ -5531,7 +5529,7 @@ trustDimensionsEducationSystem: async (req, res) => {
           if (bucket.posts.length < POSTS_PER_EMOTION) {
             bucket.posts.push(postObj);
           }
-        });
+        }
       }
 
       const dataAll = Array.from(dimensionToEmotion.entries()).map(([dimension, emoMap]) => {
@@ -5604,11 +5602,11 @@ trustDimensionsEducationSystem: async (req, res) => {
                   },
                 },
               },
+              { exists: { field: 'trust_dimensions' } }
             ],
 
             must_not: [
-              { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
+              { term: { "trust_dimensions.keyword": "" } }
             ],
           },
         },
@@ -5644,6 +5642,10 @@ trustDimensionsEducationSystem: async (req, res) => {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+
+
+
+
   benchMarkingPresenceSentiment: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =

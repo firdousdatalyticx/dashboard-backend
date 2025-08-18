@@ -102,15 +102,14 @@ const trustDimensionsOverTimeController = {
 					field: 'trust_dimensions'
 				}
 			});
-			// Exclude empty placeholders
+			// Exclude empty placeholder
 			query.bool.must_not = query.bool.must_not || [];
 			query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '' } });
-			query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '{}' } });
 
             console.log('Trust Dimensions Over Time Query:', JSON.stringify(query, null, 2));
 
-			// Aggregation-based approach: date histogram + terms on trust_dimensions JSON string
-			const AGG_SIZE = 200; // per-month distinct trust_dimensions strings
+			// Aggregation-based approach: date histogram + terms on trust_dimensions array; tone from llm_emotion
+			const AGG_SIZE = 200; // per-month distinct dimensions
 			const POSTS_PER_BUCKET = 3;
 			const params = {
 				size: 0,
@@ -127,16 +126,22 @@ const trustDimensionsOverTimeController = {
                             }
                         },
 						aggs: {
-							td_json: {
+							dimensions: {
 								terms: { field: 'trust_dimensions.keyword', size: AGG_SIZE, order: { _count: 'desc' } },
 								aggs: {
-									top_posts: {
-										top_hits: {
-											size: POSTS_PER_BUCKET,
-											sort: [{ p_created_time: { order: 'desc' } }],
-											_source: [
-												'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response','u_country'
-											]
+									tone: { terms: { field: 'llm_emotion.keyword', size: 20 } },
+									top_posts_by_tone: {
+										terms: { field: 'llm_emotion.keyword', size: 20 },
+										aggs: {
+											top_posts: {
+												top_hits: {
+													size: POSTS_PER_BUCKET,
+													sort: [{ p_created_time: { order: 'desc' } }],
+													_source: [
+														'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response','u_country'
+													]
+												}
+											}
 										}
 									}
 								}
@@ -172,26 +177,29 @@ const trustDimensionsOverTimeController = {
 				const tdBuckets = tb.td_json?.buckets || [];
 				const monthMap = monthlyData.get(monthKey) || new Map();
 				tdBuckets.forEach(b => {
-					const keyStr = b.key;
-					if (!keyStr || keyStr === '{}' || keyStr === '""') return;
-					let obj;
-					try { obj = JSON.parse(keyStr); } catch (_) { return; }
-					if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
-					const samplePosts = (b.top_posts?.hits?.hits || []).map(h => formatPostData(h));
+					const dimName = b.key;
+					if (!dimName) return;
 					const bucketDocCount = b.doc_count || 0;
 					totalCount += bucketDocCount;
-					Object.entries(obj).forEach(([dimensionName, dimensionTone]) => {
-						const dimensionKey = String(dimensionName).trim();
-						const toneValue = String(dimensionTone || '').trim();
-						if (!dimensionKey) return;
-						// Filter by tone if specified
+					const samplePostsByTone = new Map();
+					(b.top_posts_by_tone?.buckets || []).forEach(tb => {
+						const hits = tb.top_posts?.hits?.hits || [];
+						samplePostsByTone.set(tb.key, hits.map(h => formatPostData(h)));
+					});
+					(b.tone?.buckets || []).forEach(tb => {
+						const emotion = (tb.key || '').toString().toLowerCase();
+						let toneValue = 'Neutral';
+						if (['supportive','happy','pleased','hopeful','content','satisfied','excited','delighted','grateful'].includes(emotion)) toneValue = 'Supportive';
+						else if (['distrustful','frustrated','angry','upset','concerned','disappointed','sad','fearful','anxious'].includes(emotion)) toneValue = 'Distrustful';
+						// Filter by requested tone if any
 						if (tone && tone !== 'All' && toneValue.toLowerCase() !== tone.toLowerCase()) return;
-						trustDimensionCategories.add(dimensionKey);
-						const dimensionToneKey = `${dimensionKey}_${toneValue}`;
+						trustDimensionCategories.add(dimName);
+						const dimensionToneKey = `${dimName}_${toneValue}`;
 						if (!monthMap.has(dimensionToneKey)) monthMap.set(dimensionToneKey, { count: 0, posts: [] });
 						const cur = monthMap.get(dimensionToneKey);
-						cur.count += bucketDocCount;
-						samplePosts.forEach(p => { if (cur.posts.length < POSTS_PER_BUCKET) cur.posts.push(p); });
+						cur.count += tb.doc_count || 0;
+						const posts = samplePostsByTone.get(tb.key) || [];
+						posts.forEach(p => { if (cur.posts.length < POSTS_PER_BUCKET) cur.posts.push(p); });
 						monthMap.set(dimensionToneKey, cur);
 					});
 				});

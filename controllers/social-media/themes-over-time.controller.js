@@ -197,37 +197,10 @@ const themesOverTimeController = {
                 const postDate = hit._source.p_created_time || hit._source.created_at;
                 if (!raw || !postDate) return;
 
-                // Normalize theme names from raw
-                let themeNames = [];
-                try {
-                    if (typeof raw === 'string') {
-                        try {
-                            const parsed = JSON.parse(raw);
-                            if (Array.isArray(parsed)) {
-                                themeNames = parsed.map(item => {
-                                    if (typeof item === 'string') return item.trim();
-                                    if (item && typeof item === 'object') return (item.theme || item.name || '').toString().trim();
-                                    return '';
-                                }).filter(Boolean);
-                            } else if (parsed && typeof parsed === 'object') {
-                                themeNames = Object.keys(parsed).map(k => k.toString().trim()).filter(Boolean);
-                            }
-                        } catch (_) {
-                            themeNames = raw.split(',').map(s => s.trim()).filter(Boolean);
-                        }
-                    } else if (Array.isArray(raw)) {
-                        themeNames = raw.map(item => {
-                            if (typeof item === 'string') return item.trim();
-                            if (item && typeof item === 'object') return (item.theme || item.name || '').toString().trim();
-                            return '';
-                        }).filter(Boolean);
-                    } else if (raw && typeof raw === 'object') {
-                        themeNames = Object.keys(raw).map(k => k.toString().trim()).filter(Boolean);
-                    }
-                } catch (e) {
-                    console.error('Error parsing themes_sentiments JSON:', e, raw);
-                    return;
-                }
+                // New structure: themes_sentiments is an array of strings
+                let themeNames = Array.isArray(raw)
+                    ? raw.map(item => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+                    : [];
 
                 if (themeNames.length === 0) return;
 

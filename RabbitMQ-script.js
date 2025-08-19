@@ -2,11 +2,11 @@ const amqp = require('amqplib');
 
 // RabbitMQ connection configuration
 const rabbitConfig = {
-    hostname: '47.251.86.93',
+    hostname: '74.162.40.87',
     port: 5672,
-    username: 'd24',
-    password: 'MyKS3cur3KPor_d',
-    vhost: 'cherry_broker'
+    username: 'datalyticx',
+    password: 'datalyticxDXB@25!',
+    vhost: '/'
 };
 
 // Queue configuration
@@ -14,10 +14,11 @@ const queueName = 'data_requests';
 
 // Message payload for RabbitMQ
 const messagePayload = {
-    queries: ["#dubai", "#technology", "https://twitter.com/omantel", "dubai"],
-    start_date: "2025-01-09",
-    end_date: "2025-01-10",
-    interval_type: "day"
+    queries: ["arab region", "arab world"],
+    start_date: "2020-01-01",
+    end_date: "2021-12-31",
+    source: ["Facebook", "Twitter"],
+    request_type: "POST"  // POST to initiate collection, GET to collect and dump
 };
 
 async function publishToQueue() {

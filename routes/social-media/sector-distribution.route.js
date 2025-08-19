@@ -6,5 +6,6 @@ const sectorDistributionController = require('../../controllers/social-media/sec
 
 // Apply middleware and route handler
 router.post('/', express.json(), authMiddleware, transformCategoryData, sectorDistributionController.getSectorDistributionAnalysis);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, sectorDistributionController.getSectorPosts);
 
 module.exports = router; 

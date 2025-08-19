@@ -101,7 +101,7 @@ const sectorDistributionController = {
                 }
             });
 
-            // Aggregation query to fetch sector counts and top posts per sector
+            // Aggregation query to fetch sector counts only
             const params = {
                 size: 0,
                 query: query,
@@ -111,46 +111,6 @@ const sectorDistributionController = {
                             field: 'sector.keyword',
                             size: 1000,
                             order: { _count: 'desc' }
-                        },
-                        aggs: {
-                            recent_posts: {
-                                top_hits: {
-                                    size: 100,
-                                    sort: [ { p_created_time: { order: 'desc' } } ],
-                                    _source: [
-                                        'sector',
-                                        'created_at', 
-                                        'p_created_time',
-                                        'source',
-                                        'p_message', 
-                                        'p_message_text', 
-                                        'u_profile_photo',
-                                        'u_followers',
-                                        'u_following',
-                                        'u_posts',
-                                        'p_likes',
-                                        'p_comments_text',
-                                        'p_url',
-                                        'p_comments',
-                                        'p_shares',
-                                        'p_engagement',
-                                        'p_content',
-                                        'p_picture_url',
-                                        'predicted_sentiment_value',
-                                        'predicted_category',
-                                        'u_fullname',
-                                        'video_embed_url',
-                                        'p_picture',
-                                        'p_id',
-                                        'rating',
-                                        'comment',
-                                        'business_response',
-                                        'u_source',
-                                        'name',
-                                        'llm_emotion'
-                                    ]
-                                }
-                            }
                         }
                     }
                 }
@@ -165,58 +125,16 @@ const sectorDistributionController = {
             const buckets = response.aggregations?.sector_counts?.buckets || [];
             const totalCount = buckets.reduce((sum, b) => sum + (b.doc_count || 0), 0);
             const sectorsArray = buckets.map((bucket) => {
-                const hits = bucket.recent_posts?.hits?.hits || [];
-                const posts = hits.map((h) => formatPostData(h));
                 return {
                     sector: bucket.key,
                     count: bucket.doc_count,
-                    percentage: totalCount > 0 ? Math.round((bucket.doc_count / totalCount) * 100) : 0,
-                    posts,
+                    percentage: totalCount > 0 ? Math.round((bucket.doc_count / totalCount) * 100) : 0
                 };
             });
 
-            // Gather all filter terms
-            let allFilterTerms = [];
-            if (categoryData) {
-                Object.values(categoryData).forEach((data) => {
-                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
-                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
-                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
-                });
-            }
+            // No filter terms needed for counts-only endpoint
 
-            // For each post in sectorsArray[].posts, add matched_terms
-            if (sectorsArray && Array.isArray(sectorsArray)) {
-                sectorsArray.forEach(sectorObj => {
-                    if (sectorObj.posts && Array.isArray(sectorObj.posts)) {
-                        sectorObj.posts = sectorObj.posts.map(post => {
-                            const textFields = [
-                                post.message_text,
-                                post.content,
-                                post.keywords,
-                                post.title,
-                                post.hashtags,
-                                post.uSource,
-                                post.source,
-                                post.p_url,
-                                post.userFullname
-                            ];
-                            return {
-                                ...post,
-                                matched_terms: allFilterTerms.filter(term =>
-                                    textFields.some(field => {
-                                        if (!field) return false;
-                                        if (Array.isArray(field)) {
-                                            return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-                                        }
-                                        return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-                                    })
-                                )
-                            };
-                        });
-                    }
-                });
-            }
+            // No posts processing needed for counts-only endpoint
 
             return res.json({
                 success: true,
@@ -231,6 +149,140 @@ const sectorDistributionController = {
 
         } catch (error) {
             console.error('Error fetching sector distribution analysis data:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    },
+
+    /**
+     * Get posts for a specific sector
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     * @returns {Object} JSON response with posts for the selected sector
+     */
+    getSectorPosts: async (req, res) => {
+        try {
+            const {
+                source = 'All',
+                category = 'all',
+                topicId,
+                greaterThanTime,
+                lessThanTime,
+                sentiment,
+                sector, // required
+                page = 1,
+                limit = 20
+            } = req.body;
+
+            if (!sector) {
+                return res.status(400).json({ success: false, error: 'sector is required' });
+            }
+
+            // Get category data from middleware
+            let categoryData = {};
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+                categoryData = req.processedCategories || {};
+            }
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
+            }
+
+            // Set date range
+            const now = new Date();
+            let effectiveGreaterThanTime, effectiveLessThanTime;
+            
+            if (!greaterThanTime || !lessThanTime) {
+                const ninetyDaysAgo = subDays(now, 90);
+                effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
+                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
+            } else {
+                effectiveGreaterThanTime = greaterThanTime;
+                effectiveLessThanTime = lessThanTime;
+            }
+
+            // Build base query
+            const query = buildBaseQuery({
+                greaterThanTime: effectiveGreaterThanTime,
+                lessThanTime: effectiveLessThanTime
+            }, source, topicId && parseInt(topicId) === 2600);
+
+            // Add sector filter
+            query.bool.must.push({ term: { 'sector.keyword': sector } });
+
+            // Add sentiment filter if provided
+            if (sentiment && sentiment !== '' && sentiment !== 'All') {
+                query.bool.must.push({ term: { 'predicted_sentiment_value.keyword': sentiment } });
+            }
+
+            // Add category filters
+            addCategoryFilters(query, category, categoryData);
+
+            // Add filter to only include posts with sector field
+            query.bool.must.push({ exists: { field: 'sector' } });
+
+            const from = (Number(page) - 1) * Number(limit);
+            const searchBody = {
+                from,
+                size: Number(limit),
+                query,
+                sort: [{ p_created_time: { order: 'desc' } }],
+                _source: [
+                    'sector',
+                    'created_at',
+                    'p_created_time',
+                    'source',
+                    'p_message',
+                    'p_message_text',
+                    'u_profile_photo',
+                    'u_fullname',
+                    'p_url',
+                    'p_id',
+                    'p_picture',
+                    'p_picture_url',
+                    'predicted_sentiment_value',
+                    'predicted_category',
+                    'llm_emotion',
+                    'u_followers',
+                    'u_following',
+                    'u_posts',
+                    'p_likes',
+                    'p_comments_text',
+                    'p_comments',
+                    'p_shares',
+                    'p_engagement',
+                    'p_content',
+                    'u_source',
+                    'name',
+                    'rating',
+                    'comment',
+                    'business_response',
+                    'u_country'
+                ]
+            };
+
+            const resp = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: searchBody,
+                timeout: '10s',
+                track_total_hits: true
+            });
+
+            const posts = (resp.hits?.hits || []).map(hit => formatPostData(hit));
+
+            return res.json({
+                success: true,
+                posts,
+                total: resp.hits?.total?.value || 0,
+                page: Number(page),
+                limit: Number(limit)
+            });
+
+        } catch (error) {
+            console.error('Error fetching sector posts:', error);
             return res.status(500).json({
                 success: false,
                 error: 'Internal server error'

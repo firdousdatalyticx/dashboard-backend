@@ -7,4 +7,7 @@ const touchpointsAnalysisController = require('../../controllers/social-media/to
 // Apply middleware and route handler
 router.post('/', express.json(), authMiddleware, transformCategoryData, touchpointsAnalysisController.getTouchpointsAnalysisBySentiment);
 
+// New route for posts by touchpoint and optional sentiment
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, touchpointsAnalysisController.getTouchpointPosts);
+
 module.exports = router; 

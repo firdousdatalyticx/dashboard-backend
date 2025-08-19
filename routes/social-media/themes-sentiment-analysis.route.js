@@ -46,4 +46,7 @@ const themesSentimentAnalysisController = require('../../controllers/social-medi
  */
 router.post('/', processCategories, themesSentimentAnalysisController.getThemesSentimentAnalysis);
 
+// Posts by theme and optional sentiment (parity with analysis counts)
+router.post('/posts', processCategories, themesSentimentAnalysisController.getThemePosts);
+
 module.exports = router; 

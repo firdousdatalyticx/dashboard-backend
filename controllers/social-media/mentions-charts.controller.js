@@ -4,6 +4,78 @@ const router = express.Router();
 const prisma = require("../../config/database");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+// Dedicated formatter for trust-dimension posts (top-level so it can be reused anywhere)
+function formatTrustPost(hit) {
+  const src = hit._source || {};
+  const profilePic = src.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+  const llm_emotion = src.llm_emotion || '';
+  const commentsUrl = src.p_comments_text && src.p_comments_text.trim() !== ''
+    ? (src.p_url || '').toString().trim().replace('https: // ', 'https://')
+    : '';
+  const imageUrl = src.p_picture_url && src.p_picture_url.trim() !== ''
+    ? src.p_picture_url
+    : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+  let predicted_sentiment = '';
+  if (src.predicted_sentiment_value) predicted_sentiment = `${src.predicted_sentiment_value}`;
+  else if (src.source === 'GoogleMyBusiness' && src.rating) {
+    predicted_sentiment = src.rating >= 4 ? 'Positive' : src.rating <= 2 ? 'Negative' : 'Neutral';
+  }
+  let youtubeVideoUrl = '';
+  let profilePicture2 = '';
+  if (src.source === 'Youtube') {
+    if (src.video_embed_url) youtubeVideoUrl = src.video_embed_url;
+    else if (src.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${src.p_id}`;
+  } else {
+    profilePicture2 = src.p_picture ? src.p_picture : '';
+  }
+  let sourceIcon = '';
+  const userSource = src.source;
+  if (['khaleej_times','Omanobserver','Time of oman','Blogs'].includes(userSource)) sourceIcon = 'Blog';
+  else if (userSource === 'Reddit') sourceIcon = 'Reddit';
+  else if (['FakeNews','News'].includes(userSource)) sourceIcon = 'News';
+  else if (userSource === 'Tumblr') sourceIcon = 'Tumblr';
+  else if (userSource === 'Vimeo') sourceIcon = 'Vimeo';
+  else if (['Web','DeepWeb'].includes(userSource)) sourceIcon = 'Web';
+  else sourceIcon = userSource;
+  let message_text = '';
+  if (['GoogleMaps','Tripadvisor'].includes(src.source)) {
+    const parts = (src.p_message_text || '').split('***|||###');
+    message_text = (parts[0] || '').replace(/\n/g, '<br>');
+  } else {
+    message_text = src.p_message_text ? src.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+  }
+  return {
+    profilePicture: profilePic,
+    profilePicture2,
+    userFullname: src.u_fullname,
+    user_data_string: '',
+    followers: src.u_followers > 0 ? `${src.u_followers}` : '',
+    following: src.u_following > 0 ? `${src.u_following}` : '',
+    posts: src.u_posts > 0 ? `${src.u_posts}` : '',
+    likes: src.p_likes > 0 ? `${src.p_likes}` : '',
+    llm_emotion,
+    commentsUrl,
+    comments: `${src.p_comments}`,
+    shares: src.p_shares > 0 ? `${src.p_shares}` : '',
+    engagements: src.p_engagement > 0 ? `${src.p_engagement}` : '',
+    content: src.p_content && src.p_content.trim() !== '' ? src.p_content : '',
+    image_url: imageUrl,
+    predicted_sentiment,
+    predicted_category: src.predicted_category || '',
+    youtube_video_url: youtubeVideoUrl,
+    source_icon: `${src.p_url},${sourceIcon}`,
+    message_text,
+    source: src.source,
+    rating: src.rating,
+    comment: src.comment,
+    businessResponse: src.business_response,
+    uSource: src.u_source,
+    googleName: src.name,
+    country: src.u_country,
+    created_at: new Date(src.p_created_time || src.created_at).toLocaleString()
+  };
+}
+
 const buildQueryString = async (topicId, isScadUser, selectedTab) => {
   const topicData = await prisma.customer_topics.findUnique({
     where: { topic_id: Number(topicId) },
@@ -189,6 +261,8 @@ const elasticMentionQueryTemplate = (topicQueryString, gte, lte) => ({
       ],
     },
   },
+
+ 
 });
 
 const getActionRequired = async (
@@ -5265,9 +5339,79 @@ const mentionsChartController = {
     }
   },
 
+  // Helper function for formatting posts - moved outside methods for reuse
+  localFormatPost: function(hit) {
+    const src = hit._source || {};
+    const profilePic = src.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+    const llm_emotion = src.llm_emotion || '';
+    const commentsUrl = src.p_comments_text && src.p_comments_text.trim() !== ''
+      ? (src.p_url || '').toString().trim().replace('https: // ', 'https://')
+      : '';
+    const imageUrl = src.p_picture_url && src.p_picture_url.trim() !== ''
+      ? src.p_picture_url
+      : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+    let predicted_sentiment = '';
+    if (src.predicted_sentiment_value) predicted_sentiment = `${src.predicted_sentiment_value}`;
+    else if (src.source === 'GoogleMyBusiness' && src.rating) {
+      predicted_sentiment = src.rating >= 4 ? 'Positive' : src.rating <= 2 ? 'Negative' : 'Neutral';
+    }
+    let youtubeVideoUrl = '';
+    let profilePicture2 = '';
+    if (src.source === 'Youtube') {
+      if (src.video_embed_url) youtubeVideoUrl = src.video_embed_url;
+      else if (src.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${src.p_id}`;
+    } else {
+      profilePicture2 = src.p_picture ? src.p_picture : '';
+    }
+    let sourceIcon = '';
+    const userSource = src.source;
+    if (['khaleej_times','Omanobserver','Time of oman','Blogs'].includes(userSource)) sourceIcon = 'Blog';
+    else if (userSource === 'Reddit') sourceIcon = 'Reddit';
+    else if (['FakeNews','News'].includes(userSource)) sourceIcon = 'News';
+    else if (userSource === 'Tumblr') sourceIcon = 'Tumblr';
+    else if (userSource === 'Vimeo') sourceIcon = 'Vimeo';
+    else if (['Web','DeepWeb'].includes(userSource)) sourceIcon = 'Web';
+    else sourceIcon = userSource;
+    let message_text = '';
+    if (['GoogleMaps','Tripadvisor'].includes(src.source)) {
+      const parts = (src.p_message_text || '').split('***|||###');
+      message_text = (parts[0] || '').replace(/\n/g, '<br>');
+    } else {
+      message_text = src.p_message_text ? src.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+    }
+    return {
+      profilePicture: profilePic,
+      profilePicture2,
+      userFullname: src.u_fullname,
+      user_data_string: '',
+      followers: src.u_followers > 0 ? `${src.u_followers}` : '',
+      following: src.u_following > 0 ? `${src.u_following}` : '',
+      posts: src.u_posts > 0 ? `${src.u_posts}` : '',
+      likes: src.p_likes > 0 ? `${src.p_likes}` : '',
+      llm_emotion,
+      commentsUrl,
+      comments: `${src.p_comments}`,
+      shares: src.p_shares > 0 ? `${src.p_shares}` : '',
+      engagements: src.p_engagement > 0 ? `${src.p_engagement}` : '',
+      content: src.p_content && src.p_content.trim() !== '' ? src.p_content : '',
+      image_url: imageUrl,
+      predicted_sentiment,
+      predicted_category: src.predicted_category || '',
+      youtube_video_url: youtubeVideoUrl,
+      source_icon: `${src.p_url},${sourceIcon}`,
+      message_text,
+      source: src.source,
+      rating: src.rating,
+      comment: src.comment,
+      businessResponse: src.business_response,
+      uSource: src.u_source,
+      googleName: src.name,
+      country: src.u_country,
+      created_at: new Date(src.p_created_time || src.created_at).toLocaleString()
+    };
+  },
 
-  
-trustDimensionsEducationSystem: async (req, res) => {
+  trustDimensionsEducationSystem: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =
         req.body;
@@ -5319,10 +5463,10 @@ trustDimensionsEducationSystem: async (req, res) => {
                   },
                 },
               },
-              { exists: { field: 'trust_dimensions' } }
             ],
             must_not: [
               { term: { "trust_dimensions.keyword": "" } },
+              { term: { "trust_dimensions.keyword": "{}" } },
             ],
           },
         },
@@ -5431,125 +5575,125 @@ trustDimensionsEducationSystem: async (req, res) => {
       // Build dimension -> emotion -> { count, posts[] } map
       const POSTS_PER_EMOTION = 20;
       const dimensionToEmotion = new Map();
-      const localFormatPost = (hit) => {
-        const src = hit._source || {};
-        const profilePic = src.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-        const llm_emotion = src.llm_emotion || '';
-        const commentsUrl = src.p_comments_text && src.p_comments_text.trim() !== ''
-          ? (src.p_url || '').toString().trim().replace('https: // ', 'https://')
-          : '';
-        const imageUrl = src.p_picture_url && src.p_picture_url.trim() !== ''
-          ? src.p_picture_url
-          : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-        let predicted_sentiment = '';
-        if (src.predicted_sentiment_value) predicted_sentiment = `${src.predicted_sentiment_value}`;
-        else if (src.source === 'GoogleMyBusiness' && src.rating) {
-          predicted_sentiment = src.rating >= 4 ? 'Positive' : src.rating <= 2 ? 'Negative' : 'Neutral';
-        }
-        let youtubeVideoUrl = '';
-        let profilePicture2 = '';
-        if (src.source === 'Youtube') {
-          if (src.video_embed_url) youtubeVideoUrl = src.video_embed_url;
-          else if (src.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${src.p_id}`;
-        } else {
-          profilePicture2 = src.p_picture ? src.p_picture : '';
-        }
-        let sourceIcon = '';
-        const userSource = src.source;
-        if (['khaleej_times','Omanobserver','Time of oman','Blogs'].includes(userSource)) sourceIcon = 'Blog';
-        else if (userSource === 'Reddit') sourceIcon = 'Reddit';
-        else if (['FakeNews','News'].includes(userSource)) sourceIcon = 'News';
-        else if (userSource === 'Tumblr') sourceIcon = 'Tumblr';
-        else if (userSource === 'Vimeo') sourceIcon = 'Vimeo';
-        else if (['Web','DeepWeb'].includes(userSource)) sourceIcon = 'Web';
-        else sourceIcon = userSource;
-        let message_text = '';
-        if (['GoogleMaps','Tripadvisor'].includes(src.source)) {
-          const parts = (src.p_message_text || '').split('***|||###');
-          message_text = (parts[0] || '').replace(/\n/g, '<br>');
-        } else {
-          message_text = src.p_message_text ? src.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
-        }
-        return {
-          profilePicture: profilePic,
-          profilePicture2,
-          userFullname: src.u_fullname,
-          user_data_string: '',
-          followers: src.u_followers > 0 ? `${src.u_followers}` : '',
-          following: src.u_following > 0 ? `${src.u_following}` : '',
-          posts: src.u_posts > 0 ? `${src.u_posts}` : '',
-          likes: src.p_likes > 0 ? `${src.p_likes}` : '',
-          llm_emotion,
-          commentsUrl,
-          comments: `${src.p_comments}`,
-          shares: src.p_shares > 0 ? `${src.p_shares}` : '',
-          engagements: src.p_engagement > 0 ? `${src.p_engagement}` : '',
-          content: src.p_content && src.p_content.trim() !== '' ? src.p_content : '',
-          image_url: imageUrl,
-          predicted_sentiment,
-          predicted_category: src.predicted_category || '',
-          youtube_video_url: youtubeVideoUrl,
-          source_icon: `${src.p_url},${sourceIcon}`,
-          message_text,
-          source: src.source,
-          rating: src.rating,
-          comment: src.comment,
-          businessResponse: src.business_response,
-          uSource: src.u_source,
-          googleName: src.name,
-          country: src.u_country,
-          created_at: new Date(src.p_created_time || src.created_at).toLocaleString()
-        };
+
+      // Aggregation-based approach at Elasticsearch level (trust_dimensions is array of strings)
+      const aggBody = {
+        size: 0,
+        query: query.query,
+        aggs: {
+          dimensions: {
+            terms: { field: 'trust_dimensions.keyword', size: 200, order: { _count: 'desc' }, exclude: 'dimension1' },
+            aggs: {
+              emotions: {
+                terms: { field: 'llm_emotion.keyword', size: 20 }
+              }
+            }
+          }
+        },
+        track_total_hits: false,
+        timeout: '10s'
       };
 
-      const hits = (result.hits && result.hits.hits) || [];
-      for (const hit of hits) {
-        const src = hit._source || {};
-        const raw = src.trust_dimensions;
-        if (!raw || !Array.isArray(raw)) continue;
+      const aggRes = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: aggBody
+      });
 
-        const dimensions = raw
-          .map(d => (typeof d === 'string' ? d.trim() : ''))
-          .filter(Boolean);
-        if (dimensions.length === 0) continue;
+      const buckets = aggRes.aggregations?.dimensions?.buckets || [];
 
-        const emotion = (src.llm_emotion || '').toString().trim() || 'Unknown';
-        const postObj = localFormatPost(hit);
-
-        for (const dimKey of dimensions) {
-          if (!dimensionToEmotion.has(dimKey)) {
-            dimensionToEmotion.set(dimKey, new Map());
-          }
-          const emoMap = dimensionToEmotion.get(dimKey);
-          if (!emoMap.has(emotion)) {
-            emoMap.set(emotion, { count: 0, posts: [] });
-          }
-          const bucket = emoMap.get(emotion);
-          bucket.count += 1;
-          if (bucket.posts.length < POSTS_PER_EMOTION) {
-            bucket.posts.push(postObj);
-          }
-        }
-      }
-
-      const dataAll = Array.from(dimensionToEmotion.entries()).map(([dimension, emoMap]) => {
-        const emotions = Array.from(emoMap.entries()).map(([emotion, obj]) => ({
-          emotion,
-          count: obj.count,
-          posts: obj.posts
+      const dataAll = buckets.map(b => {
+        const emotions = (b.emotions?.buckets || []).map(eb => ({
+          emotion: eb.key,
+          count: eb.doc_count || 0
         })).sort((a, b) => b.count - a.count);
         const total = emotions.reduce((sum, e) => sum + e.count, 0);
-        return { dimension, emotions, total };
+        return { dimension: b.key, emotions, total };
       }).sort((a, b) => b.total - a.total);
 
       const data = dataAll.slice(0, 10);
 
-      return res.status(200).json({ success: true, data, total: dataAll.length, totalDocs: hits.length });
+      const totalDocs = buckets.reduce((s, b) => s + (b.doc_count || 0), 0);
+      return res.status(200).json({ success: true, data, total: dataAll.length, totalDocs });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+   // New: fetch posts for a specific trust dimension and emotion
+   trustDimensionsEducationSystemPosts: async function(req, res) {
+    try {
+      const { fromDate, toDate, topicId, sentimentType, source, categoryItems, dimension, emotion } = req.body;
+
+      if (!dimension) return res.status(400).json({ success: false, error: 'dimension is required' });
+
+      // Determine category data
+      let categoryData = {};
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      // topic/source filter
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      const isScadUser = false;
+      const selectedTab = 'Social';
+      let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
+      if (parseInt(topicId) === 2619) topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+      else if (isSpecialTopic) topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      else topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+
+      // base query
+      const must = [
+        { query_string: { query: topicQueryString } },
+        { range: { p_created_time: { gte: fromDate || 'now-90d', lte: toDate || 'now' } } },
+        { terms: { 'trust_dimensions.keyword': [dimension] } }
+      ];
+
+      if (sentimentType && sentimentType !== '') {
+        must.push({ match: { predicted_sentiment_value: sentimentType.trim() } });
+      }
+      if (emotion && emotion !== '') {
+        must.push({ term: { 'llm_emotion.keyword': emotion } });
+      }
+
+      // category filters
+      const categoryFilters = [];
+      if (Object.keys(categoryData).length > 0) {
+        Object.values(categoryData).forEach(data => {
+          (data.keywords || []).forEach(keyword => categoryFilters.push({ multi_match: { query: keyword, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }));
+          (data.hashtags || []).forEach(hashtag => categoryFilters.push({ multi_match: { query: hashtag, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }));
+          (data.urls || []).forEach(url => categoryFilters.push({ multi_match: { query: url, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }));
+        });
+      }
+      if (categoryFilters.length > 0) {
+        must.push({ bool: { should: categoryFilters, minimum_should_match: 1 } });
+      }
+
+      const searchBody = {
+        size: 50,
+        query: { bool: { must, must_not: [{ term: { 'trust_dimensions.keyword': '' } }] } },
+        sort: [{ p_created_time: { order: 'desc' } }],
+        _source: [
+          'trust_dimensions','llm_emotion','predicted_sentiment_value','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_followers','u_following','u_posts','p_likes','p_comments_text','p_url','p_comments','p_shares','p_engagement','p_content','p_picture_url','predicted_category','u_fullname','video_embed_url','p_picture','p_id','rating','comment','business_response','u_source','name','u_country'
+        ]
+      };
+
+      const searchRes = await elasticClient.search({ index: process.env.ELASTICSEARCH_DEFAULTINDEX, body: searchBody });
+      const hits = searchRes.hits?.hits || [];
+      const posts = hits.map(h => formatTrustPost(h));
+
+      // count total for the same filters
+      const countRes = await elasticClient.search({ index: process.env.ELASTICSEARCH_DEFAULTINDEX, body: { size: 0, query: searchBody.query } });
+      const total = countRes.hits?.total?.value || 0;
+
+      return res.status(200).json({ success: true, posts, total });
+    } catch (error) {
+      console.error('Error fetching trustDimensionsEducationSystem posts:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   trustDimensionsEducationSystems: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =
@@ -5602,11 +5746,11 @@ trustDimensionsEducationSystem: async (req, res) => {
                   },
                 },
               },
-              { exists: { field: 'trust_dimensions' } }
             ],
 
             must_not: [
-              { term: { "trust_dimensions.keyword": "" } }
+              { term: { "trust_dimensions.keyword": "" } },
+              { term: { "trust_dimensions.keyword": "{}" } },
             ],
           },
         },
@@ -5642,10 +5786,6 @@ trustDimensionsEducationSystem: async (req, res) => {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
-
-
-
-
   benchMarkingPresenceSentiment: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =

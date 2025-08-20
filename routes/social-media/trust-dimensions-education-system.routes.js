@@ -22,6 +22,7 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *             $ref: '#/components/schemas/MentionsTrendRequest'
  */
 router.post('/', express.json(), authMiddleware, transformCategoryData, mentionsChartController.trustDimensionsEducationSystem);
+router.post('/trust-dimensions-education-system-posts', express.json(), authMiddleware, transformCategoryData, mentionsChartController.trustDimensionsEducationSystemPosts);
 
 router.get('/posts', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendPost);
 

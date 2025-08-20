@@ -1,3 +1,4 @@
+
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays, startOfMonth, endOfMonth, eachMonthOfInterval, eachWeekOfInterval, eachDayOfInterval } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');

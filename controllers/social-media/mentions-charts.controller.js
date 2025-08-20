@@ -5513,7 +5513,10 @@ trustDimensionsEducationSystem: async (req, res) => {
         }
         if (!td || typeof td !== 'object' || Array.isArray(td)) continue;
 
-        const emotion = (src.llm_emotion || '').toString().trim() || 'Unknown';
+        let emotion = (src.llm_emotion || '').toString().trim();
+        if (!emotion || emotion.toLowerCase() === 'unknown') {
+          emotion = 'Neutral';
+        }
         const postObj = localFormatPost(hit);
 
         Object.keys(td).forEach(dim => {
@@ -5534,15 +5537,17 @@ trustDimensionsEducationSystem: async (req, res) => {
         });
       }
 
-      const dataAll = Array.from(dimensionToEmotion.entries()).map(([dimension, emoMap]) => {
-        const emotions = Array.from(emoMap.entries()).map(([emotion, obj]) => ({
-          emotion,
-          count: obj.count,
-          posts: obj.posts
-        })).sort((a, b) => b.count - a.count);
-        const total = emotions.reduce((sum, e) => sum + e.count, 0);
-        return { dimension, emotions, total };
-      }).sort((a, b) => b.total - a.total);
+      const dataAll = Array.from(dimensionToEmotion.entries())
+        .filter(([dimension]) => dimension.toLowerCase() !== 'dimension1')
+        .map(([dimension, emoMap]) => {
+          const emotions = Array.from(emoMap.entries()).map(([emotion, obj]) => ({
+            emotion,
+            count: obj.count,
+            posts: obj.posts
+          })).sort((a, b) => b.count - a.count);
+          const total = emotions.reduce((sum, e) => sum + e.count, 0);
+          return { dimension, emotions, total };
+        }).sort((a, b) => b.total - a.total);
 
       const data = dataAll.slice(0, 10);
 

@@ -43,24 +43,15 @@ const themesOverTimeController = {
                 });
             }
 
-            // Set date range to last 4 months
+            // Set date range (respect provided dates; otherwise default to ~last 3 months)
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
             
-            if (isSpecialTopic) {
-                // For special topic, use provided dates or last 4 months
-                if (greaterThanTime && lessThanTime) {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                } else {
-                    // Default to last 4 months for special topic
-                    const fourMonthsAgo = subDays(now, 90); // approximately 3 months
-                    effectiveGreaterThanTime = format(fourMonthsAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = format(now, 'yyyy-MM-dd');
-                }
+            if (greaterThanTime && lessThanTime) {
+                effectiveGreaterThanTime = greaterThanTime;
+                effectiveLessThanTime = lessThanTime;
             } else {
-                // Always use last 4 months for regular topics
-                const fourMonthsAgo = subDays(now, 90); // approximately 3 months
+                const fourMonthsAgo = subDays(now, 90);
                 effectiveGreaterThanTime = format(fourMonthsAgo, 'yyyy-MM-dd');
                 effectiveLessThanTime = format(now, 'yyyy-MM-dd');
             }
@@ -133,154 +124,103 @@ const themesOverTimeController = {
                     formatPattern = 'yyyy-MM';
             }
 
-            // Execute the query to get all documents with themes_sentiments
+            // Aggregation approach: date_histogram over time with runtime theme extraction
+            const POSTS_PER_INTERVAL_THEME = 20;
             const params = {
-                size: 10000, // Increase size to get more documents for processing
+                size: 0,
                 query: query,
-                _source: [
-                    'themes_sentiments', 
-                    'created_at', 
-                    'p_created_time',
-                    'source',
-                    'p_message', 
-                    'p_message_text', 
-                    'u_profile_photo',
-                    'u_followers',
-                    'u_following',
-                    'u_posts',
-                    'p_likes',
-                    'p_comments_text',
-                    'p_url',
-                    'p_comments',
-                    'p_shares',
-                    'p_engagement',
-                    'p_content',
-                    'p_picture_url',
-                    'predicted_sentiment_value',
-                    'predicted_category',
-                    'u_fullname',
-                    'video_embed_url',
-                    'p_picture',
-                    'p_id',
-                    'rating',
-                    'comment',
-                    'business_response',
-                    'u_source',
-                    'name',
-                    'llm_emotion'
-                ],
-                sort: [
-                    { p_created_time: { order: 'asc' } }
-                ]
+                runtime_mappings: {
+                    theme_name: {
+                        type: 'keyword',
+                        script: {
+                            source: 'def ts = params._source["themes_sentiments"]; if (ts == null) return; String s = ts instanceof String ? ts : ts.toString(); if (s.length() == 0) return; def m = /\\"([^\\\"]+)\\"\\s*:\\s*\\"[^\\\"]*\\"/.matcher(s); while (m.find()) { emit(m.group(1)); }'
+                        }
+                    }
+                },
+                aggs: {
+                    timeline: {
+                        date_histogram: {
+                            field: 'p_created_time',
+                            calendar_interval: calendarInterval,
+                            min_doc_count: 0,
+                            extended_bounds: { min: effectiveGreaterThanTime, max: effectiveLessThanTime }
+                        },
+                        aggs: {
+                            themes: { 
+                                terms: { field: 'theme_name', size: 100 },
+                                aggs: {
+                                    top_posts: {
+                                        top_hits: {
+                                            size: POSTS_PER_INTERVAL_THEME,
+                                            sort: [{ p_created_time: { order: 'desc' } }],
+                                            _source: [
+                                                'themes_sentiments', 'created_at', 'p_created_time', 'source', 'p_message', 'p_message_text',
+                                                'u_profile_photo', 'u_followers', 'u_following', 'u_posts', 'p_likes', 'p_comments_text', 'p_url',
+                                                'p_comments', 'p_shares', 'p_engagement', 'p_content', 'p_picture_url', 'predicted_sentiment_value',
+                                                'predicted_category', 'u_fullname', 'video_embed_url', 'p_picture', 'p_id', 'rating', 'comment',
+                                                'business_response', 'u_source', 'name', 'llm_emotion'
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                track_total_hits: false,
+                timeout: '10s'
             };
 
             const response = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: params,
-                track_total_hits: false,
-                timeout: '10s'
+                body: params
             });
 
-            // Process the themes data by time intervals
-            const themesTimeData = new Map();
             const timeIntervals = generateTimeIntervals(effectiveGreaterThanTime, effectiveLessThanTime, interval);
+            const timelineBuckets = response.aggregations?.timeline?.buckets || [];
+
+            const normalizeTheme = (name) => (name || '').toString().trim().replace(/\s+/g, ' ');
+            const themesMap = new Map(); // normName -> { theme, counts: Map(interval->count), posts: Map(interval->posts[]) }
             let totalCount = 0;
 
-            // Initialize time intervals map
-            timeIntervals.forEach(timeInterval => {
-                themesTimeData.set(timeInterval, new Map());
-            });
-
-            const POSTS_PER_INTERVAL_THEME = 20;
-            response.hits.hits.forEach(hit => {
-                const raw = hit._source.themes_sentiments;
-                const postDate = hit._source.p_created_time || hit._source.created_at;
-                if (!raw || !postDate) return;
-
-                // Normalize theme names from raw
-                let themeNames = [];
-                try {
-                    if (typeof raw === 'string') {
-                        try {
-                            const parsed = JSON.parse(raw);
-                            if (Array.isArray(parsed)) {
-                                themeNames = parsed.map(item => {
-                                    if (typeof item === 'string') return item.trim();
-                                    if (item && typeof item === 'object') return (item.theme || item.name || '').toString().trim();
-                                    return '';
-                                }).filter(Boolean);
-                            } else if (parsed && typeof parsed === 'object') {
-                                themeNames = Object.keys(parsed).map(k => k.toString().trim()).filter(Boolean);
-                            }
-                        } catch (_) {
-                            themeNames = raw.split(',').map(s => s.trim()).filter(Boolean);
-                        }
-                    } else if (Array.isArray(raw)) {
-                        themeNames = raw.map(item => {
-                            if (typeof item === 'string') return item.trim();
-                            if (item && typeof item === 'object') return (item.theme || item.name || '').toString().trim();
-                            return '';
-                        }).filter(Boolean);
-                    } else if (raw && typeof raw === 'object') {
-                        themeNames = Object.keys(raw).map(k => k.toString().trim()).filter(Boolean);
+            for (const b of timelineBuckets) {
+                const label = format(new Date(b.key), formatPattern);
+                const themeBuckets = b.themes?.buckets || [];
+                for (const tb of themeBuckets) {
+                    const raw = tb.key || '';
+                    const norm = normalizeTheme(raw).toLowerCase();
+                    if (!themesMap.has(norm)) {
+                        themesMap.set(norm, { theme: normalizeTheme(raw), counts: new Map(), posts: new Map() });
                     }
-                } catch (e) {
-                    console.error('Error parsing themes_sentiments JSON:', e, raw);
-                    return;
+                    const entry = themesMap.get(norm);
+                    const count = tb.doc_count || 0;
+                    entry.counts.set(label, (entry.counts.get(label) || 0) + count);
+                    totalCount += count;
+
+                    // collect sample posts
+                    const postsHits = tb.top_posts?.hits?.hits || [];
+                    const samplePosts = postsHits.map(h => formatPostData(h));
+                    const existing = entry.posts.get(label) || [];
+                    for (const p of samplePosts) {
+                        if (existing.length >= POSTS_PER_INTERVAL_THEME) break;
+                        existing.push(p);
+                    }
+                    entry.posts.set(label, existing);
                 }
+            }
 
-                if (themeNames.length === 0) return;
-
-                const postDetails = formatPostData(hit);
-                const postTimeInterval = getTimeInterval(postDate, interval);
-                if (!themesTimeData.has(postTimeInterval)) return;
-                const intervalThemes = themesTimeData.get(postTimeInterval);
-
-                themeNames.forEach(themeName => {
-                    const key = themeName.toString().trim();
-                    if (!key) return;
-                    if (!intervalThemes.has(key)) {
-                        intervalThemes.set(key, { count: 0, posts: [] });
-                    }
-                    const themeData = intervalThemes.get(key);
-                    themeData.count++;
-                    if (themeData.posts.length < POSTS_PER_INTERVAL_THEME) {
-                        themeData.posts.push(postDetails);
-                    }
-                    totalCount++;
-                });
-            });
-
-            // Get all unique theme names
-            const allThemes = new Set();
-            themesTimeData.forEach(intervalThemes => {
-                intervalThemes.forEach((data, themeName) => {
-                    allThemes.add(themeName);
-                });
-            });
-
-            // Prepare response data
-            const themesData = Array.from(allThemes).map(themeName => {
-                const timeSeriesData = timeIntervals.map(timeInterval => {
-                    const intervalThemes = themesTimeData.get(timeInterval);
-                    const themeData = intervalThemes.get(themeName);
-                    
-                    return {
-                        date: timeInterval,
-                        count: themeData ? themeData.count : 0,
-                        posts: themeData ? themeData.posts : []
-                    };
-                });
-
+            const themesData = Array.from(themesMap.values()).map(entry => {
+                const series = timeIntervals.map(ti => ({
+                    date: ti,
+                    count: entry.counts.get(ti) || 0,
+                    posts: entry.posts.get(ti) || []
+                }));
                 return {
-                    theme: themeName,
-                    data: timeSeriesData,
-                    totalCount: timeSeriesData.reduce((sum, point) => sum + point.count, 0)
+                    theme: entry.theme,
+                    data: series,
+                    totalCount: series.reduce((s, p) => s + p.count, 0)
                 };
-            });
-
-            // Sort themes by total count descending
-            themesData.sort((a, b) => b.totalCount - a.totalCount);
+            }).sort((a, b) => b.totalCount - a.totalCount);
 
             // Gather all filter terms
             let allFilterTerms = [];

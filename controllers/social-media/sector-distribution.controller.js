@@ -123,14 +123,27 @@ const sectorDistributionController = {
 
             // Process aggregation buckets
             const buckets = response.aggregations?.sector_counts?.buckets || [];
-            const totalCount = buckets.reduce((sum, b) => sum + (b.doc_count || 0), 0);
-            const sectorsArray = buckets.map((bucket) => {
-                return {
-                    sector: bucket.key,
-                    count: bucket.doc_count,
-                    percentage: totalCount > 0 ? Math.round((bucket.doc_count / totalCount) * 100) : 0
-                };
-            });
+
+            // Merge empty sector name into 'Education'
+            const sectorMap = new Map(); // lowercased sector -> { sector, count }
+            for (const b of buckets) {
+                const nameRaw = (b.key || '').toString();
+                const sectorName = nameRaw.trim() === '' ? 'Education' : nameRaw;
+                const key = sectorName.toLowerCase();
+                const current = sectorMap.get(key) || { sector: sectorName, count: 0 };
+                current.count += (b.doc_count || 0);
+                sectorMap.set(key, current);
+            }
+
+            const merged = Array.from(sectorMap.values());
+            const totalCount = merged.reduce((sum, s) => sum + (s.count || 0), 0);
+            const sectorsArray = merged
+                .map(s => ({
+                    sector: s.sector,
+                    count: s.count,
+                    percentage: totalCount > 0 ? Math.round((s.count / totalCount) * 100) : 0
+                }))
+                .sort((a, b) => b.count - a.count);
 
             // No filter terms needed for counts-only endpoint
 

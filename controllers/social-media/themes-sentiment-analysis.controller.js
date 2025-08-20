@@ -147,24 +147,44 @@ const themesSentimentAnalysisController = {
             // Build chartData from aggregation results
             const themesBuckets = response.aggregations?.themes?.buckets || [];
             const sentimentTypes = new Set();
-            let totalCount = 0;
             // Collect all sentiment keys
             themesBuckets.forEach(tb => (tb.sentiments?.buckets || []).forEach(sb => sentimentTypes.add(sb.key)));
             const sortedSentiments = Array.from(sentimentTypes).sort();
 
-            const chartData = themesBuckets.map(tb => {
-                const themeName = tb.key;
-                const sentimentsObj = {};
-                sortedSentiments.forEach(s => { sentimentsObj[s] = { count: 0 }; });
+            // Merge duplicate themes by normalizing the theme name (trim, collapse spaces, lowercase)
+            const normalizeTheme = (name) => (name || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+            const merged = new Map();
+
+            for (const tb of themesBuckets) {
+                const rawName = tb.key || '';
+                const norm = normalizeTheme(rawName);
+
+                if (!merged.has(norm)) {
+                    const initSentiments = {};
+                    sortedSentiments.forEach(s => { initSentiments[s] = 0; });
+                    merged.set(norm, {
+                        theme: (rawName || '').toString().trim(),
+                        sentiments: initSentiments,
+                        totalCount: 0
+                    });
+                }
+
+                const entry = merged.get(norm);
                 (tb.sentiments?.buckets || []).forEach(sb => {
                     const name = sb.key || 'Neutral';
                     const count = sb.doc_count || 0;
-                    totalCount += count;
-                    sentimentsObj[name] = { count };
+                    entry.sentiments[name] = (entry.sentiments[name] || 0) + count;
+                    entry.totalCount += count;
                 });
-                const themeTotal = Object.values(sentimentsObj).reduce((sum, v) => sum + (v.count || 0), 0);
-                return { theme: themeName, sentiments: sentimentsObj, totalCount: themeTotal };
-            }).sort((a, b) => b.totalCount - a.totalCount);
+            }
+
+            const chartData = Array.from(merged.values())
+                .map(entry => {
+                    const sentimentsObj = {};
+                    sortedSentiments.forEach(s => { sentimentsObj[s] = { count: entry.sentiments[s] || 0 }; });
+                    return { theme: entry.theme, sentiments: sentimentsObj, totalCount: entry.totalCount };
+                })
+                .sort((a, b) => b.totalCount - a.totalCount);
 
             console.log('Sentiment types found:', Array.from(sentimentTypes));
 

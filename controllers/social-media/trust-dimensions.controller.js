@@ -105,10 +105,6 @@ const trustDimensionsController = {
                 }
             });
 
-            // Exclude empty trust_dimensions values to avoid noise
-            query.bool.must_not = query.bool.must_not || [];
-            query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '' } });
-
             // Aggregation approach on array field trust_dimensions.keyword; counts only
             const AGG_SIZE = 300; // number of distinct dimensions to consider
             const params = {
@@ -134,17 +130,19 @@ const trustDimensionsController = {
             // Build result from aggregations (counts only)
             const buckets = response.aggregations?.dimensions?.buckets || [];
             const trustDimensionsArray = buckets.map(b => {
+                const category = typeof b.key === 'string' ? b.key.trim() : '';
+                if (!category) { return null; }
                 const tones = (b.emotions?.buckets || []).map(tb => ({
                     name: tb.key,
                     count: tb.doc_count || 0,
                     percentage: b.doc_count > 0 ? Math.round((tb.doc_count / b.doc_count) * 100) : 0
                 }));
                 return {
-                    category: b.key,
+                    category,
                     totalCount: b.doc_count || 0,
                     tones
                 };
-            }).sort((a, b) => b.totalCount - a.totalCount);
+            }).filter(Boolean).sort((a, b) => b.totalCount - a.totalCount);
 
             const totalCount = trustDimensionsArray.reduce((sum, d) => sum + d.totalCount, 0);
 
@@ -247,8 +245,6 @@ const trustDimensionsController = {
                     }
                 ],
                  must_not: [
-              { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
                { term: { "theme_evidences.keyword": "" } },
                { term: { "theme_evidences.keyword": "{}" } },
                  ]
@@ -563,15 +559,12 @@ getTrustDimensionsWordCloudPosts: async (req, res) => {
         const greaterThanTime = useTimeFilter ? format(startDate, 'yyyy-MM-dd') : null;
         const lessThanTime = useTimeFilter ? format(endDate, 'yyyy-MM-dd') : null;
 
-        // Build query - trust_dimensions is an array; match selected dimension and optional tone via llm_emotion
+        // Build query - trust_dimensions is an array of strings like ["government"]
         const query = {
             bool: {
                 must: [
                     { exists: { field: 'trust_dimensions' } },
                     { term: { 'trust_dimensions.keyword': text } }
-                ],
-                must_not: [
-                    { term: { 'trust_dimensions.keyword': '' } }
                 ]
             }
         };
@@ -858,11 +851,10 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
         const greaterThanTime = useTimeFilter ? format(startDate, 'yyyy-MM-dd') : null;
         const lessThanTime = useTimeFilter ? format(endDate, 'yyyy-MM-dd') : null;
 
-        // Query: trust_dimensions is an array; only require existence
+        // Query: trust_dimensions is an array of strings like ["government"]
         const query = {
             bool: {
-                must: [ { exists: { field: 'trust_dimensions' } } ],
-                must_not: [ { term: { 'trust_dimensions.keyword': '' } } ]
+                must: [ { exists: { field: 'trust_dimensions' } } ]
             }
         };
 
@@ -1051,7 +1043,8 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
         };
 
         for (const b of dimBuckets) {
-            const text = b.key;
+            const text = typeof b.key === 'string' ? b.key.trim() : '';
+            if (!text) { continue; }
             const emotions = b.emotions?.buckets || [];
             // accumulate by normalized tone
             const perTone = new Map();
@@ -1176,8 +1169,6 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
 
             // trust_dimensions exists
             query.bool.must.push({ exists: { field: 'trust_dimensions' } });
-            query.bool.must_not = query.bool.must_not || [];
-            query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '' } });
 
             // Apply selected dimension
             query.bool.must.push({ term: { 'trust_dimensions.keyword': String(dimension) } });

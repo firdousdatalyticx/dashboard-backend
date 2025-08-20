@@ -95,6 +95,7 @@ const sentimentsController = {
                 });
             }
 
+
             // Set default date range - last 90 days
             const now = new Date();
             const ninetyDaysAgo = subDays(now, 90);
@@ -418,7 +419,7 @@ const sentimentsController = {
         // Get category data from middleware
         let categoryData = {};
   
-        if (req.body.categoryItems && Array.isArray(req.body.categoryItems)) {
+        if (req.body.categoryItems && Array.isArray(req.body.categoryItems) &&  req.body?.categoryItems?.length>0){
             categoryData = processCategoryItems(req.body.categoryItems);
         } else {
             categoryData = req.processedCategories || {};
@@ -431,6 +432,7 @@ const sentimentsController = {
                 total: 0
             });
         }
+
 
         // Set default date range - last 90 days
         const now = new Date();
@@ -535,7 +537,8 @@ const sentimentsController = {
             posts,
             total,
             limit,
-            offset
+            offset,
+            // query
         });
 
     } catch (error) {

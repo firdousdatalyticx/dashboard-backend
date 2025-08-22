@@ -5411,7 +5411,7 @@ const mentionsChartController = {
     };
   },
 
-  trustDimensionsEducationSystemPosts: async (req, res) => {
+  trustDimensionsEducationSystem: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } = req.body;
   
@@ -5621,6 +5621,7 @@ const mentionsChartController = {
       });
     }
   },
+
    // New: fetch posts for a specific trust dimension and emotion
    trustDimensionsEducationSystemPosts: async function(req, res) {
     try {
@@ -5696,98 +5697,7 @@ const mentionsChartController = {
     }
   },
 
-  trustDimensionsEducationSystems: async (req, res) => {
-    try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =
-        req.body;
 
-      // Determine which category data to use
-      let categoryData = {};
-      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-      } else {
-        categoryData = req.processedCategories || {};
-      }
-
-      // Check if this is the special topicId
-      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
-      const isScadUser = false;
-      const selectedTab = "Social";
-      let topicQueryString = await buildQueryString(
-        topicId,
-        isScadUser,
-        selectedTab
-      );
-      if (parseInt(topicId) === 2619) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      }
-
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
-      }
-
-
-
-      // **Single Aggregation Query**
-      const query = {
-        size: 0,
-        query: {
-          bool: {
-            must: [
-              { query_string: { query: topicQueryString } },
-              {
-                range: {
-                  p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
-                  },
-                },
-              },
-            ],
-
-            must_not: [
-              { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
-            ],
-          },
-        },
-        aggs: {
-          mention_types: {
-            terms: { field: "trust_dimensions.keyword", size: 7 },
-            aggs: {
-              sources: {
-                terms: { field: "source.keyword", size: 15 },
-              },
-            },
-          },
-        },
-      };
-
-      if (sentimentType && sentimentType != "") {
-        query.query.bool.must.push({
-          match: {
-            predicted_sentiment_value: sentimentType.trim(),
-          },
-        });
-      }
-
-      // Execute query
-      const result = await elasticClient.search({
-        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        body: query,
-      });
-
-      return res.status(200).json({ result,query });
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
-    }
-  },
   benchMarkingPresenceSentiment: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =

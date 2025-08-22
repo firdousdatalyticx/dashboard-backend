@@ -5411,11 +5411,10 @@ const mentionsChartController = {
     };
   },
 
-  trustDimensionsEducationSystem: async (req, res) => {
+  trustDimensionsEducationSystemPosts: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =
-        req.body;
-
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } = req.body;
+  
       // Determine which category data to use
       let categoryData = {};
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -5423,105 +5422,60 @@ const mentionsChartController = {
       } else {
         categoryData = req.processedCategories || {};
       }
-
+  
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
       const isScadUser = false;
       const selectedTab = "Social";
-      let topicQueryString = await buildQueryString(
-        topicId,
-        isScadUser,
-        selectedTab
-      );
       
+      let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
+      
+      // Apply source filtering based on topicId
       if (parseInt(topicId) === 2619) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
+      } else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
-
- 
-
-      // Fetch documents and aggregate dimensions by llm_emotion in app logic
-      const query = {
-        size: 10000,
-        query: {
-          bool: {
-            must: [
-              { query_string: { query: topicQueryString } },
-              {
-                range: {
-                  p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
-                  },
+  
+      // Build the base query
+      const baseQuery = {
+        bool: {
+          must: [
+            { query_string: { query: topicQueryString } },
+            {
+              range: {
+                p_created_time: {
+                  gte: fromDate || "now-90d",
+                  lte: toDate || "now",
                 },
               },
-            ],
-            must_not: [
-              { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
-            ],
-          },
+            },
+          ],
+          must_not: [
+            { term: { "trust_dimensions.keyword": "" } },
+            { term: { "trust_dimensions.keyword": "{}" } },
+          ],
         },
-        _source: [
-          'trust_dimensions',
-          'llm_emotion',
-          'predicted_sentiment_value',
-          'created_at',
-          'p_created_time',
-          'source',
-          'p_message',
-          'p_message_text',
-          'u_profile_photo',
-          'u_followers',
-          'u_following',
-          'u_posts',
-          'p_likes',
-          'p_comments_text',
-          'p_url',
-          'p_comments',
-          'p_shares',
-          'p_engagement',
-          'p_content',
-          'p_picture_url',
-          'predicted_category',
-          'u_fullname',
-          'video_embed_url',
-          'p_picture',
-          'p_id',
-          'rating',
-          'comment',
-          'business_response',
-          'u_source',
-          'name',
-          'u_country'
-        ],
-        track_total_hits: false,
-        timeout: '10s'
       };
-
+  
       // Apply sentiment filter if provided
-      if (sentimentType && sentimentType != "") {
-        query.query.bool.must.push({
+      if (sentimentType && sentimentType !== "") {
+        baseQuery.bool.must.push({
           match: {
             predicted_sentiment_value: sentimentType.trim(),
           },
         });
       }
-
+  
       // Add category filters to the query
       if (Object.keys(categoryData).length > 0) {
         const categoryFilters = [];
         
         Object.values(categoryData).forEach(data => {
-          if (data.keywords && data.keywords.length > 0) {
+          // Process keywords
+          if (data.keywords && Array.isArray(data.keywords) && data.keywords.length > 0) {
             data.keywords.forEach(keyword => {
               categoryFilters.push({
                 multi_match: {
@@ -5532,7 +5486,9 @@ const mentionsChartController = {
               });
             });
           }
-          if (data.hashtags && data.hashtags.length > 0) {
+          
+          // Process hashtags
+          if (data.hashtags && Array.isArray(data.hashtags) && data.hashtags.length > 0) {
             data.hashtags.forEach(hashtag => {
               categoryFilters.push({
                 multi_match: {
@@ -5543,7 +5499,9 @@ const mentionsChartController = {
               });
             });
           }
-          if (data.urls && data.urls.length > 0) {
+          
+          // Process URLs
+          if (data.urls && Array.isArray(data.urls) && data.urls.length > 0) {
             data.urls.forEach(url => {
               categoryFilters.push({
                 multi_match: {
@@ -5555,9 +5513,9 @@ const mentionsChartController = {
             });
           }
         });
-
+  
         if (categoryFilters.length > 0) {
-          query.query.bool.must.push({
+          baseQuery.bool.must.push({
             bool: {
               should: categoryFilters,
               minimum_should_match: 1
@@ -5565,58 +5523,102 @@ const mentionsChartController = {
           });
         }
       }
-
-      // Execute query
-      const result = await elasticClient.search({
-        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        body: query,
-      });
-
-      // Build dimension -> emotion -> { count, posts[] } map
-      const POSTS_PER_EMOTION = 20;
-      const dimensionToEmotion = new Map();
-
-      // Aggregation-based approach at Elasticsearch level (trust_dimensions is array of strings)
-      const aggBody = {
-        size: 0,
-        query: query.query,
+  
+      // Optimized aggregation-only query
+      const aggQuery = {
+        size: 0, // Don't return any documents, only aggregations
+        query: baseQuery,
         aggs: {
           dimensions: {
-            terms: { field: 'trust_dimensions.keyword', size: 200, order: { _count: 'desc' }, exclude: 'dimension1' },
+            terms: {
+              field: 'trust_dimensions.keyword',
+              size: 200,
+              order: { _count: 'desc' },
+              exclude: ['', '{}', 'dimension1'], // Exclude empty values and dimension1
+              min_doc_count: 1 // Only return dimensions with at least 1 document
+            },
             aggs: {
               emotions: {
-                terms: { field: 'llm_emotion.keyword', size: 20 }
+                terms: {
+                  field: 'llm_emotion.keyword',
+                  size: 20,
+                  order: { _count: 'desc' },
+                  min_doc_count: 1 // Only return emotions with at least 1 document
+                }
               }
             }
           }
         },
-        track_total_hits: false,
-        timeout: '10s'
+        track_total_hits: true,
+        timeout: '30s' // Increased timeout to be safe
       };
-
-      const aggRes = await elasticClient.search({
+  
+      // Execute single aggregation query
+      const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        body: aggBody
+        body: aggQuery,
       });
-
-      const buckets = aggRes.aggregations?.dimensions?.buckets || [];
-
-      const dataAll = buckets.map(b => {
-        const emotions = (b.emotions?.buckets || []).map(eb => ({
-          emotion: eb.key,
-          count: eb.doc_count || 0
-        })).sort((a, b) => b.count - a.count);
-        const total = emotions.reduce((sum, e) => sum + e.count, 0);
-        return { dimension: b.key, emotions, total };
-      }).sort((a, b) => b.total - a.total);
-
+  
+      // Extract total hits from the response
+      let totalHits = 0;
+      if (result.hits && result.hits.total) {
+        if (typeof result.hits.total === 'number') {
+          totalHits = result.hits.total;
+        } else if (typeof result.hits.total === 'object' && result.hits.total.value) {
+          totalHits = result.hits.total.value;
+        }
+      }
+  
+      // Process aggregation results
+      const buckets = result.aggregations?.dimensions?.buckets || [];
+  
+      // Transform aggregation data
+      const dataAll = buckets.map(bucket => {
+        const emotions = (bucket.emotions?.buckets || [])
+          .map(emotionBucket => ({
+            emotion: emotionBucket.key || 'unknown',
+            count: emotionBucket.doc_count || 0
+          }))
+          .sort((a, b) => b.count - a.count);
+  
+        const total = emotions.reduce((sum, emotion) => sum + emotion.count, 0);
+  
+        return {
+          dimension: bucket.key || 'unknown',
+          emotions,
+          total
+        };
+      })
+      .filter(item => item.total > 0) // Remove any items with 0 total
+      .sort((a, b) => b.total - a.total);
+  
+      // Return top 10 dimensions
       const data = dataAll.slice(0, 10);
-
-      const totalDocs = buckets.reduce((s, b) => s + (b.doc_count || 0), 0);
-      return res.status(200).json({ success: true, data, total: dataAll.length, totalDocs });
+  
+      // Calculate total docs from aggregation buckets
+      const totalDocs = buckets.reduce((sum, bucket) => sum + (bucket.doc_count || 0), 0);
+  
+      return res.status(200).json({
+        success: true,
+        data,
+        total: dataAll.length,
+        totalDocs: Math.max(totalDocs, totalHits) // Use the higher of the two values
+      });
+  
     } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
+      console.error("Error in trustDimensionsEducationSystem:", error);
+      
+      // Provide more detailed error information
+      let errorMessage = "Internal server error";
+      if (error.meta && error.meta.body && error.meta.body.error) {
+        errorMessage = error.meta.body.error.reason || errorMessage;
+      }
+      
+      return res.status(500).json({ 
+        success: false,
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
    // New: fetch posts for a specific trust dimension and emotion

@@ -107,13 +107,21 @@ const themesSentimentAnalysisController = {
             query.bool.must.push({ exists: { field: 'themes_sentiments' } });
 
 
-            // Aggregation-based approach on array field themes_sentiments.keyword; aggregate by predicted_sentiment_value
+            // Aggregate on themes_sentiments array while normalizing values (trim + lowercase) to prevent duplicates
             const params = {
                 size: 0,
                 query: query,
+                runtime_mappings: {
+                    themes_sentiments_norm: {
+                        type: 'keyword',
+                        script: {
+                            source: "if (!doc.containsKey('themes_sentiments.keyword') || doc['themes_sentiments.keyword'].size() == 0) return; for (def v : doc['themes_sentiments.keyword']) { if (v != null) { String s = v.toString(); if (s != null) emit(s.trim().toLowerCase()); } }"
+                        }
+                    }
+                },
                 aggs: {
                     themes: {
-                        terms: { field: 'themes_sentiments.keyword', size: 100, order: { _count: 'desc' } },
+                        terms: { field: 'themes_sentiments_norm', size: 100, order: { _count: 'desc' } },
                         aggs: {
                             sentiments: { terms: { field: 'predicted_sentiment_value.keyword', size: 10 } }
                         }
@@ -137,7 +145,7 @@ const themesSentimentAnalysisController = {
             const sortedSentiments = Array.from(sentimentTypes).sort();
 
             const chartData = themesBuckets.map(tb => {
-                const themeName = tb.key;
+                const themeName = tb.key; // already normalized
                 const sentimentsObj = {};
                 sortedSentiments.forEach(s => { sentimentsObj[s] = { count: 0 }; });
                 (tb.sentiments?.buckets || []).forEach(sb => {
@@ -248,8 +256,17 @@ return res.json({
                 lessThanTime: effectiveLessThanTime
             }, source, topicId && parseInt(topicId) === 2600);
 
-            // Add theme filter
-            query.bool.must.push({ term: { 'themes_sentiments.keyword': theme } });
+            // Add theme filter synchronized with normalized aggregation (trim + lowercase)
+            const normalizedTheme = String(theme || '').trim().toLowerCase();
+            query.bool.must.push({
+                script: {
+                    script: {
+                        source: "if (!doc.containsKey('themes_sentiments.keyword') || doc['themes_sentiments.keyword'].size() == 0) return false; for (def v : doc['themes_sentiments.keyword']) { if (v != null) { String s = v.toString(); if (s != null && s.trim().toLowerCase() == params.t) return true; } } return false;",
+                        lang: 'painless',
+                        params: { t: normalizedTheme }
+                    }
+                }
+            });
 
             // Add sentiment filter if provided
             if (sentiment && sentiment !== '' && sentiment !== 'All') {

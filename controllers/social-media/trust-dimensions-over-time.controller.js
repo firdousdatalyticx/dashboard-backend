@@ -1,5 +1,5 @@
 const { elasticClient } = require('../../config/elasticsearch');
-const { format, subDays, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } = require('date-fns');
+const { format, subDays, eachMonthOfInterval } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 const trustDimensionsOverTimeController = {
     /**
@@ -17,53 +17,37 @@ const trustDimensionsOverTimeController = {
                 greaterThanTime,
                 lessThanTime,
                 sentiment,
-                tone // 'Supportive', 'Distrustful', or 'All'
+                tone // kept for compatibility but not used in aggregation
             } = req.body;
-            // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-            // Get category data from middleware
             let categoryData = {};
       
             if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
               categoryData = processCategoryItems(req.body.categoryItems);
             } else {
-              // Fall back to middleware data
               categoryData = req.processedCategories || {};
             }
             if (Object.keys(categoryData).length === 0) {
-                return res.json({
-                    success: true,
-                    trustDimensionsOverTime: [],
-                    totalCount: 0
-                });
+                return res.json({ success: true, trustDimensionsOverTime: [], timeIntervals: [], totalCount: 0 });
             }
 
-            // Set date range - default to last 12 months (June to December focus)
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
-           
-            
-               // For regular topics, use 90 days default if not provided
-                if (!greaterThanTime || !lessThanTime) {
-                    const ninetyDaysAgo = subDays(now, 90);
-                    effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
-                } else {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                }
-           
-              
-            
+            if (!greaterThanTime || !lessThanTime) {
+                const ninetyDaysAgo = subDays(now, 90);
+                effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
+                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
+            } else {
+                effectiveGreaterThanTime = greaterThanTime;
+                effectiveLessThanTime = lessThanTime;
+            }
 
-            // Build base query
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
             }, source, isSpecialTopic);
 
-            // Add sentiment filter if provided
             if (sentiment) {
                 if (sentiment.toLowerCase() === "all") {
                     query.bool.must.push({
@@ -93,30 +77,16 @@ const trustDimensionsOverTimeController = {
                 }
             }
 
-            // Add category filters
             addCategoryFilters(query, category, categoryData);
 
-			// Add filter to only include posts with trust_dimensions field
-			query.bool.must.push({
-				exists: {
-					field: 'trust_dimensions'
-				}
-			});
-			// Exclude empty placeholders
-			query.bool.must_not = query.bool.must_not || [];
-			query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '' } });
-			query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '{}' } });
+            query.bool.must.push({ exists: { field: 'trust_dimensions' } });
 
-            console.log('Trust Dimensions Over Time Query:', JSON.stringify(query, null, 2));
-
-			// Aggregation-based approach: date histogram + terms on trust_dimensions JSON string
-			const AGG_SIZE = 200; // per-month distinct trust_dimensions strings
-			const POSTS_PER_BUCKET = 3;
-			const params = {
-				size: 0,
-				query: query,
-				aggs: {
-					time_buckets: {
+            const AGG_SIZE = 200;
+            const params = {
+                size: 0,
+                query,
+                aggs: {
+                    time_buckets: {
                         date_histogram: {
                             field: 'p_created_time',
                             calendar_interval: 'month',
@@ -126,322 +96,193 @@ const trustDimensionsOverTimeController = {
                                 max: `${effectiveLessThanTime}T23:59:59.999Z`
                             }
                         },
-						aggs: {
-							td_json: {
-								terms: { field: 'trust_dimensions.keyword', size: AGG_SIZE, order: { _count: 'desc' } },
-								aggs: {
-									top_posts: {
-										top_hits: {
-											size: POSTS_PER_BUCKET,
-											sort: [{ p_created_time: { order: 'desc' } }],
-											_source: [
-												'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response','u_country'
-											]
-										}
-									}
-								}
-							}
-						}
-					}
-				},
-				track_total_hits: false,
-				timeout: '10s'
-			};
+                        aggs: {
+                            dimensions: {
+                                terms: { field: 'trust_dimensions.keyword', size: AGG_SIZE, order: { _count: 'desc' } }
+                            }
+                        }
+                    }
+                },
+                track_total_hits: false,
+                timeout: '10s'
+            };
 
-			const response = await elasticClient.search({
-				index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-				body: params
-			});
+            const response = await elasticClient.search({ index: process.env.ELASTICSEARCH_DEFAULTINDEX, body: params });
 
-			// Prepare structures
-			const monthlyData = new Map();
-			const trustDimensionCategories = new Set();
-			let totalCount = 0;
-			// Pre-build month keys using extended bounds
-			const startDate = new Date(effectiveGreaterThanTime);
-			const endDate = new Date(effectiveLessThanTime);
-			const monthIntervals = eachMonthOfInterval({ start: startDate, end: endDate });
-			monthIntervals.forEach(monthDate => {
-				const monthKey = format(monthDate, 'MMM yyyy');
-				monthlyData.set(monthKey, new Map());
-			});
+            const monthIntervals = eachMonthOfInterval({ start: new Date(effectiveGreaterThanTime), end: new Date(effectiveLessThanTime) });
+            const timeIntervals = monthIntervals.map(date => format(date, 'yyyy-MM'));
 
             const timeBuckets = response.aggregations?.time_buckets?.buckets || [];
-			timeBuckets.forEach(tb => {
-                const monthKey = format(new Date(tb.key), 'MMM yyyy');
-				const tdBuckets = tb.td_json?.buckets || [];
-				const monthMap = monthlyData.get(monthKey) || new Map();
-				tdBuckets.forEach(b => {
-					const keyStr = b.key;
-					if (!keyStr || keyStr === '{}' || keyStr === '""') return;
-					let obj;
-					try { obj = JSON.parse(keyStr); } catch (_) { return; }
-					if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
-					const samplePosts = (b.top_posts?.hits?.hits || []).map(h => formatPostData(h));
-					const bucketDocCount = b.doc_count || 0;
-					totalCount += bucketDocCount;
-					Object.entries(obj).forEach(([dimensionName, dimensionTone]) => {
-						const dimensionKey = String(dimensionName).trim();
-						const toneValue = String(dimensionTone || '').trim();
-						if (!dimensionKey) return;
-						// Filter by tone if specified
-						if (tone && tone !== 'All' && toneValue.toLowerCase() !== tone.toLowerCase()) return;
-						trustDimensionCategories.add(dimensionKey);
-						const dimensionToneKey = `${dimensionKey}_${toneValue}`;
-						if (!monthMap.has(dimensionToneKey)) monthMap.set(dimensionToneKey, { count: 0, posts: [] });
-						const cur = monthMap.get(dimensionToneKey);
-						cur.count += bucketDocCount;
-						samplePosts.forEach(p => { if (cur.posts.length < POSTS_PER_BUCKET) cur.posts.push(p); });
-						monthMap.set(dimensionToneKey, cur);
-					});
-				});
-				monthlyData.set(monthKey, monthMap);
-			});
-
-            console.log('Trust dimension categories found:', Array.from(trustDimensionCategories));
-            console.log('Monthly data:', monthlyData);
-
-            // Convert to chart-friendly format
-            const chartData = [];
-            const sortedCategories = Array.from(trustDimensionCategories).sort();
-            
-            // Create series for each dimension and tone combination
-            sortedCategories.forEach(dimension => {
-                ['Supportive', 'Distrustful'].forEach(toneType => {
-                    // Skip if filtering by specific tone and this doesn't match
-                    if (tone && tone !== 'All' && toneType.toLowerCase() !== tone.toLowerCase()) {
-                        return;
-                    }
-                    
-                    const series = {
-                        name: `${dimension} (${toneType})`,
-                        dimension: dimension,
-                        tone: toneType,
-                        data: []
-                    };
-                    
-                    // Add data points for each month
-                    monthIntervals.forEach(monthDate => {
-                        const monthKey = format(monthDate, 'MMM yyyy');
-                        const dimensionToneKey = `${dimension}_${toneType}`;
-                        const monthData = monthlyData.get(monthKey);
-                        const dataPoint = monthData ? monthData.get(dimensionToneKey) : null;
-                        const count = dataPoint ? dataPoint.count : 0;
-                        const posts = dataPoint ? dataPoint.posts : [];
-                        
-                        series.data.push({
-                            month: monthKey,
-                            count: count,
-                            monthDate: format(monthDate, 'yyyy-MM-dd'),
-                            posts: posts
-                        });
-                    });
-                    
-                    // Only include series with at least some data
-                    const hasData = series.data.some(point => point.count > 0);
-                    if (hasData) {
-                        chartData.push(series);
-                    }
-                });
-            });
-
-            // Sort chart data by dimension name and tone
-            chartData.sort((a, b) => {
-                if (a.dimension !== b.dimension) {
-                    return a.dimension.localeCompare(b.dimension);
+            const dimensionMap = new Map();
+            let totalCount = 0;
+            for (const bucket of timeBuckets) {
+                const label = format(new Date(bucket.key), 'yyyy-MM');
+                const dBuckets = bucket.dimensions?.buckets || [];
+                for (const db of dBuckets) {
+                    const name = typeof db.key === 'string' ? db.key.trim() : '';
+                    if (!name) { continue; }
+                    if (!dimensionMap.has(name)) dimensionMap.set(name, new Map());
+                    const entry = dimensionMap.get(name);
+                    const count = db.doc_count || 0; totalCount += count;
+                    entry.set(label, (entry.get(label) || 0) + count);
                 }
-                return a.tone.localeCompare(b.tone);
-            });
-
-            // Gather all filter terms
-            let allFilterTerms = [];
-            if (categoryData) {
-                Object.values(categoryData).forEach((data) => {
-                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
-                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
-                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
-                });
             }
 
-            // For each post in chartData[].data[].posts, add matched_terms
-            if (chartData && Array.isArray(chartData)) {
-                chartData.forEach(seriesObj => {
-                    if (seriesObj.data && Array.isArray(seriesObj.data)) {
-                        seriesObj.data.forEach(dataObj => {
-                            if (dataObj.posts && Array.isArray(dataObj.posts)) {
-                                dataObj.posts = dataObj.posts.map(post => {
-                                    const textFields = [
-                                        post.message_text,
-                                        post.content,
-                                        post.keywords,
-                                        post.title,
-                                        post.hashtags,
-                                        post.uSource,
-                                        post.source,
-                                        post.p_url,
-                                        post.userFullname
-                                    ];
-                                    return {
-                                        ...post,
-                                        matched_terms: allFilterTerms.filter(term =>
-                                            textFields.some(field => {
-                                                if (!field) return false;
-                                                if (Array.isArray(field)) {
-                                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-                                                }
-                                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-                                            })
-                                        )
-                                    };
-                                });
-                            }
-                        });
-                    }
-                });
-            }
+            const chartData = Array.from(dimensionMap.entries()).map(([dimension, counts]) => {
+                const series = timeIntervals.map(ti => ({ date: ti, count: counts.get(ti) || 0 }));
+                return { dimension, data: series, totalCount: series.reduce((s, p) => s + p.count, 0) };
+            }).sort((a, b) => b.totalCount - a.totalCount);
 
-            return res.json({
-                success: true,
-                trustDimensionsOverTime: chartData,
-                totalCount: totalCount,
-                dateRange: {
-                    from: effectiveGreaterThanTime,
-                    to: effectiveLessThanTime
-                },
-                categories: sortedCategories,
-                months: monthIntervals.map(date => format(date, 'MMM yyyy'))
-            });
-
+            return res.json({ success: true, trustDimensionsOverTime: chartData, timeIntervals, totalCount, dateRange: { from: effectiveGreaterThanTime, to: effectiveLessThanTime } });
         } catch (error) {
             console.error('Error fetching trust dimensions over time data:', error);
-            return res.status(500).json({
-                success: false,
-                error: 'Internal server error'
+            return res.status(500).json({ success: false, error: 'Internal server error' });
+        }
+    },
+
+    getTrustDimensionsOverTimePosts: async (req, res) => {
+        try {
+            const {
+                source = 'All',
+                category = 'all',
+                topicId,
+                greaterThanTime,
+                lessThanTime,
+                sentiment,
+                tone,
+                dimension,
+                page = 1,
+                limit = 50
+            } = req.body;
+
+            if (!dimension || String(dimension).trim() === '') {
+                return res.status(400).json({ success: false, error: 'dimension is required' });
+            }
+
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+            let categoryData = {};
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+                categoryData = req.processedCategories || {};
+            }
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
+            }
+
+            const now = new Date();
+            let effectiveGreaterThanTime, effectiveLessThanTime;
+            if (!greaterThanTime || !lessThanTime) {
+                const ninetyDaysAgo = subDays(now, 90);
+                effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
+                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
+            } else {
+                effectiveGreaterThanTime = greaterThanTime;
+                effectiveLessThanTime = lessThanTime;
+            }
+
+            const query = buildBaseQuery({ greaterThanTime: effectiveGreaterThanTime, lessThanTime: effectiveLessThanTime }, source, isSpecialTopic);
+
+            if (sentiment) {
+                if (sentiment.toLowerCase() === 'all') {
+                    query.bool.must.push({
+                        bool: { should: [
+                            { match: { predicted_sentiment_value: 'Positive' } },
+                            { match: { predicted_sentiment_value: 'positive' } },
+                            { match: { predicted_sentiment_value: 'Negative' } },
+                            { match: { predicted_sentiment_value: 'negative' } },
+                            { match: { predicted_sentiment_value: 'Neutral' } },
+                            { match: { predicted_sentiment_value: 'neutral' } }
+                        ], minimum_should_match: 1 }
+                    });
+                } else if (sentiment !== 'All') {
+                    query.bool.must.push({
+                        bool: { should: [
+                            { match: { predicted_sentiment_value: sentiment } },
+                            { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                            { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                        ], minimum_should_match: 1 }
+                    });
+                }
+            }
+
+            addCategoryFilters(query, category, categoryData);
+
+            query.bool.must.push({ exists: { field: 'trust_dimensions' } });
+            query.bool.must.push({ exists: { field: 'trust_dimensions' } });
+            query.bool.must.push({ term: { 'trust_dimensions.keyword': String(dimension) } });
+
+            if (tone && tone.toLowerCase() !== 'all') {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match: { llm_emotion: tone } },
+                            { match: { llm_emotion: String(tone).toLowerCase() } },
+                            { match: { llm_emotion: String(tone).charAt(0).toUpperCase() + String(tone).slice(1).toLowerCase() } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            }
+
+            const from = (Number(page) - 1) * Number(limit);
+            const params = {
+                from,
+                size: Number(limit),
+                query,
+                sort: [{ p_created_time: { order: 'desc' } }],
+                _source: [
+                    'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response','u_country'
+                ],
+                track_total_hits: true,
+                timeout: '10s'
+            };
+
+            const result = await elasticClient.search({ index: process.env.ELASTICSEARCH_DEFAULTINDEX, body: params });
+            const hits = result.hits?.hits || [];
+            const posts = hits.map(h => {
+                const source = h._source;
+                const profilePic = source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+                const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
+                const following = source.u_following > 0 ? `${source.u_following}` : '';
+                const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
+                const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
+                const llm_emotion = source.llm_emotion || '';
+                const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
+                    ? source.p_url.trim().replace('https: // ', 'https://')
+                    : '';
+                const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
+                const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== '' ? source.p_picture_url : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+                let predicted_sentiment = '';
+                if (source.predicted_sentiment_value) predicted_sentiment = `${source.predicted_sentiment_value}`;
+                else if (source.source === 'GoogleMyBusiness' && source.rating) {
+                    predicted_sentiment = source.rating >= 4 ? 'Positive' : source.rating <= 2 ? 'Negative' : 'Neutral';
+                }
+                return {
+                    profilePicture: profilePic,
+                    userFullname: source.u_fullname,
+                    followers, following, posts, likes,
+                    llm_emotion,
+                    commentsUrl,
+                    content,
+                    image_url: imageUrl,
+                    predicted_sentiment,
+                    predicted_category: source.predicted_category || '',
+                    source_icon: `${source.p_url},${source.source}`,
+                    message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
+                    source: source.source,
+                    created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+                };
             });
+            const total = result.hits?.total?.value || 0;
+
+            return res.json({ success: true, posts, total, page: Number(page), limit: Number(limit) });
+        } catch (error) {
+            console.error('Error fetching trust dimensions over time posts:', error);
+            return res.status(500).json({ success: false, error: 'Internal server error' });
         }
     }
-};
-
-/**
- * Format post data for the frontend
- * @param {Object} hit - Elasticsearch document hit
- * @returns {Object} Formatted post data
- */
-const formatPostData = (hit) => {
-    const source = hit._source;
-
-    // Use a default image if a profile picture is not provided
-    const profilePic = source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-    // Social metrics
-    const followers = source.u_followers > 0 ? `${source.u_followers}` : '';
-    const following = source.u_following > 0 ? `${source.u_following}` : '';
-    const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
-    const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
-
-    // Emotion
-    const llm_emotion = source.llm_emotion ||
-        (source.source === 'GoogleMyBusiness' && source.rating
-            ? (source.rating >= 4 ? 'Supportive'
-                : source.rating <= 2 ? 'Frustrated'
-                    : 'Neutral')
-            : '');
-
-    // Clean up comments URL if available
-    const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
-        ? source.p_url.trim().replace('https: // ', 'https://')
-        : '';
-
-    const comments = `${source.p_comments}`;
-    const shares = source.p_shares > 0 ? `${source.p_shares}` : '';
-    const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : '';
-
-    const content = source.p_content && source.p_content.trim() !== '' ? source.p_content : '';
-    const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ''
-        ? source.p_picture_url
-        : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-    // Determine sentiment
-    let predicted_sentiment = '';
-    let predicted_category = '';
-    
-    if (source.predicted_sentiment_value)
-        predicted_sentiment = `${source.predicted_sentiment_value}`;
-    else if (source.source === 'GoogleMyBusiness' && source.rating) {
-        predicted_sentiment = source.rating >= 4 ? 'Positive'
-            : source.rating <= 2 ? 'Negative'
-                : 'Neutral';
-    }
-
-    if (source.predicted_category) predicted_category = source.predicted_category;
-
-    // Handle YouTube-specific fields
-    let youtubeVideoUrl = '';
-    let profilePicture2 = '';
-    if (source.source === 'Youtube') {
-        if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
-        else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
-    } else {
-        profilePicture2 = source.p_picture ? source.p_picture : '';
-    }
-
-    // Determine source icon based on source name
-    let sourceIcon = '';
-    const userSource = source.source;
-    if (['khaleej_times', 'Omanobserver', 'Time of oman', 'Blogs'].includes(userSource))
-        sourceIcon = 'Blog';
-    else if (userSource === 'Reddit')
-        sourceIcon = 'Reddit';
-    else if (['FakeNews', 'News'].includes(userSource))
-        sourceIcon = 'News';
-    else if (userSource === 'Tumblr')
-        sourceIcon = 'Tumblr';
-    else if (userSource === 'Vimeo')
-        sourceIcon = 'Vimeo';
-    else if (['Web', 'DeepWeb'].includes(userSource))
-        sourceIcon = 'Web';
-    else
-        sourceIcon = userSource;
-
-    // Format message text – with special handling for GoogleMaps/Tripadvisor
-    let message_text = '';
-    if (['GoogleMaps', 'Tripadvisor'].includes(source.source)) {
-        const parts = source.p_message_text.split('***|||###');
-        message_text = parts[0].replace(/\n/g, '<br>');
-    } else {
-        message_text = source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
-    }
-
-    return {
-        profilePicture: profilePic,
-        profilePicture2,
-        userFullname: source.u_fullname,
-        user_data_string: '',
-        followers,
-        following,
-        posts,
-        likes,
-        llm_emotion,
-        commentsUrl,
-        comments,
-        shares,
-        engagements,
-        content,
-        image_url: imageUrl,
-        predicted_sentiment,
-        predicted_category,
-        youtube_video_url: youtubeVideoUrl,
-        source_icon: `${source.p_url},${sourceIcon}`,
-        message_text,
-        source: source.source,
-        rating: source.rating,
-        comment: source.comment,
-        businessResponse: source.business_response,
-        uSource: source.u_source,
-        googleName: source.name,
-        country: source.u_country,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
-    };
 };
 
 /**

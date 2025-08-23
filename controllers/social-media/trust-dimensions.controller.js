@@ -105,30 +105,16 @@ const trustDimensionsController = {
                 }
             });
 
-            // Exclude empty or placeholder trust_dimensions values to avoid parsing overhead
-            query.bool.must_not = query.bool.must_not || [];
-            query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '' } });
-            query.bool.must_not.push({ term: { 'trust_dimensions.keyword': '{}' } });
-
-            // Aggregation approach on trust_dimensions keyword to avoid per-hit processing
-            const AGG_SIZE = 300; // number of distinct trust_dimensions JSON variants to consider
-            const TOP_HITS_PER_BUCKET = 5; // small sample for posts per bucket
+            // Aggregation approach on array field trust_dimensions.keyword; counts only
+            const AGG_SIZE = 300; // number of distinct dimensions to consider
             const params = {
                 size: 0,
                 query: query,
                 aggs: {
-                    dimensions_raw: {
+                    dimensions: {
                         terms: { field: 'trust_dimensions.keyword', size: AGG_SIZE, order: { _count: 'desc' } },
                         aggs: {
-                            top_posts: {
-                                top_hits: {
-                                    size: TOP_HITS_PER_BUCKET,
-                                    sort: [{ p_created_time: { order: 'desc' } }],
-                                    _source: [
-                                        'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response'
-                                    ]
-                                }
-                            }
+                            emotions: { terms: { field: 'llm_emotion.keyword', size: 50 } }
                         }
                     }
                 },
@@ -141,132 +127,30 @@ const trustDimensionsController = {
                 body: params
             });
 
-            // Build result by parsing each aggregated JSON key once and distributing counts
-            const trustDimensionsMap = new Map();
-            let totalCount = 0;
-            const buckets = response.aggregations?.dimensions_raw?.buckets || [];
-            for (const b of buckets) {
-                const keyStr = b.key;
-                if (!keyStr || keyStr === '{}' || keyStr === '""') continue;
-                let obj;
-                try {
-                    obj = JSON.parse(keyStr);
-                } catch (_) {
-                    continue;
-                }
-                if (!obj || typeof obj !== 'object' || Array.isArray(obj)) continue;
-                const docCount = b.doc_count || 0;
-                totalCount += docCount;
-                const postsHits = b.top_posts?.hits?.hits || [];
-                const samplePosts = postsHits.map(h => formatPostData(h));
-
-                Object.entries(obj).forEach(([dimension, tone]) => {
-                    const dim = String(dimension).trim();
-                    if (!dim) return;
-                    if (!trustDimensionsMap.has(dim)) {
-                        trustDimensionsMap.set(dim, {
-                            category: dim,
-                            totalCount: 0,
-                            Supportive: 0,
-                            'Not Applicable': 0,
-                            Distrustful: 0,
-                            Neutral: 0,
-                            Mixed: 0,
-                            posts: {
-                                Supportive: [],
-                                'Not Applicable': [],
-                                Distrustful: [],
-                                Neutral: [],
-                                Mixed: []
-                            }
-                        });
-                    }
-                    const rec = trustDimensionsMap.get(dim);
-                    rec.totalCount += docCount;
-                    const normalizedTone = (tone || '').toString().trim();
-                    const toneKey = rec.hasOwnProperty(normalizedTone) && normalizedTone ? normalizedTone : 'Mixed';
-                    rec[toneKey] += docCount;
-                    // attach a few sample posts under this tone bucket
-                    for (const p of samplePosts) {
-                        if (rec.posts[toneKey].length >= TOP_HITS_PER_BUCKET) break;
-                        rec.posts[toneKey].push(p);
-                    }
-                });
-            }
-
-            // Convert map to array and calculate percentages
-            const trustDimensionsArray = Array.from(trustDimensionsMap.values()).map(dimension => {
-                const totalForDimension = dimension.totalCount;
+            // Build result from aggregations (counts only)
+            const buckets = response.aggregations?.dimensions?.buckets || [];
+            const trustDimensionsArray = buckets.map(b => {
+                const category = typeof b.key === 'string' ? b.key.trim() : '';
+                if (!category) { return null; }
+                const tones = (b.emotions?.buckets || []).map(tb => ({
+                    name: tb.key,
+                    count: tb.doc_count || 0,
+                    percentage: b.doc_count > 0 ? Math.round((tb.doc_count / b.doc_count) * 100) : 0
+                }));
                 return {
-                    category: dimension.category,
-                    totalCount: totalForDimension,
-                    tones: [
-                        { name: 'Supportive', count: dimension.Supportive, percentage: totalForDimension > 0 ? Math.round((dimension.Supportive / totalForDimension) * 100) : 0, posts: dimension.posts.Supportive },
-                        { name: 'Not Applicable', count: dimension['Not Applicable'], percentage: totalForDimension > 0 ? Math.round((dimension['Not Applicable'] / totalForDimension) * 100) : 0, posts: dimension.posts['Not Applicable'] },
-                        { name: 'Distrustful', count: dimension.Distrustful, percentage: totalForDimension > 0 ? Math.round((dimension.Distrustful / totalForDimension) * 100) : 0, posts: dimension.posts.Distrustful },
-                        { name: 'Neutral', count: dimension.Neutral, percentage: totalForDimension > 0 ? Math.round((dimension.Neutral / totalForDimension) * 100) : 0, posts: dimension.posts.Neutral },
-                        { name: 'Mixed', count: dimension.Mixed, percentage: totalForDimension > 0 ? Math.round((dimension.Mixed / totalForDimension) * 100) : 0, posts: dimension.posts.Mixed }
-                    ]
+                    category,
+                    totalCount: b.doc_count || 0,
+                    tones
                 };
-            });
+            }).filter(Boolean).sort((a, b) => b.totalCount - a.totalCount);
 
-
-
-            // Sort by total count descending
-            trustDimensionsArray.sort((a, b) => b.totalCount - a.totalCount);
-
-            // Gather all filter terms
-            let allFilterTerms = [];
-            if (categoryData) {
-                Object.values(categoryData).forEach((data) => {
-                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
-                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
-                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
-                });
-            }
-
-            // For each post in trustDimensionsArray[].tones[].posts, add matched_terms
-            if (trustDimensionsArray && Array.isArray(trustDimensionsArray)) {
-                trustDimensionsArray.forEach(dimObj => {
-                    if (dimObj.tones && Array.isArray(dimObj.tones)) {
-                        dimObj.tones.forEach(toneObj => {
-                            if (toneObj.posts && Array.isArray(toneObj.posts)) {
-                                toneObj.posts = toneObj.posts.map(post => {
-                                    const textFields = [
-                                        post.message_text,
-                                        post.content,
-                                        post.keywords,
-                                        post.title,
-                                        post.hashtags,
-                                        post.uSource,
-                                        post.source,
-                                        post.p_url,
-                                        post.userFullname
-                                    ];
-                                    return {
-                                        ...post,
-                                        matched_terms: allFilterTerms.filter(term =>
-                                            textFields.some(field => {
-                                                if (!field) return false;
-                                                if (Array.isArray(field)) {
-                                                    return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-                                                }
-                                                return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-                                            })
-                                        )
-                                    };
-                                });
-                            }
-                        });
-                    }
-                });
-            }
+            const totalCount = trustDimensionsArray.reduce((sum, d) => sum + d.totalCount, 0);
 
             return res.json({
                 success: true,
                 trustDimensions: trustDimensionsArray,
-                totalCount: totalCount,
-                query:params
+                totalCount,
+                query: params
             });
 
         } catch (error) {
@@ -361,8 +245,6 @@ const trustDimensionsController = {
                     }
                 ],
                  must_not: [
-              { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
                { term: { "theme_evidences.keyword": "" } },
                { term: { "theme_evidences.keyword": "{}" } },
                  ]
@@ -677,49 +559,27 @@ getTrustDimensionsWordCloudPosts: async (req, res) => {
         const greaterThanTime = useTimeFilter ? format(startDate, 'yyyy-MM-dd') : null;
         const lessThanTime = useTimeFilter ? format(endDate, 'yyyy-MM-dd') : null;
 
-        // Build query - similar to main controller but focused on specific text and tone
+        // Build query - trust_dimensions is an array of strings like ["government"]
         const query = {
             bool: {
                 must: [
-                    {
-                        exists: {
-                            field: 'trust_dimensions'
-                        }
-                    },
-                    {
-                        exists: {
-                            field: 'theme_evidences'
-                        }
-                    },
-                    // Match the specific theme evidence text that was clicked
-                    {
-                        term: {
-                            'theme_evidences.keyword': text
-                        }
-                    }
-                ],
-                must_not: [
-                    { term: { "trust_dimensions.keyword": "" } },
-                    { term: { "trust_dimensions.keyword": "{}" } },
-                    { term: { "theme_evidences.keyword": "" } },
-                    { term: { "theme_evidences.keyword": "{}" } },
+                    { exists: { field: 'trust_dimensions' } },
+                    { term: { 'trust_dimensions.keyword': text } }
                 ]
             }
         };
 
-        // Add tone filter if provided
+        // Add tone filter if provided (map categories to llm_emotion values)
         if (tone) {
-            // Create flexible tone matching similar to main controller
-            const toneQuery = {
-                bool: {
-                    should: [
-                        { wildcard: { "trust_dimensions.keyword": `*"${tone}"*` } },
-                        { wildcard: { "trust_dimensions.keyword": `*${tone}*` } }
-                    ],
-                    minimum_should_match: 1
-                }
-            };
-            query.bool.must.push(toneQuery);
+            const supportive = ['Supportive','Happy','Pleased','Hopeful','Content','Satisfied','Excited','Delighted','Grateful'];
+            const distrustful = ['Distrustful','Frustrated','Angry','Upset','Concerned','Disappointed','Sad','Fearful','Anxious'];
+            let termsList = [];
+            if (tone.toLowerCase() === 'supportive') termsList = supportive;
+            else if (tone.toLowerCase() === 'distrustful') termsList = distrustful;
+            else if (tone.toLowerCase() === 'neutral') termsList = ['Neutral'];
+            if (termsList.length > 0) {
+                query.bool.must.push({ terms: { 'llm_emotion.keyword': termsList } });
+            }
         }
 
         // Add sentiment filter if provided (same logic as main controller)
@@ -991,22 +851,10 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
         const greaterThanTime = useTimeFilter ? format(startDate, 'yyyy-MM-dd') : null;
         const lessThanTime = useTimeFilter ? format(endDate, 'yyyy-MM-dd') : null;
 
-        // [Same query building logic as original but without posts aggregation...]
+        // Query: trust_dimensions is an array of strings like ["government"]
         const query = {
             bool: {
-                must: [
-                    {
-                        exists: {
-                            field: 'trust_dimensions'
-                        }
-                    }
-                ],
-                must_not: [
-                    { term: { "trust_dimensions.keyword": "" } },
-                    { term: { "trust_dimensions.keyword": "{}" } },
-                    { term: { "theme_evidences.keyword": "" } },
-                    { term: { "theme_evidences.keyword": "{}" } },
-                ]
+                must: [ { exists: { field: 'trust_dimensions' } } ]
             }
         };
 
@@ -1138,15 +986,15 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
             }
         }
 
-        // Optimized aggregation - no posts included
+        // Optimized aggregation - no posts included. Group by trust_dimensions array values.
         const params = {
             size: 0,
             query,
             aggs: {
-                themes: {
-                    terms: { field: 'theme_evidences.keyword', size: 3000, order: { _count: 'desc' } },
+                dimensions: {
+                    terms: { field: 'trust_dimensions.keyword', size: 1000, order: { _count: 'desc' } },
                     aggs: {
-                        tone: { terms: { field: 'trust_dimensions.keyword', size: 1 } }
+                        emotions: { terms: { field: 'llm_emotion.keyword', size: 20 } }
                     }
                 }
             }
@@ -1181,28 +1029,40 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
             return null;
         };
 
-        const themeBuckets = response.aggregations?.themes?.buckets || [];
+        const dimBuckets = response.aggregations?.dimensions?.buckets || [];
         const trustDimensions = [];
         const dimensionsByTone = {};
         const toneTotals = {};
 
-        for (const b of themeBuckets) {
-            const text = b.key;
-            const value = b.doc_count;
-            const toneBucket = b.tone?.buckets?.[0];
-            const tone = extractTone(toneBucket?.key);
-            
-            // Skip items without valid tone
-            if (!tone || !toneColors[tone]) continue;
-            
-            const color = toneColors[tone];
+        const normalizeTone = (emotion) => {
+            const e = (emotion || '').toString().toLowerCase();
+            if (!e) return 'Not Applicable';
+            if (['supportive','happy','pleased','hopeful','content','satisfied','excited','delighted','grateful'].includes(e)) return 'Supportive';
+            if (['distrustful','frustrated','angry','upset','concerned','disappointed','sad','fearful','anxious'].includes(e)) return 'Distrustful';
+            return 'Neutral';
+        };
 
-            // No posts included - just metadata
-            trustDimensions.push({ text, value, tone, color });
-            
-            if (!dimensionsByTone[tone]) dimensionsByTone[tone] = [];
-            dimensionsByTone[tone].push({ text, value });
-            toneTotals[tone] = (toneTotals[tone] || 0) + value;
+        for (const b of dimBuckets) {
+            const text = typeof b.key === 'string' ? b.key.trim() : '';
+            if (!text) { continue; }
+            const emotions = b.emotions?.buckets || [];
+            // accumulate by normalized tone
+            const perTone = new Map();
+            let value = 0;
+            emotions.forEach(tb => {
+                const tone = normalizeTone(tb.key);
+                const count = tb.doc_count || 0;
+                value += count;
+                perTone.set(tone, (perTone.get(tone) || 0) + count);
+            });
+            // push entries per tone
+            for (const [tone, count] of perTone.entries()) {
+                const color = toneColors[tone] || '#8C8C8C';
+                trustDimensions.push({ text, value: count, tone, color });
+                if (!dimensionsByTone[tone]) dimensionsByTone[tone] = [];
+                dimensionsByTone[tone].push({ text, value: count });
+                toneTotals[tone] = (toneTotals[tone] || 0) + count;
+            }
         }
 
         return res.json({
@@ -1220,7 +1080,134 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
             error: 'Internal server error'
         });
     }
-}
+},
+
+    // Fetch posts for a specific trust dimension (and optional emotion)
+    getTrustDimensionsPosts: async (req, res) => {
+        try {
+            const {
+                source = 'All',
+                category = 'all',
+                topicId,
+                greaterThanTime,
+                lessThanTime,
+                sentiment,
+                dimension, // required
+                emotion,   // optional
+                page = 1,
+                limit = 50
+            } = req.body;
+
+            if (!dimension || String(dimension).trim() === '') {
+                return res.status(400).json({ success: false, error: 'dimension is required' });
+            }
+
+            // Check if this is the special topicId
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+            // Get category data
+            let categoryData = {};
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+                categoryData = req.processedCategories || {};
+            }
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
+            }
+
+            // Date range with 90 days default if not provided
+            const now = new Date();
+            let effectiveGreaterThanTime, effectiveLessThanTime;
+            if (!greaterThanTime || !lessThanTime) {
+                const ninetyDaysAgo = subDays(now, 90);
+                effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
+                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
+            } else {
+                effectiveGreaterThanTime = greaterThanTime;
+                effectiveLessThanTime = lessThanTime;
+            }
+
+            // Base query
+            const query = buildBaseQuery({
+                greaterThanTime: effectiveGreaterThanTime,
+                lessThanTime: effectiveLessThanTime
+            }, source, isSpecialTopic);
+
+            // Sentiment filter (same as analysis)
+            if (sentiment) {
+                if (sentiment.toLowerCase() === 'all') {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: 'Positive' } },
+                                { match: { predicted_sentiment_value: 'positive' } },
+                                { match: { predicted_sentiment_value: 'Negative' } },
+                                { match: { predicted_sentiment_value: 'negative' } },
+                                { match: { predicted_sentiment_value: 'Neutral' } },
+                                { match: { predicted_sentiment_value: 'neutral' } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                } else if (sentiment !== 'All') {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: sentiment } },
+                                { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                                { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                }
+            }
+
+            // Category filters
+            addCategoryFilters(query, category, categoryData);
+
+            // trust_dimensions exists
+            query.bool.must.push({ exists: { field: 'trust_dimensions' } });
+
+            // Apply selected dimension
+            query.bool.must.push({ term: { 'trust_dimensions.keyword': String(dimension) } });
+
+            // Optional emotion filter
+            if (emotion && String(emotion).trim() !== '') {
+                query.bool.must.push({ term: { 'llm_emotion.keyword': String(emotion) } });
+            }
+
+            // Pagination
+            const from = (Number(page) - 1) * Number(limit);
+
+            const searchBody = {
+                from,
+                size: Number(limit),
+                query,
+                sort: [{ p_created_time: { order: 'desc' } }],
+                _source: [
+                    'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response'
+                ],
+                track_total_hits: true,
+                timeout: '10s'
+            };
+
+            const result = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: searchBody
+            });
+
+            const hits = result.hits?.hits || [];
+            const posts = hits.map(h => formatPostData(h));
+            const total = result.hits?.total?.value || 0;
+
+            return res.json({ success: true, posts, total, page: Number(page), limit: Number(limit) });
+        } catch (error) {
+            console.error('Error fetching trust dimension posts:', error);
+            return res.status(500).json({ success: false, error: 'Internal server error' });
+        }
+    },
 
 };
 

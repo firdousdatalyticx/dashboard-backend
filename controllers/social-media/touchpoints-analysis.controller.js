@@ -20,7 +20,7 @@ const touchpointsAnalysisController = {
             } = req.body;
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-    
+
             // Get category data from middleware
             let categoryData = {};
       
@@ -37,7 +37,7 @@ const touchpointsAnalysisController = {
                     totalCount: 0
                 });
             }
-    
+
             // Set date range
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
@@ -53,13 +53,13 @@ const touchpointsAnalysisController = {
                     effectiveLessThanTime = lessThanTime;
                 }
             
-    
+
             // Build base query
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
             }, source, isSpecialTopic);
-    
+
             // Add sentiment filter if provided
             if (sentiment) {
                 if (sentiment.toLowerCase() === "all") {
@@ -89,23 +89,21 @@ const touchpointsAnalysisController = {
                     });
                 }
             }
-    
+
             // Add category filters
             addCategoryFilters(query, category, categoryData);
-    
+
             // Add filter to only include posts with touchpoints field
             query.bool.must.push({
                 exists: {
                     field: 'touchpoints'
                 }
             });
-            // Exclude empty placeholders
+            // Exclude empty placeholder
             query.bool.must_not = query.bool.must_not || [];
             query.bool.must_not.push({ term: { 'touchpoints.keyword': '' } });
-            query.bool.must_not.push({ term: { 'touchpoints.keyword': '{}' } });
-            query.bool.must_not.push({ term: { 'touchpoints.keyword': '[]' } });
-    
-            // Simplified aggregation without post samples
+
+            // Aggregation-based approach to avoid per-hit processing
             const AGG_SIZE = 300;
             const params = {
                 size: 0,
@@ -119,40 +117,29 @@ const touchpointsAnalysisController = {
                     }
                 }
             };
-    
+
             const response = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: params,
                 track_total_hits: false,
                 timeout: '10s'
             });
-    
-            // Process aggregated results: parse touchpoints JSON/CSV per bucket and distribute counts
+
+            // Process aggregated results: handle touchpoints as array of strings per document
             const touchpointsMap = new Map();
             let totalCount = 0;
             const buckets = response.aggregations?.touchpoints_raw?.buckets || [];
             for (const b of buckets) {
                 const keyStr = b.key;
-                if (!keyStr || keyStr === '{}' || keyStr === '[]') continue;
+                if (!keyStr) continue;
                 const sentimentsBuckets = b.sentiments?.buckets || [];
-    
-                // Derive list of touchpoint names from the raw string
-                let tpList = [];
-                const trimmed = String(keyStr).trim();
-                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                    try {
-                        const obj = JSON.parse(trimmed);
-                        tpList = Object.keys(obj || {}).map(k => String(k).trim()).filter(Boolean);
-                    } catch (_) { /* ignore */ }
-                }
-                if (tpList.length === 0) {
-                    tpList = trimmed.split(',').map(s => s.trim()).filter(s => s.length > 0 && s !== '{}' && s !== '[]');
-                }
-                if (tpList.length === 0) continue;
-    
+
+                // With array field, each bucket key is a single touchpoint name
+                const tpList = [String(keyStr).trim()].filter(Boolean);
+
                 const bucketDocCount = b.doc_count || 0;
                 totalCount += bucketDocCount;
-    
+
                 for (const tp of tpList) {
                     const key = tp;
                     if (!touchpointsMap.has(key)) {
@@ -176,199 +163,101 @@ const touchpointsAnalysisController = {
                     });
                 }
             }
-    
-            const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
-                // Convert sentiments object to array, filtering out zero counts
-                const sentiments = Object.entries(touchpoint.sentiments)
-                    .filter(([_, data]) => {
-                        if (sentiment === 'All' || sentiment === "") return data.count > 0;
-                        return _.toLowerCase() === sentiment.toLowerCase() && data.count > 0;
-                    })
-                    .map(([sentimentName, data]) => ({
-                        name: sentimentName,
-                        count: data.count,
-                        percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0
-                    }))
-                    .sort((a, b) => b.count - a.count); // Sort by count descending
-    
-                // Normalize sentiment access based on sentiment
-                const getCount = (sentiment) =>
-                    sentiment === 'All' || sentiment === "" || sentiment === sentiment.toLowerCase()
-                        ? touchpoint.sentiments[sentiment]?.count || 0
-                        : 0;
-    
-                return {
-                    touchpoint: touchpoint.touchpoint,
-                    sentiments,
-                    totalCount: touchpoint.totalCount,
-                    positive: getCount('Positive'),
-                    negative: getCount('Negative'),
-                    neutral: getCount('Neutral'),
-                    distrustful: getCount('Distrustful'),
-                    supportive: getCount('Supportive')
-                };
-            });
-    
+
+            // // Convert maps to arrays and format for chart
+            // const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
+            //     console.log(touchpoint.sentiments)
+            //     // Convert sentiments object to array, filtering out zero counts
+            //     const sentiments = Object.entries(touchpoint.sentiments)
+            //         .filter(([_, data]) => data.count > 0)
+            //         .map(([sentimentName, data]) => ({
+            //             name: sentimentName,
+            //             count: data.count,
+            //             percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0,
+            //             posts: data.posts
+            //         }))
+            //         .sort((a, b) => b.count - a.count); // Sort by count descending
+
+            //     return {
+            //         touchpoint: touchpoint.touchpoint,
+            //         sentiments: sentiments,
+            //         totalCount: touchpoint.totalCount,
+            //         // Add individual sentiment counts for easy chart building
+            //         positive: touchpoint.sentiments['Positive']?.count || 0,
+            //         negative: touchpoint.sentiments['Negative']?.count || 0,
+            //         neutral: touchpoint.sentiments['Neutral']?.count || 0,
+            //         distrustful: touchpoint.sentiments['Distrustful']?.count || 0,
+            //         supportive: touchpoint.sentiments['Supportive']?.count || 0
+            //     };
+            // });
+
+
+const touchpointsArray = Array.from(touchpointsMap.values()).map(touchpoint => {
+    const sentiments = Object.entries(touchpoint.sentiments)
+        .filter(([name, data]) => {
+            if (sentiment === 'All' || sentiment==="") return data.count > 0;
+            return name.toLowerCase() === sentiment && data.count > 0;
+        })
+        .map(([sentimentName, data]) => ({
+            name: sentimentName,
+            count: data.count,
+            percentage: touchpoint.totalCount > 0 ? Math.round((data.count / touchpoint.totalCount) * 100) : 0
+        }))
+        .sort((a, b) => b.count - a.count);
+
+    // Normalize sentiment access based on sentiment
+    const getCount = (sentiment) =>
+        sentiment === 'All' || sentiment==="" || sentiment === sentiment.toLowerCase()
+            ? touchpoint.sentiments[sentiment]?.count || 0
+            : 0;
+
+    return {
+        touchpoint: touchpoint.touchpoint,
+        sentiments,
+        totalCount: touchpoint.totalCount,
+        positive: getCount('Positive'),
+        negative: getCount('Negative'),
+        neutral: getCount('Neutral'),
+        distrustful: getCount('Distrustful'),
+        supportive: getCount('Supportive')
+    };
+});
+
+
             // Sort touchpoints by total count descending (highest bars first)
             touchpointsArray.sort((a, b) => b.totalCount - a.totalCount);
-    
-            // Limit to top 15 touchpoints
-            const top15Touchpoints = touchpointsArray.slice(0, 15);
-    
+
+            // Limit to top 10 touchpoints
+            const top10Touchpoints = touchpointsArray.slice(0, 15);
+
+            // Gather all filter terms
+            let allFilterTerms = [];
+            if (categoryData) {
+                Object.values(categoryData).forEach((data) => {
+                    if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                    if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                    if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+                });
+            }
+
+            // No matched_terms processing as posts are not included here
+
             return res.json({
                 success: true,
-                touchpointsAnalysis: top15Touchpoints,
+                touchpointsAnalysis: top10Touchpoints,
                 totalCount: totalCount,
                 dateRange: {
                     from: effectiveGreaterThanTime,
                     to: effectiveLessThanTime
                 }
             });
-    
+
         } catch (error) {
             console.error('Error fetching touchpoints analysis by sentiment data:', error);
             return res.status(500).json({
                 success: false,
                 error: 'Internal server error'
             });
-        }
-    },
-    getTouchpointPosts: async (req, res) => {
-        try {
-            const {
-                source = 'All',
-                category = 'all',
-                topicId,
-                greaterThanTime,
-                lessThanTime,
-                sentiment,
-                touchpoint,
-                page = 1,
-                size = 20
-            } = req.body;
-
-            if (!touchpoint) {
-                return res.status(400).json({ success: false, error: 'touchpoint is required' });
-            }
-
-            // Special topic handling (kept for parity with analysis API)
-            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
-            // Category data
-            let categoryData = {};
-            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
-                categoryData = processCategoryItems(req.body.categoryItems);
-            } else {
-                categoryData = req.processedCategories || {};
-            }
-            if (Object.keys(categoryData).length === 0) {
-                return res.json({
-                    success: true,
-                    posts: [],
-                    totalCount: 0,
-                    page: Number(page) || 1,
-                    size: Number(size) || 20
-                });
-            }
-
-            // Date range with 90 days default
-            const now = new Date();
-            let effectiveGreaterThanTime, effectiveLessThanTime;
-            if (!greaterThanTime || !lessThanTime) {
-                const ninetyDaysAgo = subDays(now, 90);
-                effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
-                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
-            } else {
-                effectiveGreaterThanTime = greaterThanTime;
-                effectiveLessThanTime = lessThanTime;
-            }
-
-            // Base query
-            const query = buildBaseQuery({
-                greaterThanTime: effectiveGreaterThanTime,
-                lessThanTime: effectiveLessThanTime
-            }, source, isSpecialTopic);
-
-            // Optional sentiment filter (specific segment clicked)
-            if (sentiment && sentiment !== '' && sentiment !== 'All') {
-                query.bool.must.push({
-                    bool: {
-                        should: [
-                            { match: { 'predicted_sentiment_value': sentiment } },
-                            { match: { 'predicted_sentiment_value': String(sentiment).toLowerCase() } },
-                            { match: { 'predicted_sentiment_value': String(sentiment).charAt(0).toUpperCase() + String(sentiment).slice(1).toLowerCase() } }
-                        ],
-                        minimum_should_match: 1
-                    }
-                });
-            } else if (sentiment && sentiment.toLowerCase() === 'all') {
-                query.bool.must.push({
-                    bool: {
-                        should: [
-                            { match: { predicted_sentiment_value: 'Positive' } },
-                            { match: { predicted_sentiment_value: 'positive' } },
-                            { match: { predicted_sentiment_value: 'Negative' } },
-                            { match: { predicted_sentiment_value: 'negative' } },
-                            { match: { predicted_sentiment_value: 'Neutral' } },
-                            { match: { predicted_sentiment_value: 'neutral' } }
-                        ],
-                        minimum_should_match: 1
-                    }
-                });
-            }
-
-            // Category filters
-            addCategoryFilters(query, category, categoryData);
-
-            // Ensure touchpoints field exists and is not empty
-            query.bool.must.push({ exists: { field: 'touchpoints' } });
-            query.bool.must_not = query.bool.must_not || [];
-            query.bool.must_not.push({ term: { 'touchpoints.keyword': '' } });
-            query.bool.must_not.push({ term: { 'touchpoints.keyword': '{}' } });
-            query.bool.must_not.push({ term: { 'touchpoints.keyword': '[]' } });
-
-            // Filter for specific touchpoint value (supports JSON and CSV representations)
-            const safeTP = String(touchpoint).replace(/"/g, '\\"');
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { wildcard: { 'touchpoints.keyword': `*\"${safeTP}\"*` } },
-                        { wildcard: { 'touchpoints.keyword': `*${safeTP}*` } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-
-            const pageNum = Math.max(parseInt(page) || 1, 1);
-            const pageSize = Math.min(Math.max(parseInt(size) || 20, 1), 100);
-            const from = (pageNum - 1) * pageSize;
-
-            const params = {
-                from,
-                size: pageSize,
-                query,
-                sort: [{ p_created_time: { order: 'desc' } }],
-                track_total_hits: true
-            };
-
-            const response = await elasticClient.search({
-                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: params
-            });
-
-            const total = typeof response.hits?.total?.value === 'number' ? response.hits.total.value : 0;
-            const posts = (response.hits?.hits || []).map(hit => formatPostData(hit));
-
-            return res.json({
-                success: true,
-                posts,
-                totalCount: total,
-                page: pageNum,
-                size: pageSize
-            });
-        } catch (error) {
-            console.error('Error fetching touchpoint posts:', error);
-            return res.status(500).json({ success: false, error: 'Internal server error' });
         }
     }
 };

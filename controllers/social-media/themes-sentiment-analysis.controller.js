@@ -103,33 +103,25 @@ const themesSentimentAnalysisController = {
             // Add category filters
             addCategoryFilters(query, category, categoryData);
 
-            // Add filter to only include posts with themes_sentiments field
-            query.bool.must.push({
-                exists: {
-                    field: 'themes_sentiments'
-                }
-            });
-            // Exclude empty placeholders to avoid parsing overhead
-            query.bool.must_not = query.bool.must_not || [];
-            query.bool.must_not.push({ term: { 'themes_sentiments.keyword': '' } });
-            query.bool.must_not.push({ term: { 'themes_sentiments.keyword': '{}' } });
+            // Add filter to only include posts with themes_sentiments field (array of strings)
+            query.bool.must.push({ exists: { field: 'themes_sentiments' } });
 
 
-            // Aggregation-based approach using runtime field to extract theme names; aggregate by predicted_sentiment_value
+            // Aggregate on themes_sentiments array while normalizing values (trim + lowercase) to prevent duplicates
             const params = {
                 size: 0,
                 query: query,
                 runtime_mappings: {
-                    theme_name: {
+                    themes_sentiments_norm: {
                         type: 'keyword',
                         script: {
-                            source: 'def ts = params._source["themes_sentiments"]; if (ts == null) return; String s = ts instanceof String ? ts : ts.toString(); if (s.length() == 0) return; def m = /\\"([^\\"]+)\\"\\s*:\\s*\\"[^\\"]*\\"/.matcher(s); while (m.find()) { emit(m.group(1)); }'
+                            source: "if (!doc.containsKey('themes_sentiments.keyword') || doc['themes_sentiments.keyword'].size() == 0) return; for (def v : doc['themes_sentiments.keyword']) { if (v != null) { String s = v.toString(); if (s != null) emit(s.trim().toLowerCase()); } }"
                         }
                     }
                 },
                 aggs: {
                     themes: {
-                        terms: { field: 'theme_name', size: 50, order: { _count: 'desc' } },
+                        terms: { field: 'themes_sentiments_norm', size: 100, order: { _count: 'desc' } },
                         aggs: {
                             sentiments: { terms: { field: 'predicted_sentiment_value.keyword', size: 10 } }
                         }
@@ -147,44 +139,24 @@ const themesSentimentAnalysisController = {
             // Build chartData from aggregation results
             const themesBuckets = response.aggregations?.themes?.buckets || [];
             const sentimentTypes = new Set();
+            let totalCount = 0;
             // Collect all sentiment keys
             themesBuckets.forEach(tb => (tb.sentiments?.buckets || []).forEach(sb => sentimentTypes.add(sb.key)));
             const sortedSentiments = Array.from(sentimentTypes).sort();
 
-            // Merge duplicate themes by normalizing the theme name (trim, collapse spaces, lowercase)
-            const normalizeTheme = (name) => (name || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
-            const merged = new Map();
-
-            for (const tb of themesBuckets) {
-                const rawName = tb.key || '';
-                const norm = normalizeTheme(rawName);
-
-                if (!merged.has(norm)) {
-                    const initSentiments = {};
-                    sortedSentiments.forEach(s => { initSentiments[s] = 0; });
-                    merged.set(norm, {
-                        theme: (rawName || '').toString().trim(),
-                        sentiments: initSentiments,
-                        totalCount: 0
-                    });
-                }
-
-                const entry = merged.get(norm);
+            const chartData = themesBuckets.map(tb => {
+                const themeName = tb.key; // already normalized
+                const sentimentsObj = {};
+                sortedSentiments.forEach(s => { sentimentsObj[s] = { count: 0 }; });
                 (tb.sentiments?.buckets || []).forEach(sb => {
                     const name = sb.key || 'Neutral';
                     const count = sb.doc_count || 0;
-                    entry.sentiments[name] = (entry.sentiments[name] || 0) + count;
-                    entry.totalCount += count;
+                    totalCount += count;
+                    sentimentsObj[name] = { count };
                 });
-            }
-
-            const chartData = Array.from(merged.values())
-                .map(entry => {
-                    const sentimentsObj = {};
-                    sortedSentiments.forEach(s => { sentimentsObj[s] = { count: entry.sentiments[s] || 0 }; });
-                    return { theme: entry.theme, sentiments: sentimentsObj, totalCount: entry.totalCount };
-                })
-                .sort((a, b) => b.totalCount - a.totalCount);
+                const themeTotal = Object.values(sentimentsObj).reduce((sum, v) => sum + (v.count || 0), 0);
+                return { theme: themeName, sentiments: sentimentsObj, totalCount: themeTotal };
+            }).sort((a, b) => b.totalCount - a.totalCount);
 
             console.log('Sentiment types found:', Array.from(sentimentTypes));
 
@@ -206,10 +178,19 @@ const stackedBarData = chartDataRef.map(themeData => {
     return result;
 });
 
+// No filter terms needed for counts-only endpoint
+
+// No posts processing needed for counts-only endpoint
+
 return res.json({
     success: true,
     detailedData: chartData,
-    params
+    stackedBarData: stackedBarData,
+    totalCount: totalCount,
+    dateRange: {
+        from: effectiveGreaterThanTime,
+        to: effectiveLessThanTime
+    }
 });
 
         } catch (error) {
@@ -220,166 +201,149 @@ return res.json({
             });
         }
     },
-    // Posts endpoint for specific theme and optional sentiment
-getThemePosts: async (req, res) => {
-    try {
-        const {
-            source = 'All',
-            category = 'all',
-            topicId,
-            greaterThanTime,
-            lessThanTime,
-            sentiment,
-            theme,
-            page = 1,
-            size = 20
-        } = req.body;
 
-        if (!theme) {
-            return res.status(400).json({ success: false, error: 'theme is required' });
-        }
+    /**
+     * Get posts for a specific theme and sentiment
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     * @returns {Object} JSON response with posts for the selected theme
+     */
+    getThemePosts: async (req, res) => {
+        try {
+            const {
+                source = 'All',
+                category = 'all',
+                topicId,
+                greaterThanTime,
+                lessThanTime,
+                sentiment,
+                theme, // required
+                page = 1,
+                limit = 20
+            } = req.body;
 
-        const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
-        let categoryData = {};
-        if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
-            categoryData = processCategoryItems(req.body.categoryItems);
-        } else {
-            categoryData = req.processedCategories || {};
-        }
-        if (Object.keys(categoryData).length === 0) {
-            return res.json({ success: true, posts: [], totalCount: 0, page: Number(page) || 1, size: Number(size) || 20 });
-        }
-
-        const now = new Date();
-        let effectiveGreaterThanTime, effectiveLessThanTime;
-        if (!greaterThanTime || !lessThanTime) {
-            const ninetyDaysAgo = subDays(now, 90);
-            effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
-            effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
-        } else {
-            effectiveGreaterThanTime = greaterThanTime;
-            effectiveLessThanTime = lessThanTime;
-        }
-
-        const baseQuery = buildBaseQuery({
-            greaterThanTime: effectiveGreaterThanTime,
-            lessThanTime: effectiveLessThanTime
-        }, source, isSpecialTopic);
-
-        // Optional overall sentiment filter
-        if (sentiment && sentiment !== '' && sentiment !== 'All') {
-            baseQuery.bool.must.push({
-                bool: {
-                    should: [
-                        { match: { 'predicted_sentiment_value': sentiment } },
-                        { match: { 'predicted_sentiment_value': String(sentiment).toLowerCase() } },
-                        { match: { 'predicted_sentiment_value': String(sentiment).charAt(0).toUpperCase() + String(sentiment).slice(1).toLowerCase() } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        } else if (sentiment && sentiment.toLowerCase() === 'all') {
-            baseQuery.bool.must.push({
-                bool: {
-                    should: [
-                        { match: { predicted_sentiment_value: 'Positive' } },
-                        { match: { predicted_sentiment_value: 'positive' } },
-                        { match: { predicted_sentiment_value: 'Negative' } },
-                        { match: { predicted_sentiment_value: 'negative' } },
-                        { match: { predicted_sentiment_value: 'Neutral' } },
-                        { match: { predicted_sentiment_value: 'neutral' } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        }
-
-        addCategoryFilters(baseQuery, category, categoryData);
-        baseQuery.bool.must.push({ exists: { field: 'themes_sentiments' } });
-        baseQuery.bool.must_not = baseQuery.bool.must_not || [];
-        baseQuery.bool.must_not.push({ term: { 'themes_sentiments.keyword': '' } });
-        baseQuery.bool.must_not.push({ term: { 'themes_sentiments.keyword': '{}' } });
-
-        // Aggregate to find exact raw keys that contain the requested theme
-        const aggParams = {
-            size: 0,
-            query: baseQuery,
-            aggs: {
-                themes_raw: {
-                    terms: { field: 'themes_sentiments.keyword', size: 300, order: { _count: 'desc' } }
-                }
-            },
-            track_total_hits: false,
-            timeout: '10s'
-        };
-
-        const aggResp = await elasticClient.search({
-            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: aggParams
-        });
-
-        const requestedTheme = String(theme).trim();
-        const rawBuckets = aggResp.aggregations?.themes_raw?.buckets || [];
-        const matchingKeys = [];
-        let totalFromAgg = 0;
-        for (const b of rawBuckets) {
-            const keyStr = b.key;
-            if (!keyStr || keyStr === '{}' || keyStr === '[]' || keyStr === '""') continue;
-            const s = String(keyStr);
-            if (s.includes(`\"${requestedTheme}\"`)) {
-                matchingKeys.push(keyStr);
-                totalFromAgg += (b.doc_count || 0);
-            } else {
-                try {
-                    const re = new RegExp(`\\\"${requestedTheme}\\\"\\s*:\\s*\\\"[^\\\"]*\\\"`);
-                    if (re.test(s)) {
-                        matchingKeys.push(keyStr);
-                        totalFromAgg += (b.doc_count || 0);
-                    }
-                } catch (_) { }
+            if (!theme) {
+                return res.status(400).json({ success: false, error: 'theme is required' });
             }
+
+            // Get category data from middleware
+            let categoryData = {};
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+                categoryData = req.processedCategories || {};
+            }
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
+            }
+
+            // Set date range
+            const now = new Date();
+            let effectiveGreaterThanTime, effectiveLessThanTime;
+            
+            if (!greaterThanTime || !lessThanTime) {
+                const ninetyDaysAgo = subDays(now, 90);
+                effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
+                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
+            } else {
+                effectiveGreaterThanTime = greaterThanTime;
+                effectiveLessThanTime = lessThanTime;
+            }
+
+            // Build base query
+            const query = buildBaseQuery({
+                greaterThanTime: effectiveGreaterThanTime,
+                lessThanTime: effectiveLessThanTime
+            }, source, topicId && parseInt(topicId) === 2600);
+
+            // Add theme filter synchronized with normalized aggregation (trim + lowercase)
+            const normalizedTheme = String(theme || '').trim().toLowerCase();
+            query.bool.must.push({
+                script: {
+                    script: {
+                        source: "if (!doc.containsKey('themes_sentiments.keyword') || doc['themes_sentiments.keyword'].size() == 0) return false; for (def v : doc['themes_sentiments.keyword']) { if (v != null) { String s = v.toString(); if (s != null && s.trim().toLowerCase() == params.t) return true; } } return false;",
+                        lang: 'painless',
+                        params: { t: normalizedTheme }
+                    }
+                }
+            });
+
+            // Add sentiment filter if provided
+            if (sentiment && sentiment !== '' && sentiment !== 'All') {
+                query.bool.must.push({ term: { 'predicted_sentiment_value.keyword': sentiment } });
+            }
+
+            // Add category filters
+            addCategoryFilters(query, category, categoryData);
+
+            // Add filter to only include posts with themes_sentiments field
+            query.bool.must.push({ exists: { field: 'themes_sentiments' } });
+
+            const from = (Number(page) - 1) * Number(limit);
+            const searchBody = {
+                from,
+                size: Number(limit),
+                query,
+                sort: [{ p_created_time: { order: 'desc' } }],
+                _source: [
+                    'themes_sentiments',
+                    'created_at',
+                    'p_created_time',
+                    'source',
+                    'p_message',
+                    'p_message_text',
+                    'u_profile_photo',
+                    'u_fullname',
+                    'p_url',
+                    'p_id',
+                    'p_picture',
+                    'p_picture_url',
+                    'predicted_sentiment_value',
+                    'predicted_category',
+                    'llm_emotion',
+                    'u_followers',
+                    'u_following',
+                    'u_posts',
+                    'p_likes',
+                    'p_comments_text',
+                    'p_comments',
+                    'p_shares',
+                    'p_engagement',
+                    'p_content',
+                    'u_source',
+                    'name',
+                    'rating',
+                    'comment',
+                    'business_response',
+                    'u_country'
+                ]
+            };
+
+            const resp = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: searchBody,
+                timeout: '10s',
+                track_total_hits: true
+            });
+
+            const posts = (resp.hits?.hits || []).map(hit => formatPostData(hit));
+
+            return res.json({
+                success: true,
+                posts,
+                total: resp.hits?.total?.value || 0,
+                page: Number(page),
+                limit: Number(limit)
+            });
+
+        } catch (error) {
+            console.error('Error fetching theme posts:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
         }
-
-        if (matchingKeys.length === 0) {
-            return res.json({ success: true, posts: [], totalCount: 0, page: Number(page) || 1, size: Number(size) || 20 });
-        }
-
-        // Fetch posts restricted to those exact raw JSON strings
-        const pageNum = Math.max(parseInt(page) || 1, 1);
-        const pageSize = Math.min(Math.max(parseInt(size) || 20, 1), 100);
-        const from = (pageNum - 1) * pageSize;
-
-        const postsQuery = JSON.parse(JSON.stringify(baseQuery));
-        postsQuery.bool.must.push({ terms: { 'themes_sentiments.keyword': matchingKeys } });
-
-        const postsParams = {
-            from,
-            size: pageSize,
-            query: postsQuery,
-            sort: [{ p_created_time: { order: 'desc' } }],
-            track_total_hits: false
-        };
-
-        const postsResp = await elasticClient.search({
-            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: postsParams
-        });
-
-        const posts = (postsResp.hits?.hits || []).map(hit => formatPostData(hit));
-
-        return res.json({
-            success: true,
-            posts,
-            totalCount: totalFromAgg,
-            page: pageNum,
-            size: pageSize
-        });
-    } catch (error) {
-        console.error('Error fetching theme posts:', error);
-        return res.status(500).json({ success: false, error: 'Internal server error' });
     }
-}
 };
 
 /**
@@ -661,4 +625,3 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
 }
 
 module.exports = themesSentimentAnalysisController; 
- 

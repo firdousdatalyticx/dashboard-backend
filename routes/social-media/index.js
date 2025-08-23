@@ -48,7 +48,7 @@ const llm_motivation_phase_route= require("./llm_motivation-phase.route")
 const llm_motivation_sentiment_route = require("./llm-motivation-sentiment.route")
 const mentionsOverTimeRoute = require("./mentions-over-time.route")
 const businessLocationRoutes = require("./business-locations.routes")
-// migration-topics.routes.js
+/// migration-topics.routes.js
 /**
  * @swagger
  * tags:

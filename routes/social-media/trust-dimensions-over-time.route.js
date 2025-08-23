@@ -6,5 +6,6 @@ const trustDimensionsOverTimeController = require('../../controllers/social-medi
 
 // Apply middleware and route handler
 router.post('/', express.json(), authMiddleware, transformCategoryData, trustDimensionsOverTimeController.getTrustDimensionsOverTime);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, trustDimensionsOverTimeController.getTrustDimensionsOverTimePosts);
 
 module.exports = router; 

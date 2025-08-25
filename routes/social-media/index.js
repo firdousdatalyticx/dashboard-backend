@@ -20,6 +20,7 @@ const themesOverTimeRoute = require('./themes-over-time.route');
 const themesSentimentAnalysisRoute = require('./themes-sentiment-analysis.route');
 const sectorDistributionRoute = require('./sector-distribution.route');
 const touchpointsAnalysisRoute = require('./touchpoints-analysis.route');
+const fieldCountsRoute = require('./field-counts.route');
 
 const engagementRoute = require('./engagement.route');
 const mentionsTrendRoute = require('./mentions-trend.route');
@@ -85,6 +86,7 @@ router.use('/themes-over-time', themesOverTimeRoute);
 router.use('/themes-sentiment-analysis', themesSentimentAnalysisRoute);
 router.use('/sector-distribution', sectorDistributionRoute);
 router.use('/touchpoints-analysis', touchpointsAnalysisRoute);
+router.use('/field-counts', fieldCountsRoute);
 router.use("/actions-required",actionRequiredRoute)
 router.use("/type-of-mentions",typeOfMentions)
 router.use("/recurrence-mentions",recurrenceMentions)

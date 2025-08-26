@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../../middleware/auth.middleware');
+const healthCheckRoute = require('./health-check');
 
 const mentionsGraphRoute = require('./mentions-graph.route');
 const socialsDistributionsRoute = require('./socials-distributions.route');
@@ -104,5 +105,6 @@ router.use('/event-type-popularity',eventTypePopularityRoute)
 router.use("/llm-motivation-phase",llm_motivation_phase_route);
 router.use("/llm-motivation-sentiment",llm_motivation_sentiment_route)
 router.use("/business-location",businessLocationRoutes)
+router.use("/health-check",healthCheckRoute)
 
 module.exports = router; 

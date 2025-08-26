@@ -20,7 +20,7 @@ const fieldCountsController = {
                 sentiment
             } = req.body;
     
-            // Check if this is the special topicId
+            // Check if this is the special topicId///
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
     
             // Get category data from middleware

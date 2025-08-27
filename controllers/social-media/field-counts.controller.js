@@ -184,19 +184,25 @@ const fieldCountsController = {
             // Process aggregation results
             const aggs = response.aggregations || {};
     
-            // Process sector data
+            // Process sector data with Education merge logic
             const sectorBuckets = aggs.sector_counts?.buckets || [];
-            let sectorItems = sectorBuckets.map(b => ({
-                name: b.key,
-                count: b.doc_count
-            })).sort((a, b) => b.count - a.count);
+            
+            // Merge empty sector names into 'Education' using the same logic as getSectorDistributionAnalysis
+            const sectorMap = new Map(); // lowercased sector -> { name, count }
+            for (const b of sectorBuckets) {
+                const nameRaw = (b.key || '').toString();
+                const sectorName = nameRaw.trim() === '' ? 'Education' : nameRaw;
+                const key = sectorName.toLowerCase();
+                const current = sectorMap.get(key) || { name: sectorName, count: 0 };
+                current.count += (b.doc_count || 0);
+                sectorMap.set(key, current);
+            }
+    
+            // Convert to array and sort by count (highest first)
+            const sectorItems = Array.from(sectorMap.values())
+                .sort((a, b) => b.count - a.count);
     
             const totalWithSector = aggs.total_with_sector?.value || 0;
-    
-            // If top sector has empty string as name, remove it and use the next one
-            if (sectorItems.length > 1 && sectorItems[0].name === "") {
-                sectorItems.shift();
-            }
     
             // Process trust dimensions data
             const trustDimensionsBuckets = aggs.trust_dimensions?.buckets || [];

@@ -239,6 +239,8 @@ const elasticMentionQueryTemplate = (topicQueryString, gte, lte) => ({
       ],
     },
   },
+
+ 
 });
 
 const getActionRequired = async (
@@ -3743,7 +3745,7 @@ const mentionsChartController = {
       //   isSpecialTopic && !fromDate ? "" : fromDate;
       // const effectiveToDate = isSpecialTopic && !toDate ? "now" : toDate;
 
-      // **Single Aggregation Query with Overall Sentiment Filtering**
+      // Simplified aggregation: group by migration_topics (topic name) and count sentiments using predicted_sentiment_value
       const query = {
         size: 0,
         query: {
@@ -3766,42 +3768,23 @@ const mentionsChartController = {
           },
         },
         aggs: {
-          // First aggregate by overall sentiment
-          overall_sentiment: {
-            terms: { 
-              field: "predicted_sentiment_value.keyword", 
-              size: 10 
+          topics: {
+            terms: {
+              field: "migration_topics.keyword",
+              size: 1000,
+              order: { _count: "desc" },
             },
             aggs: {
-              // Then by migration topics within each sentiment
-              mention_types: {
-                terms: { 
-                  field: "migration_topics.keyword", 
-                  size: 10 
-                },
-                aggs: {
-                  // Finally by sources
-                  sources: {
-                    terms: { 
-                      field: "source.keyword", 
-                      size: 15 
-                    },
-                  },
+              sentiments: {
+                terms: {
+                  field: "predicted_sentiment_value.keyword",
+                  size: 3,
                 },
               },
             },
           },
         },
       };
-
-      // Apply sentiment filter if provided
-      if (sentimentType && sentimentType != "") {
-        query.query.bool.must.push({
-          match: {
-            predicted_sentiment_value: sentimentType.trim(),
-          },
-        });
-      }
 
       // Add category filters to the query
       if (Object.keys(categoryData).length > 0) {
@@ -3859,53 +3842,43 @@ const mentionsChartController = {
         body: query,
       });
 
-      // Transform the result to match your expected format
-      const transformedResult = {
-        aggregations: {
-          mention_types: {
-            doc_count_error_upper_bound: 0,
-            sum_other_doc_count: 0,
-            buckets: []
+      // Extract topic name from migration_topics JSON string, ignoring embedded sentiment
+      const extractTopicName = (raw) => {
+        if (typeof raw !== 'string') return String(raw || '');
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          try {
+            const obj = JSON.parse(trimmed);
+            const keys = Object.keys(obj);
+            return keys.length > 0 ? keys[0] : '';
+          } catch (_) {
+            // ignore
           }
         }
+        return trimmed;
       };
 
-      // Process the nested aggregations
-      if (result.aggregations?.overall_sentiment?.buckets) {
-        result.aggregations.overall_sentiment.buckets.forEach(sentimentBucket => {
-          const overallSentiment = sentimentBucket.key;
-          
-          if (sentimentBucket.mention_types?.buckets) {
-            sentimentBucket.mention_types.buckets.forEach(topicBucket => {
-              // Parse the migration topic JSON string
-              let migrationTopic;
-              try {
-                migrationTopic = JSON.parse(topicBucket.key);
-              } catch (e) {
-                migrationTopic = { topic: topicBucket.key };
-              }
-              
-              // Create a new key that combines topic with overall sentiment
-              const topicName = Object.keys(migrationTopic)[0] || 'unknown';
-              const newKey = `{"${topicName}": "${overallSentiment}"}`;
-              
-              transformedResult.aggregations.mention_types.buckets.push({
-                key: newKey,
-                doc_count: topicBucket.doc_count,
-                sources: topicBucket.sources || { buckets: [] }
-              });
-            });
-          }
-        });
-      }
+      // Build topics array with sentiment counts from predicted_sentiment_value
+      const topics = (result.aggregations?.topics?.buckets || []).map((bucket) => {
+        const topic = extractTopicName(bucket.key) || 'unknown';
+        const sentiments = bucket.sentiments?.buckets || [];
+        const counts = { Positive: 0, Neutral: 0, Negative: 0 };
+        for (const s of sentiments) {
+          const label = String(s.key || '').toLowerCase();
+          if (label === 'positive') counts.Positive = s.doc_count;
+          else if (label === 'neutral') counts.Neutral = s.doc_count;
+          else if (label === 'negative') counts.Negative = s.doc_count;
+        }
+        return { topic, counts, total: bucket.doc_count };
+      });
 
-      // Sort by doc_count descending
-      transformedResult.aggregations.mention_types.buckets.sort((a, b) => b.doc_count - a.doc_count);
+      const totalCount = topics.reduce((sum, t) => sum + t.total, 0);
 
       return res.status(200).json({ 
-        result: transformedResult, 
-        originalResult: result,
-        query 
+        success: true,
+        topics,
+        totalCount,
+        query,
       });
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -5266,11 +5239,83 @@ const mentionsChartController = {
       });
     }
   },
-trustDimensionsEducationSystem: async (req, res) => {
-    try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =
-        req.body;
 
+  // Helper function for formatting posts - moved outside methods for reuse
+  localFormatPost: function(hit) {
+    const src = hit._source || {};
+    const profilePic = src.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+    const llm_emotion = src.llm_emotion || '';
+    const commentsUrl = src.p_comments_text && src.p_comments_text.trim() !== ''
+      ? (src.p_url || '').toString().trim().replace('https: // ', 'https://')
+      : '';
+    const imageUrl = src.p_picture_url && src.p_picture_url.trim() !== ''
+      ? src.p_picture_url
+      : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+    let predicted_sentiment = '';
+    if (src.predicted_sentiment_value) predicted_sentiment = `${src.predicted_sentiment_value}`;
+    else if (src.source === 'GoogleMyBusiness' && src.rating) {
+      predicted_sentiment = src.rating >= 4 ? 'Positive' : src.rating <= 2 ? 'Negative' : 'Neutral';
+    }
+    let youtubeVideoUrl = '';
+    let profilePicture2 = '';
+    if (src.source === 'Youtube') {
+      if (src.video_embed_url) youtubeVideoUrl = src.video_embed_url;
+      else if (src.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${src.p_id}`;
+    } else {
+      profilePicture2 = src.p_picture ? src.p_picture : '';
+    }
+    let sourceIcon = '';
+    const userSource = src.source;
+    if (['khaleej_times','Omanobserver','Time of oman','Blogs'].includes(userSource)) sourceIcon = 'Blog';
+    else if (userSource === 'Reddit') sourceIcon = 'Reddit';
+    else if (['FakeNews','News'].includes(userSource)) sourceIcon = 'News';
+    else if (userSource === 'Tumblr') sourceIcon = 'Tumblr';
+    else if (userSource === 'Vimeo') sourceIcon = 'Vimeo';
+    else if (['Web','DeepWeb'].includes(userSource)) sourceIcon = 'Web';
+    else sourceIcon = userSource;
+    let message_text = '';
+    if (['GoogleMaps','Tripadvisor'].includes(src.source)) {
+      const parts = (src.p_message_text || '').split('***|||###');
+      message_text = (parts[0] || '').replace(/\n/g, '<br>');
+    } else {
+      message_text = src.p_message_text ? src.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '';
+    }
+    return {
+      profilePicture: profilePic,
+      profilePicture2,
+      userFullname: src.u_fullname,
+      user_data_string: '',
+      followers: src.u_followers > 0 ? `${src.u_followers}` : '',
+      following: src.u_following > 0 ? `${src.u_following}` : '',
+      posts: src.u_posts > 0 ? `${src.u_posts}` : '',
+      likes: src.p_likes > 0 ? `${src.p_likes}` : '',
+      llm_emotion,
+      commentsUrl,
+      comments: `${src.p_comments}`,
+      shares: src.p_shares > 0 ? `${src.p_shares}` : '',
+      engagements: src.p_engagement > 0 ? `${src.p_engagement}` : '',
+      content: src.p_content && src.p_content.trim() !== '' ? src.p_content : '',
+      image_url: imageUrl,
+      predicted_sentiment,
+      predicted_category: src.predicted_category || '',
+      youtube_video_url: youtubeVideoUrl,
+      source_icon: `${src.p_url},${sourceIcon}`,
+      message_text,
+      source: src.source,
+      rating: src.rating,
+      comment: src.comment,
+      businessResponse: src.business_response,
+      uSource: src.u_source,
+      googleName: src.name,
+      country: src.u_country,
+      created_at: new Date(src.p_created_time || src.created_at).toLocaleString()
+    };
+  },
+
+  trustDimensionsEducationSystem: async (req, res) => {
+    try {
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } = req.body;
+  
       // Determine which category data to use
       let categoryData = {};
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -5278,86 +5323,60 @@ trustDimensionsEducationSystem: async (req, res) => {
       } else {
         categoryData = req.processedCategories || {};
       }
-
+  
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
       const isScadUser = false;
       const selectedTab = "Social";
-      let topicQueryString = await buildQueryString(
-        topicId,
-        isScadUser,
-        selectedTab
-      );
       
+      let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
+      
+      // Apply source filtering based on topicId
       if (parseInt(topicId) === 2619) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
+      } else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
       }
-
- 
-
-      // **Single Aggregation Query**
-      const query = {
-        size: 0,
-        query: {
-          bool: {
-            must: [
-              { query_string: { query: topicQueryString } },
-              {
-                range: {
-                  p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
-                  },
-                },
-              },
-            ],
-            must_not: [
-              { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
-            ],
-          },
-        },
-        aggs: {
-          mention_types: {
-            terms: { 
-              field: "trust_dimensions.keyword", 
-              size: 20 
-            },
-            aggs: {
-              sources: {
-                terms: { 
-                  field: "source.keyword", 
-                  size: 15 
+  
+      // Build the base query
+      const baseQuery = {
+        bool: {
+          must: [
+            { query_string: { query: topicQueryString } },
+            {
+              range: {
+                p_created_time: {
+                  gte: fromDate || "now-90d",
+                  lte: toDate || "now",
                 },
               },
             },
-          },
+          ],
+          must_not: [
+            { term: { "trust_dimensions.keyword": "" } },
+            { term: { "trust_dimensions.keyword": "{}" } },
+          ],
         },
       };
-
+  
       // Apply sentiment filter if provided
-      if (sentimentType && sentimentType != "") {
-        query.query.bool.must.push({
+      if (sentimentType && sentimentType !== "") {
+        baseQuery.bool.must.push({
           match: {
             predicted_sentiment_value: sentimentType.trim(),
           },
         });
       }
-
+  
       // Add category filters to the query
       if (Object.keys(categoryData).length > 0) {
         const categoryFilters = [];
         
         Object.values(categoryData).forEach(data => {
-          if (data.keywords && data.keywords.length > 0) {
+          // Process keywords
+          if (data.keywords && Array.isArray(data.keywords) && data.keywords.length > 0) {
             data.keywords.forEach(keyword => {
               categoryFilters.push({
                 multi_match: {
@@ -5368,7 +5387,9 @@ trustDimensionsEducationSystem: async (req, res) => {
               });
             });
           }
-          if (data.hashtags && data.hashtags.length > 0) {
+          
+          // Process hashtags
+          if (data.hashtags && Array.isArray(data.hashtags) && data.hashtags.length > 0) {
             data.hashtags.forEach(hashtag => {
               categoryFilters.push({
                 multi_match: {
@@ -5379,7 +5400,9 @@ trustDimensionsEducationSystem: async (req, res) => {
               });
             });
           }
-          if (data.urls && data.urls.length > 0) {
+          
+          // Process URLs
+          if (data.urls && Array.isArray(data.urls) && data.urls.length > 0) {
             data.urls.forEach(url => {
               categoryFilters.push({
                 multi_match: {
@@ -5391,9 +5414,9 @@ trustDimensionsEducationSystem: async (req, res) => {
             });
           }
         });
-
+  
         if (categoryFilters.length > 0) {
-          query.query.bool.must.push({
+          baseQuery.bool.must.push({
             bool: {
               should: categoryFilters,
               minimum_should_match: 1
@@ -5401,25 +5424,113 @@ trustDimensionsEducationSystem: async (req, res) => {
           });
         }
       }
-
-      // Execute query
+  
+      // Optimized aggregation-only query
+      const aggQuery = {
+        size: 0, // Don't return any documents, only aggregations
+        query: baseQuery,
+        aggs: {
+          dimensions: {
+            terms: {
+              field: 'trust_dimensions.keyword',
+              size: 200,
+              order: { _count: 'desc' },
+              exclude: ['', '{}', 'dimension1'], // Exclude empty values and dimension1
+              min_doc_count: 1 // Only return dimensions with at least 1 document
+            },
+            aggs: {
+              emotions: {
+                terms: {
+                  field: 'llm_emotion.keyword',
+                  size: 20,
+                  order: { _count: 'desc' },
+                  min_doc_count: 1 // Only return emotions with at least 1 document
+                }
+              }
+            }
+          }
+        },
+        track_total_hits: true,
+        timeout: '30s' // Increased timeout to be safe
+      };
+  
+      // Execute single aggregation query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        body: query,
+        body: aggQuery,
       });
-
-      return res.status(200).json({ result, query });
+  
+      // Extract total hits from the response
+      let totalHits = 0;
+      if (result.hits && result.hits.total) {
+        if (typeof result.hits.total === 'number') {
+          totalHits = result.hits.total;
+        } else if (typeof result.hits.total === 'object' && result.hits.total.value) {
+          totalHits = result.hits.total.value;
+        }
+      }
+  
+      // Process aggregation results
+      const buckets = result.aggregations?.dimensions?.buckets || [];
+  
+      // Transform aggregation data
+      const dataAll = buckets.map(bucket => {
+        const emotions = (bucket.emotions?.buckets || [])
+          .map(emotionBucket => ({
+            emotion: emotionBucket.key || 'unknown',
+            count: emotionBucket.doc_count || 0
+          }))
+          .sort((a, b) => b.count - a.count);
+  
+        const total = emotions.reduce((sum, emotion) => sum + emotion.count, 0);
+  
+        return {
+          dimension: bucket.key || 'unknown',
+          emotions,
+          total
+        };
+      })
+      .filter(item => item.total > 0) // Remove any items with 0 total
+      .sort((a, b) => b.total - a.total);
+  
+      // Return top 10 dimensions
+      const data = dataAll.slice(0, 10);
+  
+      // Calculate total docs from aggregation buckets
+      const totalDocs = buckets.reduce((sum, bucket) => sum + (bucket.doc_count || 0), 0);
+  
+      return res.status(200).json({
+        success: true,
+        data,
+        total: dataAll.length,
+        totalDocs: Math.max(totalDocs, totalHits) // Use the higher of the two values
+      });
+  
     } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
+      console.error("Error in trustDimensionsEducationSystem:", error);
+      
+      // Provide more detailed error information
+      let errorMessage = "Internal server error";
+      if (error.meta && error.meta.body && error.meta.body.error) {
+        errorMessage = error.meta.body.error.reason || errorMessage;
+      }
+      
+      return res.status(500).json({ 
+        success: false,
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
-  trustDimensionsEducationSystems: async (req, res) => {
-    try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =
-        req.body;
 
-      // Determine which category data to use
+   // New: fetch posts for a specific trust dimension and emotion
+   trustDimensionsEducationSystemPosts: async function(req, res) {
+    try {
+      const { fromDate, toDate, topicId, sentimentType, source, categoryItems, dimension, emotion } = req.body;
+
+      if (!dimension) return res.status(400).json({ success: false, error: 'dimension is required' });
+
+      // Determine category data
       let categoryData = {};
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
         categoryData = processCategoryItems(categoryItems);
@@ -5427,85 +5538,67 @@ trustDimensionsEducationSystem: async (req, res) => {
         categoryData = req.processedCategories || {};
       }
 
-      // Check if this is the special topicId
+      // topic/source filter
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-
       const isScadUser = false;
-      const selectedTab = "Social";
-      let topicQueryString = await buildQueryString(
-        topicId,
-        isScadUser,
-        selectedTab
-      );
-      if (parseInt(topicId) === 2619) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
+      const selectedTab = 'Social';
+      let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
+      if (parseInt(topicId) === 2619) topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+      else if (isSpecialTopic) topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
+      else topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+
+      // base query
+      const must = [
+        { query_string: { query: topicQueryString } },
+        { range: { p_created_time: { gte: fromDate || 'now-90d', lte: toDate || 'now' } } },
+        { terms: { 'trust_dimensions.keyword': [dimension] } }
+      ];
+
+      if (sentimentType && sentimentType !== '') {
+        must.push({ match: { predicted_sentiment_value: sentimentType.trim() } });
+      }
+      if (emotion && emotion !== '') {
+        must.push({ term: { 'llm_emotion.keyword': emotion } });
       }
 
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
-      }
-
-
-
-      // **Single Aggregation Query**
-      const query = {
-        size: 0,
-        query: {
-          bool: {
-            must: [
-              { query_string: { query: topicQueryString } },
-              {
-                range: {
-                  p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
-                  },
-                },
-              },
-            ],
-
-            must_not: [
-              { term: { "trust_dimensions.keyword": "" } },
-              { term: { "trust_dimensions.keyword": "{}" } },
-            ],
-          },
-        },
-        aggs: {
-          mention_types: {
-            terms: { field: "trust_dimensions.keyword", size: 7 },
-            aggs: {
-              sources: {
-                terms: { field: "source.keyword", size: 15 },
-              },
-            },
-          },
-        },
-      };
-
-      if (sentimentType && sentimentType != "") {
-        query.query.bool.must.push({
-          match: {
-            predicted_sentiment_value: sentimentType.trim(),
-          },
+      // category filters
+      const categoryFilters = [];
+      if (Object.keys(categoryData).length > 0) {
+        Object.values(categoryData).forEach(data => {
+          (data.keywords || []).forEach(keyword => categoryFilters.push({ multi_match: { query: keyword, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }));
+          (data.hashtags || []).forEach(hashtag => categoryFilters.push({ multi_match: { query: hashtag, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }));
+          (data.urls || []).forEach(url => categoryFilters.push({ multi_match: { query: url, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }));
         });
       }
+      if (categoryFilters.length > 0) {
+        must.push({ bool: { should: categoryFilters, minimum_should_match: 1 } });
+      }
 
-      // Execute query
-      const result = await elasticClient.search({
-        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        body: query,
-      });
+      const searchBody = {
+        size: 50,
+        query: { bool: { must, must_not: [{ term: { 'trust_dimensions.keyword': '' } }] } },
+        sort: [{ p_created_time: { order: 'desc' } }],
+        _source: [
+          'trust_dimensions','llm_emotion','predicted_sentiment_value','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_followers','u_following','u_posts','p_likes','p_comments_text','p_url','p_comments','p_shares','p_engagement','p_content','p_picture_url','predicted_category','u_fullname','video_embed_url','p_picture','p_id','rating','comment','business_response','u_source','name','u_country'
+        ]
+      };
 
-      return res.status(200).json({ result,query });
+      const searchRes = await elasticClient.search({ index: process.env.ELASTICSEARCH_DEFAULTINDEX, body: searchBody });
+      const hits = searchRes.hits?.hits || [];
+      const posts = hits.map(h => formatTrustPost(h));
+
+      // count total for the same filters
+      const countRes = await elasticClient.search({ index: process.env.ELASTICSEARCH_DEFAULTINDEX, body: { size: 0, query: searchBody.query } });
+      const total = countRes.hits?.total?.value || 0;
+
+      return res.status(200).json({ success: true, posts, total });
     } catch (error) {
-      console.error("Error fetching data:", error);
-      return res.status(500).json({ error: "Internal server error" });
+      console.error('Error fetching trustDimensionsEducationSystem posts:', error);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   },
+
+
   benchMarkingPresenceSentiment: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =

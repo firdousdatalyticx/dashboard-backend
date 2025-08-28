@@ -7,5 +7,6 @@ const transformDataSource = require('../../middleware/dataSource.middleware');
 
 // Apply middleware and route handler
 router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, themesOverTimeController.getThemesOverTimeAnalysis);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, themesOverTimeController.getThemesOverTimePosts);
 
 module.exports = router; 

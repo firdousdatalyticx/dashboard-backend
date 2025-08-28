@@ -1,14 +1,15 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
-const sectorDistributionController = {
+
+const fieldCountsController = {
     /**
-     * Get sector distribution analysis data for social media posts
+     * Get counts for all 4 fields (sector, trust_dimensions, themes_sentiments, touchpoints)
      * @param {Object} req - Express request object
      * @param {Object} res - Express response object
-     * @returns {Object} JSON response with sector distribution data
+     * @returns {Object} JSON response with field counts
      */
-    getSectorDistributionAnalysis: async (req, res) => {
+    getFieldCounts: async (req, res) => {
         try {
             const {
                 source = 'All',
@@ -18,48 +19,321 @@ const sectorDistributionController = {
                 lessThanTime,
                 sentiment
             } = req.body;
+    
+            // Check if this is the special topicId///
+            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+    
+            // Get category data from middleware
+            let categoryData = {};
+    
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+                // Fall back to middleware data
+                categoryData = req.processedCategories || {};
+            }
+    
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({
+                    success: true,
+                    fieldCounts: {
+                        sector: { total: 0, items: [] },
+                        trust_dimensions: { total: 0, items: [] },
+                        themes_sentiments: { total: 0, items: [] },
+                        touchpoints: { total: 0, items: [] }
+                    },
+                    totalCount: 0
+                });
+            }
+    
+            // Set date range - Use date math like your working query
+            let dateRangeForQuery;
+    
+            if (!greaterThanTime || !lessThanTime) {
+                // Use date math expressions like your working direct query
+                dateRangeForQuery = {
+                    gte: "now-90d/d",
+                    lte: "now/d"
+                };
+            } else {
+                // Use provided dates with proper ISO format
+                dateRangeForQuery = {
+                    gte: `${greaterThanTime}T00:00:00.000Z`,
+                    lte: `${lessThanTime}T23:59:59.999Z`
+                };
+            }
+    
+            // Build base query - pass the date range object directly
+            const query = {
+                bool: {
+                    must: [
+                        {
+                            range: {
+                                p_created_time: dateRangeForQuery
+                            }
+                        },
+                        {
+                            bool: {
+                                should: [
+                                    { match_phrase: { source: "Facebook" } },
+                                    { match_phrase: { source: "Twitter" } }
+                                ],
+                                minimum_should_match: 1
+                            }
+                        }
+                    ]
+                }
+            };
+    
+            // Add sentiment filter if provided
+            if (sentiment) {
+                if (sentiment.toLowerCase() === "all") {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: "Positive" } },
+                                { match: { predicted_sentiment_value: "positive" } },
+                                { match: { predicted_sentiment_value: "Negative" } },
+                                { match: { predicted_sentiment_value: "negative" } },
+                                { match: { predicted_sentiment_value: "Neutral" } },
+                                { match: { predicted_sentiment_value: "neutral" } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                } else if (sentiment !== "All") {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: sentiment } },
+                                { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                                { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                }
+            }
+    
+            // Add category filters
+            addCategoryFilters(query, category, categoryData);
+    
+            // Add filter to exclude DM source
+            query.bool.must_not = query.bool.must_not || [];
+            query.bool.must_not.push({ term: { source: "DM" } });
+    
+            // FIXED: Use aggregations without size limit on documents
+            const params = {
+                size: 0, // Keep this as 0 for aggregations only
+                query: query,
+                aggs: {
+                    sector_counts: {
+                        terms: {
+                            field: 'sector.keyword',
+                            size: 1000
+                        }
+                    },
+                    total_with_sector: {
+                        value_count: {
+                            field: 'sector.keyword'
+                        }
+                    },
+                    total_with_trust_dimensions: {
+                        value_count: {
+                            field: 'trust_dimensions.keyword'
+                        }
+                    },
+                    trust_dimensions: {
+                        terms: {
+                            field: 'trust_dimensions.keyword',
+                            size: 1000
+                        }
+                    },
+                    total_with_themes_sentiments: {
+                        value_count: {
+                            field: 'themes_sentiments.keyword'
+                        }
+                    },
+                    themes_sentiments: {
+                        terms: {
+                            field: 'themes_sentiments.keyword',
+                            size: 1000
+                        }
+                    },
+                    total_with_touchpoints: {
+                        value_count: {
+                            field: 'touchpoints.keyword'
+                        }
+                    },
+                    touchpoints: {
+                        terms: {
+                            field: 'touchpoints.keyword',
+                            size: 1000
+                        }
+                    }
+                },
+                track_total_hits: true, // FIXED: Enable total hits tracking
+                timeout: '10s'
+            };
+    
+            const response = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: params
+            });
+    
+            // Process aggregation results
+            const aggs = response.aggregations || {};
+    
+            // Process sector data with Education merge logic
+            const sectorBuckets = aggs.sector_counts?.buckets || [];
+            
+            // Merge empty sector names into 'Education' using the same logic as getSectorDistributionAnalysis
+            const sectorMap = new Map(); // lowercased sector -> { name, count }
+            for (const b of sectorBuckets) {
+                const nameRaw = (b.key || '').toString();
+                const sectorName = nameRaw.trim() === '' ? 'Education' : nameRaw;
+                const key = sectorName.toLowerCase();
+                const current = sectorMap.get(key) || { name: sectorName, count: 0 };
+                current.count += (b.doc_count || 0);
+                sectorMap.set(key, current);
+            }
+    
+            // Convert to array and sort by count (highest first)
+            const sectorItems = Array.from(sectorMap.values())
+                .sort((a, b) => b.count - a.count);
+    
+            const totalWithSector = aggs.total_with_sector?.value || 0;
+    
+            // Process trust dimensions data
+            const trustDimensionsBuckets = aggs.trust_dimensions?.buckets || [];
+            const trustDimensionsItems = trustDimensionsBuckets.map(b => ({
+                name: b.key,
+                count: b.doc_count
+            })).sort((a, b) => b.count - a.count);
+            const totalWithTrustDimensions = aggs.total_with_trust_dimensions?.value || 0;
+    
+            // Process themes sentiments data
+            const themesSentimentsBuckets = aggs.themes_sentiments?.buckets || [];
+            const themesSentimentsItems = themesSentimentsBuckets.map(b => ({
+                name: b.key,
+                count: b.doc_count
+            })).sort((a, b) => b.count - a.count);
+            const totalWithThemesSentiments = aggs.total_with_themes_sentiments?.value || 0;
+    
+            // Process touchpoints data
+            const touchpointsBuckets = aggs.touchpoints?.buckets || [];
+            const touchpointsItems = touchpointsBuckets.map(b => ({
+                name: b.key,
+                count: b.doc_count
+            })).sort((a, b) => b.count - a.count);
+            const totalWithTouchpoints = aggs.total_with_touchpoints?.value || 0;
+    
+            const fieldCounts = {
+                sector: { total: totalWithSector, items: sectorItems },
+                trust_dimensions: { total: totalWithTrustDimensions, items: trustDimensionsItems },
+                themes_sentiments: { total: totalWithThemesSentiments, items: themesSentimentsItems },
+                touchpoints: { total: totalWithTouchpoints, items: touchpointsItems }
+            };
+    
+            // FIXED: Get total document count from response
+            const totalCount = response.hits?.total?.value || response.hits?.total || 0;
+    
+            return res.json({
+                success: true,
+                fieldCounts,
+                totalCount, // This should now match your direct query
+                dateRange: {
+                    from: dateRangeForQuery.gte,
+                    to: dateRangeForQuery.lte
+                }
+            });
+    
+        } catch (error) {
+            console.error('Error fetching field counts:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    },
+
+
+    /**
+     * Get posts for a specific field (sector, trust_dimensions, themes_sentiments, or touchpoints)
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     * @returns {Object} JSON response with posts for the selected field
+     */
+    getFieldPosts: async (req, res) => {
+        try {
+            const {
+                source = 'All',
+                category = 'all',
+                topicId,
+                greaterThanTime,
+                lessThanTime,
+                sentiment,
+                fieldName, // required - one of: sector, trust_dimensions, themes_sentiments, touchpoints
+                fieldValue, // required - the specific value to filter by
+                page = 1,
+                limit = 50
+            } = req.body;
+
+            if (!fieldName || !fieldValue) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'fieldName and fieldValue are required'
+                });
+            }
+
+            // Validate fieldName
+            const validFields = ['sector', 'trust_dimensions', 'themes_sentiments', 'touchpoints'];
+            if (!validFields.includes(fieldName)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'fieldName must be one of: sector, trust_dimensions, themes_sentiments, touchpoints'
+                });
+            }
 
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
             // Get category data from middleware
             let categoryData = {};
-      
             if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
-              categoryData = processCategoryItems(req.body.categoryItems);
+                categoryData = processCategoryItems(req.body.categoryItems);
             } else {
-              // Fall back to middleware data
-              categoryData = req.processedCategories || {};
+                categoryData = req.processedCategories || {};
             }
+
             if (Object.keys(categoryData).length === 0) {
                 return res.json({
                     success: true,
-                    sectors: [],
-                    totalCount: 0
+                    posts: [],
+                    total: 0,
+                    page: Number(page),
+                    limit: Number(limit)
                 });
             }
 
             // Set date range
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
-            
-         
-                // For regular topics, use 90 days default if not provided
-                if (!greaterThanTime || !lessThanTime) {
-                    const ninetyDaysAgo = subDays(now, 90);
-                    effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
-                    effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
-                } else {
-                    effectiveGreaterThanTime = greaterThanTime;
-                    effectiveLessThanTime = lessThanTime;
-                }
-            
+
+            if (!greaterThanTime || !lessThanTime) {
+                const ninetyDaysAgo = subDays(now, 90);
+                effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
+                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
+            } else {
+                effectiveGreaterThanTime = greaterThanTime;
+                effectiveLessThanTime = lessThanTime;
+            }
 
             // Build base query
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, req);
+            }, source, isSpecialTopic);
 
             // Add sentiment filter if provided
             if (sentiment) {
@@ -94,157 +368,42 @@ const sectorDistributionController = {
             // Add category filters
             addCategoryFilters(query, category, categoryData);
 
-            // Add filter to only include posts with sector field
-            query.bool.must.push({
-                exists: {
-                    field: 'sector'
-                }
-            });
+            // Add filter to exclude DM source
+            query.bool.must_not = query.bool.must_not || [];
+            query.bool.must_not.push({ term: { source: "DM" } });
 
-            // Aggregation query to fetch sector counts only
-            const params = {
-                size: 0,
-                query: query,
-                aggs: {
-                    sector_counts: {
-                        terms: {
-                            field: 'sector.keyword',
-                            size: 1000,
-                            order: { _count: 'desc' }
+            // Add field-specific filter
+            if (fieldName === 'themes_sentiments') {
+                // For themes_sentiments, use script query to handle array field properly
+                query.bool.must.push({
+                    script: {
+                        script: {
+                            source: "if (!doc.containsKey('themes_sentiments.keyword') || doc['themes_sentiments.keyword'].size() == 0) return false; for (def v : doc['themes_sentiments.keyword']) { if (v != null) { String s = v.toString(); if (s != null && s.trim().toLowerCase() == params.t) return true; } } return false;",
+                            lang: 'painless',
+                            params: { t: String(fieldValue).trim().toLowerCase() }
                         }
                     }
-                }
-            };
-
-            const response = await elasticClient.search({
-                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: params
-            });
-
-            // Process aggregation buckets
-            const buckets = response.aggregations?.sector_counts?.buckets || [];
-
-            // Merge empty sector name into 'Education'
-            const sectorMap = new Map(); // lowercased sector -> { sector, count }
-            for (const b of buckets) {
-                const nameRaw = (b.key || '').toString();
-                const sectorName = nameRaw.trim() === '' ? 'Education' : nameRaw;
-                const key = sectorName.toLowerCase();
-                const current = sectorMap.get(key) || { sector: sectorName, count: 0 };
-                current.count += (b.doc_count || 0);
-                sectorMap.set(key, current);
-            }
-
-            const merged = Array.from(sectorMap.values());
-            const totalCount = merged.reduce((sum, s) => sum + (s.count || 0), 0);
-            const sectorsArray = merged
-                .map(s => ({
-                    sector: s.sector,
-                    count: s.count,
-                    percentage: totalCount > 0 ? Math.round((s.count / totalCount) * 100) : 0
-                }))
-                .sort((a, b) => b.count - a.count);
-
-            // No filter terms needed for counts-only endpoint
-
-            // No posts processing needed for counts-only endpoint
-
-            return res.json({
-                success: true,
-                sectors: sectorsArray,
-                totalCount: totalCount,
-                sectorsTotalCount: totalCount,
-                dateRange: {
-                    from: effectiveGreaterThanTime,
-                    to: effectiveLessThanTime
-                }
-            });
-
-        } catch (error) {
-            console.error('Error fetching sector distribution analysis data:', error);
-            return res.status(500).json({
-                success: false,
-                error: 'Internal server error'
-            });
-        }
-    },
-
-    /**
-     * Get posts for a specific sector
-     * @param {Object} req - Express request object
-     * @param {Object} res - Express response object
-     * @returns {Object} JSON response with posts for the selected sector
-     */
-    getSectorPosts: async (req, res) => {
-        try {
-            const {
-                source = 'All',
-                category = 'all',
-                topicId,
-                greaterThanTime,
-                lessThanTime,
-                sentiment,
-                sector, // required
-                page = 1,
-                limit = 20
-            } = req.body;
-
-            if (!sector) {
-                return res.status(400).json({ success: false, error: 'sector is required' });
-            }
-
-            // Get category data from middleware
-            let categoryData = {};
-            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
-                categoryData = processCategoryItems(req.body.categoryItems);
+                });
             } else {
-                categoryData = req.processedCategories || {};
-            }
-            if (Object.keys(categoryData).length === 0) {
-                return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
-            }
-
-            // Set date range
-            const now = new Date();
-            let effectiveGreaterThanTime, effectiveLessThanTime;
-            
-            if (!greaterThanTime || !lessThanTime) {
-                const ninetyDaysAgo = subDays(now, 90);
-                effectiveGreaterThanTime = greaterThanTime || format(ninetyDaysAgo, 'yyyy-MM-dd');
-                effectiveLessThanTime = lessThanTime || format(now, 'yyyy-MM-dd');
-            } else {
-                effectiveGreaterThanTime = greaterThanTime;
-                effectiveLessThanTime = lessThanTime;
+                // For other fields, use term query
+                query.bool.must.push({
+                    term: { [`${fieldName}.keyword`]: fieldValue }
+                });
             }
 
-            // Build base query
-            const query = buildBaseQuery({
-                greaterThanTime: effectiveGreaterThanTime,
-                lessThanTime: effectiveLessThanTime
-            }, source, req);
+            // Add filter to ensure the field exists
+            query.bool.must.push({ exists: { field: fieldName } });
 
-            // Add sector filter
-            query.bool.must.push({ term: { 'sector.keyword': sector } });
-
-            // Add sentiment filter if provided
-            if (sentiment && sentiment !== '' && sentiment !== 'All') {
-                query.bool.must.push({ term: { 'predicted_sentiment_value.keyword': sentiment } });
-            }
-
-            // Add category filters
-            addCategoryFilters(query, category, categoryData);
-
-            // Add filter to only include posts with sector field
-            query.bool.must.push({ exists: { field: 'sector' } });
-
+            // Pagination
             const from = (Number(page) - 1) * Number(limit);
+
             const searchBody = {
                 from,
                 size: Number(limit),
                 query,
                 sort: [{ p_created_time: { order: 'desc' } }],
                 _source: [
-                    'sector',
+                    fieldName,
                     'created_at',
                     'p_created_time',
                     'source',
@@ -274,28 +433,32 @@ const sectorDistributionController = {
                     'comment',
                     'business_response',
                     'u_country'
-                ]
+                ],
+                track_total_hits: true,
+                timeout: '10s'
             };
 
-            const resp = await elasticClient.search({
+            const result = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                body: searchBody,
-                timeout: '10s',
-                track_total_hits: true
+                body: searchBody
             });
 
-            const posts = (resp.hits?.hits || []).map(hit => formatPostData(hit));
+            const hits = result.hits?.hits || [];
+            const posts = hits.map(h => formatPostData(h));
+            const total = result.hits?.total?.value || 0;
 
             return res.json({
                 success: true,
                 posts,
-                total: resp.hits?.total?.value || 0,
+                total,
                 page: Number(page),
-                limit: Number(limit)
+                limit: Number(limit),
+                fieldName,
+                fieldValue
             });
 
         } catch (error) {
-            console.error('Error fetching sector posts:', error);
+            console.error('Error fetching field posts:', error);
             return res.status(500).json({
                 success: false,
                 error: 'Internal server error'
@@ -346,7 +509,7 @@ const formatPostData = (hit) => {
     // Determine sentiment
     let predicted_sentiment = '';
     let predicted_category = '';
-    
+
     if (source.predicted_sentiment_value)
         predicted_sentiment = `${source.predicted_sentiment_value}`;
     else if (source.source === 'GoogleMyBusiness' && source.rating) {
@@ -421,6 +584,7 @@ const formatPostData = (hit) => {
         businessResponse: source.business_response,
         uSource: source.u_source,
         googleName: source.name,
+        country: source.u_country,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
     };
 };
@@ -432,15 +596,20 @@ const formatPostData = (hit) => {
  * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
     const query = {
         bool: {
             must: [
                 {
                     range: {
                         p_created_time: {
-                            gte: dateRange.greaterThanTime,
-                            lte: dateRange.lessThanTime
+                            // FIXED: Check if dates are in date math format or regular date strings
+                            gte: dateRange.greaterThanTime.includes('now') 
+                                ? dateRange.greaterThanTime 
+                                : `${dateRange.greaterThanTime}T00:00:00.000Z`,
+                            lte: dateRange.lessThanTime.includes('now') 
+                                ? dateRange.lessThanTime 
+                                : `${dateRange.lessThanTime}T23:59:59.999Z`
                         }
                     }
                 }
@@ -448,37 +617,16 @@ function buildBaseQuery(dateRange, source, req) {
         }
     };
 
-    // Handle source filtering
-    if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else {
-        // Get available data sources from middleware
-        const availableDataSources = req.processedDataSources || [];
-        
-        // Use middleware sources if available, otherwise use default sources
-        const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
-            "Facebook",
-            "Twitter", 
-            "Instagram",
-            "Youtube",
-            "LinkedIn",
-            "Pinterest",
-            "Web",
-            "Reddit",
-            "TikTok"
-        ];
-
-        query.bool.must.push({
-            bool: {
-                should: sourcesToUse.map(source => ({
-                    match_phrase: { source: source }
-                })),
-                minimum_should_match: 1
-            }
-        });
-    }
+    // Handle special topic source filtering
+    query.bool.must.push({
+        bool: {
+            should: [
+                { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Twitter" } }
+            ],
+            minimum_should_match: 1
+        }
+    });
 
     return query;
 }
@@ -576,4 +724,4 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
     }
 }
 
-module.exports = sectorDistributionController; 
+module.exports = fieldCountsController; 

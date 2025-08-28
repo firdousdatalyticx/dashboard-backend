@@ -1372,10 +1372,167 @@ getTopicTotalCount: async (req, res) => {
       }
   
       const numericUserId = Number(userId);
-      const numericTopicId = topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
-  
+      let numericTopicId = topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
+      // Quick fix scope: if no topicId provided AND the user only has topic 2600,
+      // set numericTopicId to 2600 so we can hard-sync counts for that dashboard only.
+      if (!numericTopicId) {
+        try {
+          const onlyTopics = await prisma.customer_topics.findMany({
+            where: { topic_user_id: numericUserId, topic_is_deleted: 'N' },
+            select: { topic_id: true },
+            take: 2
+          });
+          if (onlyTopics && onlyTopics.length === 1 && Number(onlyTopics[0].topic_id) === 2600) {
+            numericTopicId = 2600;
+          }
+        } catch (_) {}
+      }
       // Check if this is the special topicId (matching getTopicStats)
       const isSpecialTopic = numericTopicId === 2600 || numericTopicId === 2627;
+
+      // Quick-sync fix: For dashboard topic 2600, short-circuit to the exact
+      // same counting logic used by getTopicStats so both endpoints match 1:1
+      if (numericTopicId === 2600) {
+        let categoryData = req.processedCategories || {};
+        // If middleware categories are missing, compute them for topic 2600 now
+        if (Object.keys(categoryData).length === 0) {
+          const rows = await prisma.topic_categories.findMany({
+            where: { customer_topic_id: Number(2600) },
+            orderBy: [ { category_title: 'asc' }, { id: 'asc' } ]
+          });
+          const normalizeArray = (str) => {
+            if (!str) return [];
+            const items = str.split(/[,|]/)
+              .map(s => s.trim())
+              .filter(Boolean)
+              .map(s => s.toLowerCase())
+              .sort();
+            return [...new Set(items)];
+          };
+          const mergeArrays = (...arrays) => {
+            const merged = arrays.flat().filter(Boolean);
+            return [...new Set(merged)].sort();
+          };
+          const computed = {};
+          rows.forEach(r => {
+            const name = r.category_title.trim();
+            const urls = normalizeArray(r.topic_urls);
+            const keywords = normalizeArray(r.topic_keywords);
+            const hashtags = normalizeArray(r.topic_hash_tags);
+            if (computed[name]) {
+              computed[name] = {
+                urls: mergeArrays(computed[name].urls, urls),
+                keywords: mergeArrays(computed[name].keywords, keywords),
+                hashtags: mergeArrays(computed[name].hashtags, hashtags)
+              };
+            } else {
+              computed[name] = { urls, keywords, hashtags };
+            }
+          });
+          categoryData = computed;
+        }
+
+        // Extract all terms (urls, keywords, hashtags) like /stats
+        const extractTermsFromCategoryData = (type, catData) => {
+          const allTerms = [];
+          for (const categoryName in catData) {
+            const category = catData[categoryName];
+            if (type === 'all' || type === categoryName) {
+              allTerms.push(...(category.urls || []));
+              allTerms.push(...(category.keywords || []));
+              allTerms.push(...(category.hashtags || []));
+            }
+          }
+          return [...new Set(allTerms)].filter(Boolean);
+        };
+
+        const socialMediaTerms = extractTermsFromCategoryData('all', categoryData);
+
+        // For topic 2600 we always use special topic sources
+        const socialSources = ["Facebook", "Twitter"];
+
+        // Build queries exactly like /stats
+        const buildSocialMediaQuery = () => ({
+          bool: {
+            must: [],
+            filter: [
+              { terms: { 'source.keyword': socialSources } },
+              { bool: { must_not: [ { term: { source: 'DM' } } ] } }
+            ],
+            should: [
+              {
+                bool: {
+                  should: socialMediaTerms.map(term => ({
+                    multi_match: {
+                      query: term,
+                      fields: [
+                        'p_message_text', 'p_message', 'keywords',
+                        'title', 'hashtags', 'u_source'
+                      ],
+                      type: 'phrase'
+                    }
+                  })),
+                  minimum_should_match: 1
+                }
+              },
+              {
+                bool: {
+                  should: socialMediaTerms.map(term => ({ term: { p_url: term } })),
+                  minimum_should_match: 1
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
+        });
+
+        // Build Google query using topic URLs for this specific topic id
+        let googleUrls = [];
+        try {
+          const topicRows = await prisma.customer_topics.findMany({
+            where: { topic_is_deleted: 'N', topic_id: numericTopicId },
+            select: { topic_urls: true }
+          });
+          googleUrls = [
+            ...new Set(
+              (topicRows || [])
+                .flatMap(t => (t.topic_urls ? t.topic_urls.split('|') : []))
+                .filter(url => url && url.includes('google.com'))
+            )
+          ];
+        } catch (_) {}
+
+        const buildGoogleQuery = () => ({
+          bool: {
+            must: [ { terms: { 'u_source.keyword': googleUrls } } ]
+          }
+        });
+
+        const countClient = async (query) => {
+          const response = await elasticClient.count({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: { query }
+          });
+          return response.count;
+        };
+
+        const [googleCount, socialMediaCount] = await Promise.all([
+          countClient(buildGoogleQuery()),
+          countClient(buildSocialMediaQuery())
+        ]);
+
+        return res.json({
+          success: true,
+          data: {
+            googleCount,
+            socialMediaCount,
+            googlePOIs: googleUrls.length,
+            socialMediaPOIs: req.rawCategories ? req.rawCategories.length : 0,
+            termCount: socialMediaTerms.length,
+            id: [numericTopicId]
+          }
+        });
+      }
   
       // Get topics for the user
       const customerTopics = await prisma.customer_topics.findMany({
@@ -1403,65 +1560,60 @@ getTopicTotalCount: async (req, res) => {
         ),
       ].filter(Boolean);
   
-      // Process categories using the same logic as middleware
-      let processedCategories = {};
-      let rawCategories = [];
-      
-      // Process categories for ALL topics (not just when numericTopicId is provided)
-      if (topicIds.length > 0) {
-        // Fetch categories for all topics with consistent ordering
-        const categoryData = await prisma.topic_categories.findMany({
-          where: {
-            customer_topic_id: { in: topicIds }
-          },
-          orderBy: [
-            { category_title: 'asc' },
-            { id: 'asc' }
-          ]
-        });
-  
-        rawCategories = categoryData;
-  
-        // Helper function to normalize and sort arrays (from middleware)
-        const normalizeArray = (str, delimiter = ', ') => {
-          if (!str) return [];
-          
-          const items = str.split(/[,|]/)
-            .map(item => item.trim())
-            .filter(item => item.length > 0)
-            .map(item => item.toLowerCase())
-            .sort();
-          
-          return [...new Set(items)];
-        };
-  
-        // Helper function to merge arrays and remove duplicates (from middleware)
-        const mergeArrays = (...arrays) => {
-          const merged = arrays.flat().filter(item => item);
-          return [...new Set(merged)].sort();
-        };
-  
-        // Create the final processed data structure (from middleware)
-        categoryData.forEach(category => {
-          const categoryName = category.category_title.trim();
-          const urls = normalizeArray(category.topic_urls);
-          const keywords = normalizeArray(category.topic_keywords);
-          const hashtags = normalizeArray(category.topic_hash_tags);
-          
-          if (processedCategories[categoryName]) {
-            processedCategories[categoryName] = {
-              urls: mergeArrays(processedCategories[categoryName].urls, urls),
-              keywords: mergeArrays(processedCategories[categoryName].keywords, keywords),
-              hashtags: mergeArrays(processedCategories[categoryName].hashtags, hashtags)
-            };
-          } else {
-            processedCategories[categoryName] = {
-              urls: urls,
-              keywords: keywords,
-              hashtags: hashtags
-            };
-          }
-        });
+      // Use categories from middleware if available to exactly match /stats,
+      // otherwise compute using the same normalization/merge logic
+      let processedCategories = req.processedCategories || {};
+      let rawCategories = req.rawCategories || [];
+
+      if (!processedCategories || Object.keys(processedCategories).length === 0) {
+        if (topicIds.length > 0) {
+
+            console.log({topicIds})
+          const categoryData = await prisma.topic_categories.findMany({
+            where: {
+              customer_topic_id: { in: topicIds }
+            },
+            orderBy: [
+              { category_title: 'asc' },
+              { id: 'asc' }
+            ]
+          });
+
+          rawCategories = categoryData;
+
+          const normalizeArray = (str, delimiter = ', ') => {
+            if (!str) return [];
+            const items = str.split(/[,|]/)
+              .map(item => item.trim())
+              .filter(item => item.length > 0)
+              .map(item => item.toLowerCase())
+              .sort();
+            return [...new Set(items)];
+          };
+
+          const mergeArrays = (...arrays) => {
+            const merged = arrays.flat().filter(item => item);
+            return [...new Set(merged)].sort();
+          };
+
+          processedCategories = {};
+          categoryData.forEach(category => {
+            const categoryName = category.category_title.trim();
+            const urls = normalizeArray(category.topic_urls);
+            const keywords = normalizeArray(category.topic_keywords);
+            const hashtags = normalizeArray(category.topic_hash_tags);
+
+            if (processedCategories[categoryName]) {
+              processedCategories[categoryName] = {
+                urls: mergeArrays(processedCategories[categoryName].urls, urls),
+                keywords: mergeArrays(processedCategories[categoryName].keywords, keywords),
+                hashtags: mergeArrays(processedCategories[categoryName].hashtags, hashtags)
+              };
+            } else {
+              processedCategories[categoryName] = { urls, keywords, hashtags };
+            }
+          });
+        }
       }
   
       // Return empty data if no categories found (matching getTopicStats)
@@ -1611,7 +1763,7 @@ getTopicTotalCount: async (req, res) => {
         success: true,
         data: {
           googleCount,
-          socialMediaCount: socialMediaCount -1980,
+          socialMediaCount: socialMediaCount,
           googlePOIs: googleUrls.length,
           socialMediaPOIs: rawCategories.length,
           termCount: socialMediaTerms.length,

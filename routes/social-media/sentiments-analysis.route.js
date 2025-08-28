@@ -27,4 +27,6 @@ router.post('/sentiments/multiple-categories',express.json(), authMiddleware, tr
 router.get('/sentiments/multiple-categories/posts',express.json(), authMiddleware, transformCategoryData,transformDataSource, sentimentsMultipleCategoriesController.getMultipleCategoriesSentimentCountsOptimizedPost);
 
 
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, sentimentsController.getSentimentAnalysisPosts);
+
 module.exports = router; 

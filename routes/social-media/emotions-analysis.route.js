@@ -23,4 +23,7 @@ const transformDataSource = require('../../middleware/dataSource.middleware');
  */
 router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, emotionsController.getEmotionsAnalysis);
 
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, emotionsController.getEmotionAnalysisPosts);
+
+
 module.exports = router; 

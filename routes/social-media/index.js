@@ -21,6 +21,7 @@ const themesOverTimeRoute = require('./themes-over-time.route');
 const themesSentimentAnalysisRoute = require('./themes-sentiment-analysis.route');
 const sectorDistributionRoute = require('./sector-distribution.route');
 const touchpointsAnalysisRoute = require('./touchpoints-analysis.route');
+const fieldCountsRoute = require('./field-counts.route');
 
 const engagementRoute = require('./engagement.route');
 const mentionsTrendRoute = require('./mentions-trend.route');
@@ -49,7 +50,7 @@ const llm_motivation_phase_route= require("./llm_motivation-phase.route")
 const llm_motivation_sentiment_route = require("./llm-motivation-sentiment.route")
 const mentionsOverTimeRoute = require("./mentions-over-time.route")
 const businessLocationRoutes = require("./business-locations.routes")
-// migration-topics.routes.js
+/// migration-topics.routes.js
 /**
  * @swagger
  * tags:
@@ -86,6 +87,7 @@ router.use('/themes-over-time', themesOverTimeRoute);
 router.use('/themes-sentiment-analysis', themesSentimentAnalysisRoute);
 router.use('/sector-distribution', sectorDistributionRoute);
 router.use('/touchpoints-analysis', touchpointsAnalysisRoute);
+router.use('/field-counts', fieldCountsRoute);
 router.use("/actions-required",actionRequiredRoute)
 router.use("/type-of-mentions",typeOfMentions)
 router.use("/recurrence-mentions",recurrenceMentions)

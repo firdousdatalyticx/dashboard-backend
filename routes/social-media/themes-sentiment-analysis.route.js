@@ -46,5 +46,6 @@ const transformDataSource = require('../../middleware/dataSource.middleware');
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/', processCategories, transformDataSource, themesSentimentAnalysisController.getThemesSentimentAnalysis);
+router.post('/posts', processCategories, themesSentimentAnalysisController.getThemePosts);
 
 module.exports = router; 

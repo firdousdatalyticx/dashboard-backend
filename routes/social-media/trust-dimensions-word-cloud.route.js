@@ -7,5 +7,7 @@ const transformDataSource = require('../../middleware/dataSource.middleware');
 
 // Apply middleware and route handler
 router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, trustDimensionsController.getTrustDimensionsAnalysisWordCloud);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, trustDimensionsController.getTrustDimensionsWordCloudPosts);
+
 
 module.exports = router; 

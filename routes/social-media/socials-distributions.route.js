@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const socialsDistributionsController = require('../../controllers/social-media/socials-distributions.controller');
+const postsController = require('../../controllers/social-media/socials-distributions.posts.controller');
 const authMiddleware = require('../../middleware/auth.middleware');
 const transformCategoryData = require('../../middleware/categoryTransform.middleware');
 const transformDataSource = require('../../middleware/dataSource.middleware');
@@ -30,5 +31,8 @@ const transformDataSource = require('../../middleware/dataSource.middleware');
  *             topicId: "254"
  */
 router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, socialsDistributionsController.getDistributions);
+
+// New posts-only endpoint: same params plus "source" to fetch posts for a single source
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, postsController.getDistributionPosts);
 
 module.exports = router; 

@@ -287,39 +287,40 @@ const emotionsController = {
 
           try {
             // Execute the query
-            const emotionPostsResponse = await elasticClient.search({
-              index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-              body: emotionPostsQuery,
-            });
+            // const emotionPostsResponse = await elasticClient.search({
+            //   index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            //   body: emotionPostsQuery,
+            // });
 
-            // Format posts for this emotion
-            const postsRaw = emotionPostsResponse.hits.hits.map((hit) => formatPostData(hit));
+            // // Format posts for this emotion
+            // const postsRaw = emotionPostsResponse.hits.hits.map((hit) => formatPostData(hit));
             // Add matched_terms to each post
-            const posts = postsRaw.map(post => {
-              const textFields = [
-                post.message_text,
-                post.content,
-                post.keywords,
-                post.title,
-                post.hashtags,
-                post.uSource,
-                post.source,
-                post.p_url,
-                post.userFullname
-              ];
-              return {
-                ...post,
-                matched_terms: allFilterTerms.filter(term =>
-                  textFields.some(field => {
-                    if (!field) return false;
-                    if (Array.isArray(field)) {
-                      return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-                    }
-                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-                  })
-                )
-              };
-            });
+            const posts = []
+            // postsRaw.map(post => {
+            //   const textFields = [
+            //     post.message_text,
+            //     post.content,
+            //     post.keywords,
+            //     post.title,
+            //     post.hashtags,
+            //     post.uSource,
+            //     post.source,
+            //     post.p_url,
+            //     post.userFullname
+            //   ];
+            //   return {
+            //     ...post,
+            //     matched_terms: allFilterTerms.filter(term =>
+            //       textFields.some(field => {
+            //         if (!field) return false;
+            //         if (Array.isArray(field)) {
+            //           return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+            //         }
+            //         return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+            //       })
+            //     )
+            //   };
+            // });
 
             // Add to interval results with the actual count from aggregation
             emotionsInInterval.push({
@@ -353,7 +354,7 @@ const emotionsController = {
         emotions,
         totalCount,
         timeIntervals: timeIntervalsWithPosts,
-        query: params.query,
+        // query: params.query,
       });
     } catch (error) {
       console.error("Error fetching emotions analysis data:", error);
@@ -363,6 +364,163 @@ const emotionsController = {
       });
     }
   },
+  getEmotionAnalysisPosts: async (req, res) => {
+  try {
+    const {
+      interval = "monthly",
+      source = "All",
+      category = "all",
+      topicId,
+      fromDate,
+      toDate,
+      sentiment,
+      emotion,
+      page = 1,
+      limit = 30
+    } = req.body;
+
+    // Check if this is the special topicId
+    const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+    // Get category data from middleware
+    let categoryData = {};
+    
+    if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+      categoryData = processCategoryItems(req.body.categoryItems);
+    } else {
+      // Fall back to middleware data
+      categoryData = req.processedCategories || {};
+    }
+    
+    if (Object.keys(categoryData).length === 0) {
+      return res.json({
+        success: true,
+        posts: [],
+        total: 0
+      });
+    }
+
+    // Set default date range - last 90 days if no dates provided
+    const now = new Date();
+    let startDate;
+    let endDate = now;
+
+    if (fromDate && toDate) {
+      startDate = parseISO(fromDate);
+      endDate = parseISO(toDate);
+    } else {
+      const ninetyDaysAgo = subDays(now, 90);
+      startDate = ninetyDaysAgo;
+      endDate = now;
+    }
+
+    const greaterThanTime = format(startDate, "yyyy-MM-dd");
+    const lessThanTime = format(endDate, "yyyy-MM-dd");
+
+    // Build base query with special topic source filtering
+    const query = buildBaseQuery(
+      {
+        greaterThanTime,
+        lessThanTime,
+      },
+      source,
+      isSpecialTopic,
+      parseInt(topicId)
+    );
+
+    // Add category filters
+    addCategoryFilters(query, category, categoryData);
+
+    // Add sentiment filter if provided
+    if (sentiment && sentiment != "" && sentiment !== "All") {
+      query.bool.must.push({
+        match_phrase: {
+          predicted_sentiment_value: sentiment,
+        },
+      });
+    }
+
+    // Add emotion filter
+    if (emotion) {
+      query.bool.must.push({
+        term: {
+          "llm_emotion.keyword": emotion
+        }
+      });
+    }
+
+    // Calculate pagination
+    const offset = (page - 1) * limit;
+
+    // Get all filter terms for highlighting matches
+    let allFilterTerms = [];
+    if (categoryData) {
+      Object.values(categoryData).forEach((data) => {
+        if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+        if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+        if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+      });
+    }
+
+    // Set up posts query with pagination
+    const postsQuery = {
+      from: offset,
+      size: limit,
+      query: query,
+      sort: [{ p_created_time: { order: "desc" } }]
+    };
+
+    // Execute the query
+    const response = await elasticClient.search({
+      index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+      body: postsQuery
+    });
+
+    // Format posts and add matched terms
+    const posts = response.hits.hits.map((hit) => {
+      const post = formatPostData(hit);
+      const textFields = [
+        post.message_text,
+        post.content,
+        post.keywords,
+        post.title,
+        post.hashtags,
+        post.uSource,
+        post.source,
+        post.p_url,
+        post.userFullname
+      ];
+      
+      return {
+        ...post,
+        matched_terms: allFilterTerms.filter(term =>
+          textFields.some(field => {
+            if (!field) return false;
+            if (Array.isArray(field)) {
+              return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+            }
+            return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+          })
+        )
+      };
+    });
+
+    return res.json({
+      success: true,
+      posts: posts,
+      total: response.hits.total.value,
+      limit: limit,
+      offset: offset
+    });
+
+  } catch (error) {
+    console.error("Error fetching emotion posts:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+}
 };
 
 /**
@@ -493,11 +651,12 @@ const formatPostData = (hit) => {
     businessResponse: source.business_response,
     uSource: source.u_source,
     googleName: source.name,
-    created_at: new Date(
-      source.p_created_time || source.created_at
-    ).toLocaleString(),
-    p_comments_data:source.p_comments_data,
-
+    created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+    p_comments_data: source.p_comments_data,
+    p_url: source.p_url,
+    keywords: source.keywords,
+    hashtags: source.hashtags,
+    title: source.title
   };
 };
 

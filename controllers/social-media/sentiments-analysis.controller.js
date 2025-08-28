@@ -95,6 +95,7 @@ const sentimentsController = {
                 });
             }
 
+
             // Set default date range - last 90 days
             const now = new Date();
             const ninetyDaysAgo = subDays(now, 90);
@@ -268,13 +269,6 @@ const sentimentsController = {
                             lte: endDate
                         }
                     }
-                    // ,
-                    //    range: {
-                    //     p_created_time: {
-                    //         gte: startDate,
-                    //         lte: endDate
-                    //     }
-                    // }
                 };
                 
                 // Process all sentiments in this interval
@@ -321,15 +315,16 @@ const sentimentsController = {
                         sort: [{ p_created_time: { order: 'desc' } }]
                     };
                     
-                    try {
+                    
                         // Execute the query
-                        const sentimentPostsResponse = await elasticClient.search({
-                            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                            body: sentimentPostsQuery
-                        });
+                        // const sentimentPostsResponse = await elasticClient.search({
+                        //     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                        //     body: sentimentPostsQuery
+                        // });
                         
                         // Format posts for this sentiment
-                        const posts = sentimentPostsResponse.hits.hits.map(hit => formatPostData(hit));
+                        const posts =[]
+                        // sentimentPostsResponse.hits.hits.map(hit => formatPostData(hit));
                         
                         // Add to interval results with the actual count from aggregation
                         sentimentsInInterval.push({
@@ -337,15 +332,7 @@ const sentimentsController = {
                             count: sentimentCount,  // Use the total count from aggregation
                             posts: posts  // Limited to MAX_POSTS_PER_SENTIMENT
                         });
-                    } catch (error) {
-                        console.error(`Error fetching posts for sentiment ${sentimentName} in interval ${intervalDate}:`, error);
-                        // Add empty array if there was an error, but keep the aggregation count
-                        sentimentsInInterval.push({
-                            name: sentimentName,
-                            count: sentimentCount,  // Keep the aggregation count even if we couldn't get posts
-                            posts: []
-                        });
-                    }
+               
                 }
                 
                 // Build the final time interval data structure
@@ -402,7 +389,6 @@ const sentimentsController = {
                 sentiments,
                 totalCount,
                 timeIntervals: timeIntervalsWithPosts,
-                query:params.query
             });
 
         } catch (error) {
@@ -413,6 +399,156 @@ const sentimentsController = {
             });
         }
     },
+    getSentimentAnalysisPosts: async (req, res) => {
+    try {
+        const {
+            interval = 'monthly',
+            source = 'All',
+            category = 'all',
+            topicId,
+            fromDate,
+            toDate,
+            sentiment,
+            limit = 30,
+            offset = 0
+        } = req.body;
+        
+        // Check if this is the special topicId
+        const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+        
+        // Get category data from middleware
+        let categoryData = {};
+  
+        if (req.body.categoryItems && Array.isArray(req.body.categoryItems) &&  req.body?.categoryItems?.length>0){
+            categoryData = processCategoryItems(req.body.categoryItems);
+        } else {
+            categoryData = req.processedCategories || {};
+        }
+
+        if (Object.keys(categoryData).length === 0) {
+            return res.json({
+                success: true,
+                posts: [],
+                total: 0
+            });
+        }
+
+
+        // Set default date range - last 90 days
+        const now = new Date();
+        const ninetyDaysAgo = subDays(now, 90);
+        
+        let startDate;
+        let endDate = now;
+        
+        // Determine date range
+        if (fromDate && toDate) {
+            startDate = parseISO(fromDate);
+            endDate = parseISO(toDate);
+        } else {
+            startDate = format(ninetyDaysAgo, 'yyyy-MM-dd');
+            endDate = format(now, 'yyyy-MM-dd');
+        } 
+
+        const greaterThanTime = format(startDate, 'yyyy-MM-dd');
+        const lessThanTime = format(endDate, 'yyyy-MM-dd');
+
+        // Build base query with special topic source filtering
+        const query = buildBaseQuery({
+            greaterThanTime,
+            lessThanTime
+        }, source, isSpecialTopic, parseInt(topicId));
+
+        // Add category filters
+        addCategoryFilters(query, category, categoryData);
+
+        // Add sentiment filter if specified
+        if (sentiment && sentiment !== "" && sentiment !== 'All') {
+            query.bool.must.push({
+                match_phrase: {
+                    "predicted_sentiment_value": sentiment
+                }
+            });
+        }
+
+        // Get total count for pagination
+        const countResponse = await elasticClient.count({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: { query }
+        });
+
+        const total = countResponse.count;
+
+        // Get posts with pagination
+        const postsResponse = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: {
+                size: limit,
+                from: offset,
+                query: query,
+                sort: [{ p_created_time: { order: 'desc' } }]
+            }
+        });
+
+
+        // Format posts
+        let posts = postsResponse.hits.hits.map(hit => formatPostData(hit));
+
+        // Gather all filter terms for matched_terms calculation
+        let allFilterTerms = [];
+        if (categoryData) {
+            Object.values(categoryData).forEach((data) => {
+                if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
+                if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
+                if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+            });
+        }
+
+        // // Add matched_terms to each post
+        // posts = posts.map(post => {
+        //     const textFields = [
+        //         post.message_text,
+        //         post.content,
+        //         post.keywords,
+        //         post.title,
+        //         post.hashtags,
+        //         post.uSource,
+        //         post.source,
+        //         post.p_url,
+        //         post.userFullname
+        //     ];
+            
+        //     return {
+        //         ...post,
+        //         matched_terms: allFilterTerms.filter(term =>
+        //             textFields.some(field => {
+        //                 if (!field) return false;
+        //                 if (Array.isArray(field)) {
+        //                     return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+        //                 }
+        //                 return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+        //             })
+        //         )
+        //     };
+        // });
+
+        return res.json({
+            success: true,
+            posts,
+            total,
+            limit,
+            offset,
+            // query
+        });
+
+    } catch (error) {
+        console.error('Error fetching sentiment posts:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+},
 
 llmMotivationSentimentTrend: async (req, res) => {
   try {

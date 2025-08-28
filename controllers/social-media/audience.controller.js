@@ -4,7 +4,151 @@ const { getCountryCode } = require("../../utils/countryHelper");
 const { getSourceIcon } = require("../../utils/sourceHelper");
 const { processFilters } = require("./filter.utils");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+const prisma = require('../../config/database');
 
+ createCountryWiseAggregations = (categoryData) => {
+  // Group data by country
+  const countryGroups = {};
+  
+  categoryData.forEach(category => {
+    const country = category.country;
+    
+    if (!countryGroups[country]) {
+      countryGroups[country] = {
+        hashtags: [],
+        keywords: [],
+        urls: []
+      };
+    }
+    
+    // Process hashtags
+    if (category.topic_hash_tags) {
+      const hashtags = category.topic_hash_tags
+        .split(/[,|]/)
+        .map(tag => tag.trim().replace(/^#/, ''))
+        .filter(tag => tag.length > 0);
+      countryGroups[country].hashtags.push(...hashtags);
+    }
+    
+    // Process keywords
+    if (category.topic_keywords) {
+      const keywords = category.topic_keywords
+        .split(/[,|]/)
+        .map(keyword => keyword.trim())
+        .filter(keyword => keyword.length > 0);
+      countryGroups[country].keywords.push(...keywords);
+    }
+    
+    // Process URLs
+    if (category.topic_urls) {
+      const urls = category.topic_urls
+        .split(/[,|]/)
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+      countryGroups[country].urls.push(...urls);
+    }
+  });
+  
+  // Remove duplicates and create Elasticsearch aggregations
+  const elasticAggs = {};
+  
+  Object.keys(countryGroups).forEach(country => {
+    const countryKey = country.toLowerCase().replace(/\s+/g, '_');
+    const data = countryGroups[country];
+    
+    // Remove duplicates
+    const uniqueHashtags = [...new Set(data.hashtags)];
+    const uniqueKeywords = [...new Set(data.keywords)];
+    const uniqueUrls = [...new Set(data.urls)];
+    
+    // Create combined search terms
+    const allTerms = [
+      ...uniqueHashtags.map(tag => `#${tag}`),
+      ...uniqueKeywords,
+      ...uniqueUrls
+    ];
+    
+    if (allTerms.length > 0) {
+      elasticAggs[`${countryKey}`] = {
+        "filter": {
+          "bool": {
+            "should": [
+              // Search in hashtags
+              ...uniqueHashtags.map(hashtag => ({
+                "multi_match": {
+                  "query": hashtag,
+                  "fields": ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
+                  "type": "phrase"
+                }
+              })),
+              // Search in keywords
+              ...uniqueKeywords.map(keyword => ({
+                "multi_match": {
+                  "query": keyword,
+                  "fields": ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
+                  "type": "phrase"
+                }
+              })),
+              // Search in URLs
+              ...uniqueUrls.map(url => ({
+                "multi_match": {
+                  "query": url,
+                  "fields": ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
+                  "type": "phrase"
+                }
+              }))
+            ],
+            "minimum_should_match": 1
+          }
+        },
+        "aggs": {
+          "top_posts": {
+            "top_hits": {
+              "size": 30,  // Get top 30 posts for each country
+              "sort": [{"p_created_time": {"order": "desc"}}],  // Sort by most recent
+              "_source": {
+                "includes": [
+                 "u_profile_photo",
+            "u_followers",
+            "u_following",
+            "u_posts",
+            "p_likes",
+            "llm_emotion",
+            "p_comments_text",
+            "p_url",
+            "p_comments",
+            "p_shares",
+            "p_engagement",
+            "p_content",
+            "p_picture_url",
+            "predicted_sentiment_value",
+            "predicted_category",
+            "source",
+            "rating",
+            "u_fullname",
+            "p_message_text",
+            "comment",
+            "business_response",
+            "u_source",
+            "name",
+            "p_created_time",
+            "created_at",
+            "p_comments_data",
+            "video_embed_url",
+            "p_id",
+            "p_picture",
+
+                ]
+              }
+            }
+          }
+        }
+      };
+    }
+  });
+  
+  return elasticAggs;
+};
 const audienceController = {
   getAudience: async (req, res) => {
     try {
@@ -1420,6 +1564,7 @@ const audienceController = {
         },
       };
 
+      return res.send(params)
       const results = await elasticClient.search(params);
 
       let responseArray = [];
@@ -1477,7 +1622,158 @@ const audienceController = {
       });
     }
   },
-};
+
+  getAudienceDistributionByCountryInUNDP: async (req, res) => {
+
+       try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        topicId,
+        categoryItems
+      } = req.body;
+
+   const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: "",
+      });
+
+      // Handle special case for unTopic
+      let queryTimeRange = {
+        greaterThanTime: filters.greaterThanTime,
+        lessThanTime: filters.lessThanTime,
+      };
+
+  // Your existing code...
+  const categoryData = await prisma.topic_categories.findMany({
+    where: {
+      customer_topic_id: Number(topicId)
+    },
+    orderBy: [
+      { category_title: 'asc' },
+      { id: 'asc' }
+    ]
+  });
+
+  // Create country-wise aggregations
+  const countryAggs = createCountryWiseAggregations(categoryData);
+  
+  // Your Elasticsearch query
+  const elasticQuery = {
+    "query":{
+    "bool": {
+        "must": [
+            {
+                "bool": {
+                    "should": [
+                        {
+                            "match_phrase": {
+                                "source": "Facebook"
+                            }
+                        },
+                        {
+                            "match_phrase": {
+                                "source": "Twitter"
+                            }
+                        }
+                    ],
+                    "minimum_should_match": 1
+                }
+            },
+               {
+                    "range": {
+                        "p_created_time": {
+                            "gte":queryTimeRange.greaterThanTime,
+                            "lte": queryTimeRange.lessThanTime
+                        }
+                    }
+                }]
+              }},
+    "size": 0, // Only get aggregation results
+    "aggs": {
+      ...countryAggs, // Spread the country-wise aggregations
+      
+    }
+  };
+
+     if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null" &&
+        sentimentType != ""
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          elasticQuery,query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          elasticQuery.query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+
+      const params = {
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: elasticQuery,
+      };
+
+      const results = await elasticClient.search(params);
+
+const responseArray = Object.entries(results.aggregations)
+  .map(([key, value]) => {
+    const originalCountry = key
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, char => char.toUpperCase());
+const posts =  value.top_posts.hits.hits.map((hit) => formatPostData(hit));
+
+    // Extract posts from top_hits aggregation
+    // const posts = value.top_posts.hits.hits.map(hit => ({
+    //   id: hit._id,
+    //   ...hit._source
+    // }));
+
+    return {
+      country_name: originalCountry || "Unknown",
+      key_count: value.doc_count,
+      posts: posts,  // Include the posts in the response
+      sentiments: {
+        Positive: 0,
+        Negative: 0,
+        Neutral: 0
+      }
+    };
+  })
+  .sort((a, b) => b.key_count - a.key_count);
+
+return res.status(200).json({responseArray});
+
+
+} catch (error) {
+  console.error('Error:', error);
+  // return next(error);
+}
+
+
+},
+}
 
 /**
  * Format post data for the frontend

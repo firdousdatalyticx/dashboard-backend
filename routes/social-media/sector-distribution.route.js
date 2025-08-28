@@ -7,5 +7,6 @@ const transformDataSource = require('../../middleware/dataSource.middleware');
 
 // Apply middleware and route handler
 router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, sectorDistributionController.getSectorDistributionAnalysis);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData, sectorDistributionController.getSectorPosts);
 
 module.exports = router; 

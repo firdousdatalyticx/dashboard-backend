@@ -23,6 +23,7 @@ const transformDataSource = require('../../middleware/dataSource.middleware');
  *             $ref: '#/components/schemas/MentionsTrendRequest'
  */
 router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, mentionsChartController.trustDimensionsEducationSystem);
+router.post('/trust-dimensions-education-system-posts', express.json(), authMiddleware, transformCategoryData, mentionsChartController.trustDimensionsEducationSystemPosts);
 
 router.get('/posts', express.json(), authMiddleware, transformCategoryData, transformDataSource, mentionsTrendController.getMentionsTrendPost);
 

@@ -21,12 +21,33 @@ const trustDimensionsAnalysisController = {
                 tone = "Distrustful"
             } = req.body;
 
-            // Debug logging
-            console.log('Trust Dimensions Analysis Request:');
-            console.log('- topicId:', topicId);
-            console.log('- tone filter:', tone);
-            console.log('- source:', source);
-            console.log('- category:', category);
+                // Allowed countries list (22 countries)
+            const allowedCountries = [
+                'Algeria',
+                'Arab Countries',
+                'Bahrain',
+                'Djibouti',
+                'Egypt',
+                'Iraq',
+                'Jordan',
+                'Kuwait',
+                'Lebanon',
+                'Libya',
+                'Mauritania',
+                'Morocco',
+                'Oman',
+                'Palestine',
+                'Qatar',
+                'Saudi Arabia',
+                'Somalia',
+                'Sudan',
+                'Syria',
+                'Tunisia',
+                'UAE',
+                'Yemen'
+            ];
+
+
 
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -127,46 +148,46 @@ const trustDimensionsAnalysisController = {
                 }
             });
 
-            // Execute the query to get all documents with trust_dimensions and u_country
+            // Restrict to the 22 allowed countries
+            query.bool.filter = query.bool.filter || [];
+            query.bool.filter.push({
+                terms: { 'u_country.keyword': allowedCountries }
+            });
+
+            // Aggregation on array field trust_dimensions.keyword and country; tone derived from llm_emotion
             const params = {
-                size: 10000,
+                size: 0,
                 query: query,
-                _source: [
-                    'trust_dimensions',
-                    'u_country',
-                    'created_at', 
-                    'p_created_time',
-                    'source',
-                    'p_message', 
-                    'p_message_text', 
-                    'u_profile_photo',
-                    'u_followers',
-                    'u_following',
-                    'u_posts',
-                    'p_likes',
-                    'p_comments_text',
-                    'p_url',
-                    'p_comments',
-                    'p_shares',
-                    'p_engagement',
-                    'p_content',
-                    'p_picture_url',
-                    'predicted_sentiment_value',
-                    'predicted_category',
-                    'u_fullname',
-                    'video_embed_url',
-                    'p_picture',
-                    'p_id',
-                    'rating',
-                    'comment',
-                    'business_response',
-                    'u_source',
-                    'name',
-                    'llm_emotion'
-                ],
-                sort: [
-                    { p_created_time: { order: 'desc' } }
-                ]
+                aggs: {
+                    dimensions: {
+                        terms: { field: 'trust_dimensions.keyword', size: 200 },
+                        aggs: {
+                            countries: { terms: { field: 'u_country.keyword', size: 50 } },
+                            tones: { terms: { field: 'llm_emotion.keyword', size: 20 } },
+                            top_posts_by_country_tone: {
+                                terms: { field: 'u_country.keyword', size: 50 },
+                                aggs: {
+                                    tone: {
+                                        terms: { field: 'llm_emotion.keyword', size: 20 },
+                                        aggs: {
+                                            top_posts: {
+                                                top_hits: {
+                                                    size: 5,
+                                                    sort: [{ p_created_time: { order: 'desc' } }],
+                                                    _source: [
+                                                        'trust_dimensions','u_country','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response'
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                track_total_hits: false,
+                timeout: '10s'
             };
 
             const response = await elasticClient.search({
@@ -174,82 +195,60 @@ const trustDimensionsAnalysisController = {
                 body: params
             });
 
-            // Process the trust dimensions by country data
+            // Normalize emotion to three tones
+            const normalizeTone = (emotion) => {
+                const e = (emotion || '').toString().toLowerCase();
+                if (!e) return 'Not Applicable';
+                if (['supportive','happy','pleased','hopeful','content','satisfied','excited','delighted','grateful'].includes(e)) return 'Supportive';
+                if (['distrustful','frustrated','angry','upset','concerned','disappointed','sad','fearful','anxious'].includes(e)) return 'Distrustful';
+                return 'Neutral';
+            };
+
+            // Process the aggregated data
             const dimensionsMap = new Map();
             let totalCount = 0;
-
-            response.hits.hits.forEach(hit => {
-                const trustDimensionsStr = hit._source.trust_dimensions;
-                const country = hit._source.u_country;
-                
-                if (trustDimensionsStr && trustDimensionsStr.trim() !== '' && country && country.trim() !== '') {
-                    try {
-                        const trustDimensions = JSON.parse(trustDimensionsStr);
-                        const normalizedCountry = country.trim();
-                        
-                        // Create post details object for this post
-                        const postDetails = formatPostData(hit);
-                        
-                        // Process each trust dimension in the document
-                        Object.entries(trustDimensions).forEach(([dimension, dimensionTone]) => {
-                            const dimensionKey = dimension.trim();
-                            const toneKey = dimensionTone.trim();
-                            
-                            // Debug logging for tone filtering
-                            if (tone) {
-                                console.log(`Processing: dimension="${dimensionKey}", tone="${toneKey}", filter="${tone}"`);
-                                console.log(`Match check: "${toneKey.toLowerCase()}" === "${tone.toLowerCase()}" = ${toneKey.toLowerCase() === tone.toLowerCase()}`);
-                            }
-                            
-                            // Apply tone filter if specified - MUST match exactly
-                            if (tone && toneKey.toLowerCase() !== tone.toLowerCase()) {
-                                console.log(`SKIPPING: "${toneKey}" doesn't match filter "${tone}"`);
-                                return; // Skip this entry if tone doesn't match filter
-                            }
-                            
-                            console.log(`PROCESSING: dimension="${dimensionKey}", tone="${toneKey}", country="${normalizedCountry}"`);
-                            
-                            if (!dimensionsMap.has(dimensionKey)) {
-                                dimensionsMap.set(dimensionKey, {
-                                    dimension: dimensionKey,
-                                    countries: new Map(),
-                                    totalCount: 0
-                                });
-                            }
-                            
-                            const dimensionData = dimensionsMap.get(dimensionKey);
-                            dimensionData.totalCount++;
-                            
-                            if (!dimensionData.countries.has(normalizedCountry)) {
-                                dimensionData.countries.set(normalizedCountry, {
-                                    country: normalizedCountry,
-                                    tones: new Map(),
-                                    totalCount: 0
-                                });
-                            }
-                            
-                            const countryData = dimensionData.countries.get(normalizedCountry);
-                            countryData.totalCount++;
-                            
-                            if (!countryData.tones.has(toneKey)) {
-                                countryData.tones.set(toneKey, {
-                                    name: toneKey,
-                                    count: 0,
-                                    posts: []
-                                });
-                            }
-                            
-                            const toneData = countryData.tones.get(toneKey);
-                            toneData.count++;
-                            toneData.posts.push(postDetails);
-                            
-                            totalCount++;
-                        });
-                    } catch (error) {
-                        console.error('Error parsing trust_dimensions JSON:', error, trustDimensionsStr);
-                    }
+            const dimBuckets = response.aggregations?.dimensions?.buckets || [];
+            for (const db of dimBuckets) {
+                const dimKey = db.key;
+                if (!dimKey) continue;
+                const docCount = db.doc_count || 0;
+                totalCount += docCount;
+                if (!dimensionsMap.has(dimKey)) {
+                    dimensionsMap.set(dimKey, { dimension: dimKey, countries: new Map(), totalCount: 0 });
                 }
-            });
+                const dimData = dimensionsMap.get(dimKey);
+                dimData.totalCount += docCount;
+
+                const postsByCountryTone = new Map();
+                const countryToneBuckets = db.top_posts_by_country_tone?.buckets || [];
+                countryToneBuckets.forEach(cb => {
+                    const countryKey = cb.key;
+                    const toneBuckets = cb.tone?.buckets || [];
+                    toneBuckets.forEach(tb => {
+                        const hits = tb.top_posts?.hits?.hits || [];
+                        const key = `${countryKey}|${tb.key}`;
+                        postsByCountryTone.set(key, hits.map(h => formatPostData(h)));
+                    });
+                });
+
+                const countries = db.countries?.buckets || [];
+                countries.forEach(cb => {
+                    const countryKey = cb.key;
+                    if (!dimData.countries.has(countryKey)) dimData.countries.set(countryKey, { country: countryKey, tones: new Map(), totalCount: 0 });
+                    const countryData = dimData.countries.get(countryKey);
+                    countryData.totalCount += cb.doc_count || 0;
+
+                    const toneBuckets = db.tones?.buckets || [];
+                    toneBuckets.forEach(tb => {
+                        const toneKey = normalizeTone(tb.key);
+                        if (!countryData.tones.has(toneKey)) countryData.tones.set(toneKey, { name: toneKey, count: 0, posts: [] });
+                        const toneData = countryData.tones.get(toneKey);
+                        toneData.count += tb.doc_count || 0;
+                        const posts = postsByCountryTone.get(`${countryKey}|${tb.key}`) || [];
+                        toneData.posts.push(...posts);
+                    });
+                });
+            }
 
             // Convert maps to arrays and calculate percentages
             const trustDimensionsArray = Array.from(dimensionsMap.values()).map(dimension => {

@@ -95,7 +95,7 @@ const entitiesController = {
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, isSpecialTopic);
+            }, source, req);
             
             // Add p_created_time range filter
             query.bool.must.push({
@@ -457,7 +457,7 @@ const formatPostData = async (hit) => {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, req) {
     const query = {
         bool: {
             must: [

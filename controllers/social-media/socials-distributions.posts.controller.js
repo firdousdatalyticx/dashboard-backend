@@ -53,8 +53,7 @@ const getDistributionPosts = async (req, res) => {
     const query = buildBaseQuery(
       queryTimeRange ? { greaterThanTime: queryTimeRange.gte, lessThanTime: queryTimeRange.lte } : null,
       source,
-      isSpecialTopic,
-      parseInt(topicId)
+      req
     );
 
     addCategoryFilters(query, category, categoryData);
@@ -122,12 +121,12 @@ function buildBaseQueryString(selectedCategory, categoryData) {
   return queryString;
 }
 
-function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
+function buildBaseQuery(dateRange, source, req) {
   const query = { bool: { must: [], must_not: [ { term: { source: 'DM' } } ] } };
   if (dateRange && dateRange.greaterThanTime && dateRange.lessThanTime) {
     query.bool.must.push({ range: { p_created_time: { gte: dateRange.greaterThanTime, lte: dateRange.lessThanTime } } });
   }
-  if (topicId===2619) {
+  if (req.body.topicId===2619) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
   } else if (isSpecialTopic) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'Facebook' } }, { match_phrase: { source: 'Twitter' } } ], minimum_should_match: 1 } });

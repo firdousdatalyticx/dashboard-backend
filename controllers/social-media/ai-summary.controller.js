@@ -64,7 +64,7 @@ const aiSummaryController = {
             const query = buildBaseQuery({
                 greaterThanTime,
                 lessThanTime
-            }, source, isSpecialTopic);
+            }, source, req);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -209,7 +209,7 @@ const aiSummaryController = {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, req) {
     const query = {
         bool: {
             must: [

@@ -457,7 +457,7 @@ const sentimentsController = {
         const query = buildBaseQuery({
             greaterThanTime,
             lessThanTime
-        }, source, isSpecialTopic, parseInt(topicId));
+        }, source, req);
 
         // Add category filters
         addCategoryFilters(query, category, categoryData);
@@ -629,7 +629,7 @@ llmMotivationSentimentTrend: async (req, res) => {
     const formattedMinDate = format(parseISO(greaterThanTime), formatPattern);
     const formattedMaxDate = format(parseISO(lessThanTime), formatPattern);
 
-    const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic, topicIdNum);
+    const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, req);
     addCategoryFilters(query, category, categoryData);
 
     if (sentiment && sentiment !== "" && sentiment !== "All") {

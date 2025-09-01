@@ -269,6 +269,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
                         }
                     });
     }
+    
     // Handle special topic source filtering
     else if (isSpecialTopic) {
         query.bool.must.push({
@@ -287,23 +288,39 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
                 match_phrase: { source: source }
             });
         } else {
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "Linkedin" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
+            // For topicId 2634, exclude Instagram
+            const sources = [
+                { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Twitter" } },
+                { match_phrase: { source: "Instagram" } },
+                { match_phrase: { source: "Youtube" } },
+                { match_phrase: { source: "Linkedin" } },
+                { match_phrase: { source: "LinkedIn" } },
+                { match_phrase: { source: "Pinterest" } },
+                { match_phrase: { source: "Web" } },
+                { match_phrase: { source: "Reddit" } },
+                { match_phrase: { source: "TikTok" } }
+            ];
+
+            if (topicId === 2634) {
+                // Filter out Instagram for topicId 2634
+                const filteredSources = sources.filter(sourceObj =>
+                    !sourceObj.match_phrase.source.includes("Instagram")
+                );
+                query.bool.must.push({
+                    bool: {
+                        should: filteredSources,
+                        minimum_should_match: 1
+                    }
+                });
+            } else {
+                query.bool.must.push({
+                    bool: {
+                        should: sources,
+                        minimum_should_match: 1
+                    }
+                });
+            }
         }
     }
 

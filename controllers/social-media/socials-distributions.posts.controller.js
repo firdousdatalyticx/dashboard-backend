@@ -87,7 +87,7 @@ const getDistributionPosts = async (req, res) => {
       body: {
         size: Math.min(Number(limit) || 30, 100),
         query,
-        sort: [ { created_at: { order: 'desc' } } ]
+        sort: [ { p_created_time: { order: 'desc' } } ]
       }
     });
 

@@ -256,78 +256,41 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, avai
             }
         });
     }
-    if(topicId===2619){
-            query.bool.must.push({
-                        bool: {
-                            should: [
-                                { match_phrase: { source: "LinkedIn" } },
-                                { match_phrase: { source: "Linkedin" } }
-                            ],
-                            minimum_should_match: 1
-                        }
-                    });
-    }
-    
-    // Handle special topic source filtering
-    else if (isSpecialTopic) {
+   
+       // Add source filter if a specific source is selected
+       if (source !== 'All') {
+        query.bool.must.push({
+            match_phrase: { source: source }
+        });
+    } else if (availableDataSources && availableDataSources.length > 0) {
+        // Use available data sources if present
+        query.bool.must.push({
+            bool: {
+                should: availableDataSources.map(source => ({
+                    match_phrase: { source: source }
+                })),
+                minimum_should_match: 1
+            }
+        });
+    } else {
+        // Fallback to default sources if no available sources
         query.bool.must.push({
             bool: {
                 should: [
                     { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } }
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "Linkedin" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
                 ],
                 minimum_should_match: 1
             }
         });
-    } 
-    else if (topicId===2634) {
-        query.bool.must.push({
-            bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } }
-                ],
-                minimum_should_match: 1
-            }
-        });
-    }
-    
-    else {
-        // Add source filter if a specific source is selected
-        if (source !== 'All') {
-            query.bool.must.push({
-                match_phrase: { source: source }
-            });
-        } else if (availableDataSources && availableDataSources.length > 0) {
-            // Use available data sources if present
-            query.bool.must.push({
-                bool: {
-                    should: availableDataSources.map(source => ({
-                        match_phrase: { source: source }
-                    })),
-                    minimum_should_match: 1
-                }
-            });
-        } else {
-            // Fallback to default sources if no available sources
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "Linkedin" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        }
     }
 
     return query;

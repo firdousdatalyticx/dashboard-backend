@@ -139,7 +139,8 @@ const buildPostsByPhraseParams = (options) => {
       lte: toDate != null ? toDate : "now",
     },
     llm_mention_type,
-    topicId
+    topicId,
+    req
   } = options;
 
   const [sortField, sortOrder] = sort.split(":");
@@ -164,6 +165,7 @@ const buildPostsByPhraseParams = (options) => {
       "Reddit",
       "TikTok"
     ];
+
     sourceFilter = sourcesToUse.map(s => `"${s}"`).join(" OR ");
   }
 
@@ -235,7 +237,7 @@ const wordCloudController = {
    */
   getWordPhrases: async (req, res) => {
     try {
-      const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type,topicId } = req.body;
+      const { sentimentType = "positive", fromDate, toDate, source= "All", category = "all", llm_mention_type,topicId } = req.body;
       let categoryData = {};
       
       if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
@@ -354,13 +356,14 @@ const wordCloudController = {
         sentimentType = "positive",
         fromDate,
         toDate,
-        source,
+        source = "All",
         category = "all",
         page = 1,
         size = 100,
         sort = "p_created_time:desc",
         llm_mention_type,
-        topicId
+        topicId,
+      
       } = req.body;
 
       let categoryData = {};
@@ -432,8 +435,10 @@ const wordCloudController = {
         toDate,
         source,
         llm_mention_type,
-        topicId
+        topicId,
+        req
       });
+
 
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,

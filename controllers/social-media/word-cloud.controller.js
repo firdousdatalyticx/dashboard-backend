@@ -21,7 +21,8 @@ const buildWordCloudParams = (options) => {
       lte: toDate != null ? toDate : "now",
     },
     llm_mention_type,
-    topicId
+    topicId,
+    req
   } = options;
 
   const [sortField, sortOrder] = sort.split(":");
@@ -267,7 +268,6 @@ const wordCloudController = {
       } else if (categoryData[category]) {
         const selectedCategoryData = categoryData[category];
 
-        console.log("selectedCategoryData", selectedCategoryData);
         if (selectedCategoryData.keywords) searchTerms.push(...selectedCategoryData.keywords);
         if (selectedCategoryData.hashtags) searchTerms.push(...selectedCategoryData.hashtags);
         if (selectedCategoryData.urls) searchTerms.push(...selectedCategoryData.urls);
@@ -295,7 +295,8 @@ const wordCloudController = {
         toDate,
         source,
         llm_mention_type,
-        topicId
+        topicId,
+        req
       });
 
 

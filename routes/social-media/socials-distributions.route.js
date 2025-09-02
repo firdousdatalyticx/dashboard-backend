@@ -33,6 +33,6 @@ const transformDataSource = require('../../middleware/dataSource.middleware');
 router.post('/', express.json(), authMiddleware, transformCategoryData, transformDataSource, socialsDistributionsController.getDistributions);
 
 // New posts-only endpoint: same params plus "source" to fetch posts for a single source
-router.post('/posts', express.json(), authMiddleware, transformCategoryData, postsController.getDistributionPosts);
+router.post('/posts', express.json(), authMiddleware, transformCategoryData,transformDataSource, postsController.getDistributionPosts);
 
 module.exports = router; 

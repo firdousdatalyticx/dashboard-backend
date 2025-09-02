@@ -150,6 +150,9 @@ const influencersController = {
       for (const followerType of INFLUENCER_TYPES) {
         const { type, from, to } = followerType;
 
+        // Get available data sources from middleware
+        const availableDataSources = req.processedDataSources || [];
+
         // Build source filter based on special topic
         let sourceFilterBool;
         if (parseInt(topicId) === 2619) {
@@ -172,7 +175,18 @@ const influencersController = {
               minimum_should_match: 1,
             },
           };
+        } else if (availableDataSources && availableDataSources.length > 0) {
+          // Use available data sources if present
+          sourceFilterBool = {
+            bool: {
+              should: availableDataSources.map(source => ({
+                match_phrase: { source: source }
+              })),
+              minimum_should_match: 1,
+            },
+          };
         } else {
+          // Fallback to default sources if no available sources
           sourceFilterBool = {
             bool: {
               should: [
@@ -348,6 +362,9 @@ const influencersController = {
         queryString: topicQueryString,
       });
 
+      // Get available data sources from middleware
+      const availableDataSources = req.processedDataSources || [];
+
       // Handle source filtering based on user type and selected tab
       let finalQueryString = filters.queryString;
       if (parseInt(topicId) === 2619) {
@@ -360,7 +377,12 @@ const influencersController = {
           finalQueryString = finalQueryString
             ? `${finalQueryString} AND source:('"GoogleMyBusiness"')`
             : `source:('"GoogleMyBusiness"')`;
+        } else if (availableDataSources && availableDataSources.length > 0) {
+          // Use available data sources if present
+          const sourceStr = availableDataSources.map(source => `"${source}"`).join(" OR ");
+          finalQueryString = `${finalQueryString} AND source:(${sourceStr})`;
         } else {
+          // Fallback to default sources
           finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
         }
       }
@@ -443,6 +465,9 @@ const influencersController = {
         queryString: topicQueryString,
       });
 
+      // Get available data sources from middleware
+      const availableDataSources = req.processedDataSources || [];
+
       // Handle source filtering based on user type and selected tab
       let finalQueryString = filters.queryString;
       if (parseInt(topicId) === 2619) {
@@ -455,7 +480,12 @@ const influencersController = {
           finalQueryString = finalQueryString
             ? `${finalQueryString} AND source:('"GoogleMyBusiness"')`
             : `source:('"GoogleMyBusiness"')`;
+        } else if (availableDataSources && availableDataSources.length > 0) {
+          // Use available data sources if present
+          const sourceStr = availableDataSources.map(source => `"${source}"`).join(" OR ");
+          finalQueryString = `${finalQueryString} AND source:(${sourceStr})`;
         } else {
+          // Fallback to default sources
           finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
         }
       }

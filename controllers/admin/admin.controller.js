@@ -98,6 +98,13 @@ const adminController = {
         try {
             const { customerId } = req.params;
 
+            if (!customerId || isNaN(parseInt(customerId))) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Valid customer ID is required'
+                });
+            }
+
             const customer = await prisma.customers.findUnique({
                 where: {
                     customer_id: parseInt(customerId)
@@ -887,6 +894,193 @@ const adminController = {
             });
         } catch (error) {
             console.error('Get dashboard stats error:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    },
+
+    // Get all unique parent account emails for segregation
+    getParentAccounts: async (req, res) => {
+        try {
+            // First get all unique parent emails
+            const parentEmails = await prisma.$queryRaw`
+                SELECT DISTINCT customer_account_parent
+                FROM customers
+                WHERE customer_show_in_list = true
+                AND customer_account_parent IS NOT NULL
+                AND customer_account_parent != ''
+                ORDER BY customer_account_parent
+            `;
+
+            if (!parentEmails || parentEmails.length === 0) {
+                return res.status(200).json({
+                    success: true,
+                    data: [],
+                    count: 0
+                });
+            }
+
+            // For each parent email, get one customer record to show details
+            const uniqueParents = [];
+            for (const parent of parentEmails) {
+                const customer = await prisma.customers.findFirst({
+                    where: {
+                        customer_show_in_list: true,
+                        customer_account_parent: parent.customer_account_parent
+                    },
+                    select: {
+                        customer_account_parent: true,
+                        customer_name: true,
+                        customer_email: true,
+                        customer_company_name: true
+                    },
+                    orderBy: {
+                        customer_reg_time: 'desc'
+                    }
+                });
+
+                if (customer && customer.customer_account_parent) {
+                    uniqueParents.push({
+                        email: customer.customer_account_parent,
+                        name: customer.customer_name || 'Unknown',
+                        customer_email: customer.customer_email,
+                        company_name: customer.customer_company_name
+                    });
+                }
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: uniqueParents,
+                count: uniqueParents.length
+            });
+        } catch (error) {
+            console.error('Get parent accounts error:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error',
+                details: error.message
+            });
+        }
+    },
+
+    // Get all customers under a specific parent account
+    getCustomersByParent: async (req, res) => {
+        try {
+            const { parentEmail } = req.params;
+            const { page = 1, limit = 10, search = '', status = '' } = req.query;
+            const offset = (page - 1) * limit;
+
+            if (!parentEmail) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Parent email is required'
+                });
+            }
+
+            // Build where clause
+            let whereClause = {
+                customer_show_in_list: true,
+                customer_account_parent: parentEmail
+            };
+
+            if (search) {
+                whereClause.OR = [
+                    { customer_name: { contains: search } },
+                    { customer_email: { contains: search } },
+                    { customer_company_name: { contains: search } }
+                ];
+            }
+
+            if (status) {
+                whereClause.customer_reg_scope = status;
+            }
+
+            // Get customers under this parent
+            const customers = await prisma.customers.findMany({
+                where: whereClause,
+                select: {
+                    customer_id: true,
+                    customer_name: true,
+                    customer_email: true,
+                    customer_company_name: true,
+                    customer_reg_time: true,
+                    customer_reg_scope: true,
+                    customer_account_type: true,
+                    customer_allowed_topics: true,
+                    customer_phone: true,
+                    customer_country: true,
+                    customer_industry: true,
+                    customer_acc_expiry: true,
+                    customer_dashboard_expiry: true,
+                    customer_show_in_list: true,
+                    customer_account_parent: true
+                },
+                orderBy: {
+                    customer_reg_time: 'desc'
+                },
+                skip: parseInt(offset),
+                take: parseInt(limit)
+            });
+
+            // Get topics count for each customer
+            const customersWithTopicCounts = await Promise.all(
+                customers.map(async (customer) => {
+                    const topicCount = await prisma.customer_topics.count({
+                        where: {
+                            topic_user_id: customer.customer_id,
+                            topic_is_deleted: { not: 'y' }
+                        }
+                    });
+
+                    return {
+                        ...customer,
+                        topicCount
+                    };
+                })
+            );
+
+            // Get total count for pagination
+            const totalCustomers = await prisma.customers.count({
+                where: whereClause
+            });
+
+            // Get parent account information
+            const parentAccount = await prisma.customers.findFirst({
+                where: {
+                    customer_email: parentEmail,
+                    customer_show_in_list: true
+                },
+                select: {
+                    customer_id: true,
+                    customer_name: true,
+                    customer_email: true,
+                    customer_company_name: true
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    parentAccount,
+                    customers: customersWithTopicCounts,
+                    summary: {
+                        totalCustomers,
+                        activeCustomers: customersWithTopicCounts.filter(c => c.customer_reg_scope === 'active').length,
+                        inactiveCustomers: customersWithTopicCounts.filter(c => c.customer_reg_scope === 'inactive').length
+                    },
+                    pagination: {
+                        currentPage: parseInt(page),
+                        totalPages: Math.ceil(totalCustomers / limit),
+                        totalItems: totalCustomers,
+                        itemsPerPage: parseInt(limit)
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Get customers by parent error:', error);
             return res.status(500).json({
                 success: false,
                 error: 'Internal server error'

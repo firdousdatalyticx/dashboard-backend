@@ -21,7 +21,6 @@ const getDistributionPosts = async (req, res) => {
       return res.status(400).json({ success: false, error: 'source is required' });
     }
 
-    const isSpecialTopic = topicId && parseInt(topicId) === 2600 || parseInt(topicId) === 2627;
 
     let categoryData = {};
     if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
@@ -35,7 +34,7 @@ const getDistributionPosts = async (req, res) => {
 
     // Build base query
     const baseQueryString = buildBaseQueryString(category, categoryData);
-    const filters = processFilters({ sentimentType, timeSlot, fromDate, toDate, queryString: baseQueryString, isSpecialTopic });
+    const filters = processFilters({ sentimentType, timeSlot, fromDate, toDate, queryString: baseQueryString });
 
     const noDateProvided = (
       (timeSlot === null || timeSlot === undefined || timeSlot === '') &&
@@ -126,26 +125,46 @@ function buildBaseQuery(dateRange, source, req) {
   if (dateRange && dateRange.greaterThanTime && dateRange.lessThanTime) {
     query.bool.must.push({ range: { p_created_time: { gte: dateRange.greaterThanTime, lte: dateRange.lessThanTime } } });
   }
-  if (req.body.topicId===2619) {
+
+  // Get available data sources from middleware
+  const availableDataSources = req.processedDataSources || [];
+
+  if (req.body.topicId === 2619) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
-  } else if (isSpecialTopic) {
+  } else if (req.body.topicId && parseInt(req.body.topicId) === 2600 || parseInt(req.body.topicId) === 2627) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'Facebook' } }, { match_phrase: { source: 'Twitter' } } ], minimum_should_match: 1 } });
   } else {
     if (source !== 'All') {
       query.bool.must.push({ match_phrase: { source: source } });
+    } else if (availableDataSources && availableDataSources.length > 0) {
+      // Use available data sources if present
+      query.bool.must.push({
+        bool: {
+          should: availableDataSources.map(source => ({
+            match_phrase: { source: source }
+          })),
+          minimum_should_match: 1
+        }
+      });
     } else {
-      query.bool.must.push({ bool: { should: [
-        { match_phrase: { source: 'Facebook' } },
-        { match_phrase: { source: 'Twitter' } },
-        { match_phrase: { source: 'Instagram' } },
-        { match_phrase: { source: 'Youtube' } },
-        { match_phrase: { source: 'Linkedin' } },
-        { match_phrase: { source: 'LinkedIn' } },
-        { match_phrase: { source: 'Pinterest' } },
-        { match_phrase: { source: 'Web' } },
-        { match_phrase: { source: 'Reddit' } },
-        { match_phrase: { source: 'TikTok' } }
-      ], minimum_should_match: 1 } });
+      // Fallback to default sources if no available sources
+      query.bool.must.push({
+        bool: {
+          should: [
+            { match_phrase: { source: 'Facebook' } },
+            { match_phrase: { source: 'Twitter' } },
+            { match_phrase: { source: 'Instagram' } },
+            { match_phrase: { source: 'Youtube' } },
+            { match_phrase: { source: 'Linkedin' } },
+            { match_phrase: { source: 'LinkedIn' } },
+            { match_phrase: { source: 'Pinterest' } },
+            { match_phrase: { source: 'Web' } },
+            { match_phrase: { source: 'Reddit' } },
+            { match_phrase: { source: 'TikTok' } }
+          ],
+          minimum_should_match: 1
+        }
+      });
     }
   }
   return query;

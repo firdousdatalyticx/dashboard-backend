@@ -8,6 +8,10 @@ const authMiddleware = require('../../middleware/auth.middleware');
 router.use(authMiddleware);
 // router.use(adminAuthMiddleware);
 
+// Customer segregation routes (must come before parameterized routes)
+router.get('/customers/parent-accounts', adminController.getParentAccounts);
+router.get('/customers/parent/:parentEmail', adminController.getCustomersByParent);
+
 // Customer management routes
 router.get('/customers', adminController.getAllCustomers);
 router.get('/customers/:customerId', adminController.getCustomerDetails);

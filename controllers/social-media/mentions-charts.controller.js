@@ -1803,6 +1803,7 @@ const mentionsChartController = {
               field: "llm_mention_audience.keyword",
               size: 8,
               order: { _count: "desc" },
+              exclude: ["Youth"],
             },
             aggs: {
               mention_types: {

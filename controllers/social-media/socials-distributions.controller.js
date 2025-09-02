@@ -267,6 +267,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, avai
                         }
                     });
     }
+    
     // Handle special topic source filtering
     else if (isSpecialTopic) {
         query.bool.must.push({
@@ -278,7 +279,20 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, avai
                 minimum_should_match: 1
             }
         });
-    } else {
+    } 
+    else if (topicId===2634) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
+    }
+    
+    else {
         // Add source filter if a specific source is selected
         if (source !== 'All') {
             query.bool.must.push({

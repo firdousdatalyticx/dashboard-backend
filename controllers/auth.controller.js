@@ -115,7 +115,7 @@ const authController = {
     // Register user (if needed)
     register: async (req, res) => {
         try {
-            const { name, email, password, companyName, phone } = req.body;
+            const { name, email, password, companyName, phone, accountParent, allowedSources } = req.body;
 
             // Check if user already exists
             const existingUser = await prisma.customers.findFirst({
@@ -131,8 +131,8 @@ const authController = {
                 });
             }
 
-            // Hash password
-            const encryptedPassword = encryptPassword(password);
+            // Encrypt password using the same method as login
+            const encryptedPassword = encrypt(String(password), process.env.ENC_KEY);
 
             // Create new user
             const newUser = await prisma.customers.create({
@@ -144,7 +144,9 @@ const authController = {
                     customer_phone: phone || null,
                     customer_reg_scope: 'FR', // Free account by default
                     customer_account_type: false, // Default account type
-                    customer_show_in_list: true
+                    customer_show_in_list: true,
+                    customer_account_parent: accountParent || null,
+                    customer_allowed_sources: allowedSources || null
                 }
             });
 
@@ -166,7 +168,9 @@ const authController = {
                     email: newUser.customer_email,
                     company: newUser.customer_company_name,
                     scope: newUser.customer_reg_scope,
-                    accountType: newUser.customer_account_type
+                    accountType: newUser.customer_account_type,
+                    accountParent: newUser.customer_account_parent,
+                    allowedSources: newUser.customer_allowed_sources
                 }
             });
         } catch (error) {

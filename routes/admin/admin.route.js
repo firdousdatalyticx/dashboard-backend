@@ -17,6 +17,7 @@ router.get('/customers', adminController.getAllCustomers);
 router.get('/customers/:customerId', adminController.getCustomerDetails);
 router.get('/customers/:customerId/topics', adminController.getCustomerTopics);
 router.put('/customers/:customerId', adminController.updateCustomer);
+router.delete('/customers/:customerId', adminController.deleteCustomer);
 
 // Topic management routes
 router.get('/topics', adminController.getAllTopics);

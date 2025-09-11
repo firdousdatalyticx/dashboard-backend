@@ -228,6 +228,16 @@ const dashboardController = {
             const { topicId } = req.params;
             const userId = req.user.id;
 
+            // Get customer details including allowed_sources
+            const customer = await prisma.customers.findUnique({
+                where: {
+                    customer_id: Number(userId)
+                },
+                select: {
+                    customer_allowed_sources: true
+                }
+            });
+
             // Verify topic ownership
             if (topicId) {
                 const topic = await prisma.customer_topics.findFirst({
@@ -302,6 +312,7 @@ const dashboardController = {
                 success: true,
                 data: {
                     categorizedGraphs: orderedCategorizedGraphs,
+                    customerAllowedSources: customer?.customer_allowed_sources || null
                 }
             });
         } catch (error) {

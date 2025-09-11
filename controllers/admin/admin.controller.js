@@ -43,7 +43,8 @@ const adminController = {
                     customer_acc_expiry: true,
                     customer_dashboard_expiry: true,
                     customer_show_in_list: true,
-                    customer_account_parent: true
+                    customer_account_parent: true,
+                    customer_allowed_sources: true
                 },
                 orderBy: {
                     customer_reg_time: 'desc'
@@ -154,15 +155,73 @@ const adminController = {
             const { customerId } = req.params;
             const updateData = req.body;
 
+            // Handle password update if provided
+            let passwordUpdate = null;
+            if (updateData.password && updateData.password.trim() !== '') {
+                passwordUpdate = encrypt(String(updateData.password), process.env.ENC_KEY);
+            }
+
             // Remove sensitive fields that shouldn't be updated via admin
             delete updateData.customer_pass;
             delete updateData.customer_id;
+            delete updateData.password; // Remove plain text password from updateData
+
+            // Transform frontend field names to database field names
+            const transformedData = {};
+            if (updateData.name !== undefined) transformedData.customer_name = updateData.name;
+            if (updateData.email !== undefined) transformedData.customer_email = updateData.email;
+            if (updateData.companyName !== undefined) transformedData.customer_company_name = updateData.companyName;
+            if (updateData.phone !== undefined) transformedData.customer_phone = updateData.phone;
+            if (updateData.accountParent !== undefined) transformedData.customer_account_parent = updateData.accountParent;
+            if (updateData.allowedSources !== undefined) transformedData.customer_allowed_sources = updateData.allowedSources;
+
+            // Handle other fields that might be passed
+            const allowedFields = [
+                'customer_reg_scope',
+                'customer_account_type',
+                'customer_allowed_topics',
+                'customer_allowed_invitations',
+                'customer_month_price',
+                'customer_show_in_list',
+                'customer_designation',
+                'customer_designation_other',
+                'customer_industry',
+                'customer_industry_other',
+                'customer_country',
+                'customer_acc_expiry',
+                'customer_dashboard_expiry',
+                'customer_notification_freq',
+                'customer_engage_admin',
+                'customer_engage_department',
+                'customer_engage_key',
+                'customer_allow_dashboard',
+                'customer_allow_engage_dashboard',
+                'customer_allow_zoom',
+                'customer_allow_csat',
+                'customer_allow_revenue_impact',
+                'customer_layout_settings',
+                'customer_reviews_key',
+                'customer_topics_access',
+                'customer_subtopics_access'
+            ];
+
+            // Copy any remaining valid fields
+            Object.keys(updateData).forEach(key => {
+                if (!['name', 'email', 'companyName', 'phone', 'accountParent', 'allowedSources'].includes(key) && allowedFields.includes(key)) {
+                    transformedData[key] = updateData[key];
+                }
+            });
+
+            // Add encrypted password if provided
+            if (passwordUpdate) {
+                transformedData.customer_pass = passwordUpdate;
+            }
 
             const updatedCustomer = await prisma.customers.update({
                 where: {
                     customer_id: parseInt(customerId)
                 },
-                data: updateData,
+                data: transformedData,
                 select: {
                     customer_id: true,
                     customer_name: true,
@@ -175,17 +234,105 @@ const adminController = {
                     customer_country: true,
                     customer_industry: true,
                     customer_acc_expiry: true,
-                    customer_dashboard_expiry: true
+                    customer_dashboard_expiry: true,
+                    customer_account_parent: true,
+                    customer_allowed_sources: true
+                }
+            });
+
+            const message = passwordUpdate
+                ? 'Customer updated successfully (password changed)'
+                : 'Customer updated successfully';
+
+            return res.status(200).json({
+                success: true,
+                data: updatedCustomer,
+                message: message,
+                passwordUpdated: !!passwordUpdate
+            });
+        } catch (error) {
+            console.error('Update customer error:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    },
+
+    // Delete customer and all their associated topics
+    deleteCustomer: async (req, res) => {
+        try {
+            const { customerId } = req.params;
+
+            if (!customerId || isNaN(parseInt(customerId))) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Valid customer ID is required'
+                });
+            }
+
+            // First, check if customer exists
+            const customer = await prisma.customers.findUnique({
+                where: {
+                    customer_id: parseInt(customerId)
+                },
+                select: {
+                    customer_id: true,
+                    customer_name: true,
+                    customer_email: true
+                }
+            });
+
+            if (!customer) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Customer not found'
+                });
+            }
+
+            // Count customer's topics before deletion
+            const topicCount = await prisma.customer_topics.count({
+                where: {
+                    topic_user_id: parseInt(customerId)
+                }
+            });
+
+            // Delete all customer's topics first (due to foreign key constraints)
+            await prisma.customer_topics.deleteMany({
+                where: {
+                    topic_user_id: parseInt(customerId)
+                }
+            });
+
+            // Delete the customer
+            await prisma.customers.delete({
+                where: {
+                    customer_id: parseInt(customerId)
                 }
             });
 
             return res.status(200).json({
                 success: true,
-                data: updatedCustomer,
-                message: 'Customer updated successfully'
+                message: `Customer "${customer.customer_name}" and ${topicCount} associated topics deleted successfully`,
+                data: {
+                    customerId: customer.customer_id,
+                    customerName: customer.customer_name,
+                    customerEmail: customer.customer_email,
+                    topicsDeleted: topicCount
+                }
             });
+
         } catch (error) {
-            console.error('Update customer error:', error);
+            console.error('Delete customer error:', error);
+
+            // Handle foreign key constraint errors
+            if (error.code === 'P2003') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot delete customer due to existing references. Please contact administrator.'
+                });
+            }
+
             return res.status(500).json({
                 success: false,
                 error: 'Internal server error'
@@ -1016,7 +1163,8 @@ const adminController = {
                     customer_acc_expiry: true,
                     customer_dashboard_expiry: true,
                     customer_show_in_list: true,
-                    customer_account_parent: true
+                    customer_account_parent: true,
+                    customer_allowed_sources: true
                 },
                 orderBy: {
                     customer_reg_time: 'desc'

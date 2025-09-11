@@ -362,6 +362,16 @@ const topicController = {
         try {
             const userId = req.user.id;
     
+            // Get customer details including allowed_sources
+            const customer = await prisma.customers.findUnique({
+                where: {
+                    customer_id: Number(userId)
+                },
+                select: {
+                    customer_allowed_sources: true
+                }
+            });
+
             const customerTopics = await prisma.customer_topics.findMany({
                 where: {
                     customer_portal: 'D24',
@@ -405,7 +415,8 @@ const topicController = {
     
             return res.json({
                 success: true,
-                data: topicsWithCounts
+                data: topicsWithCounts,
+                customerAllowedSources: customer?.customer_allowed_sources || null
             });
         } catch (error) {
             console.error('Error fetching topics:', error);

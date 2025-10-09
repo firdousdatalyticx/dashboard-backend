@@ -54,14 +54,14 @@ const mentionsTrendController = {
 
             // Handle unTopic case
             let queryTimeRange = {
-                gte: filters.greaterThanTime || formatSafeDate('2023-01-01'),
-                lte: filters.lessThanTime || formatSafeDate('2023-04-30')
+                gte: filters.greaterThanTime || greaterThanTime || '2020-01-01',
+                lte: filters.lessThanTime || lessThanTime || '2026-12-31'
             };
 
             if (unTopic === 'true') {
                 queryTimeRange = {
-                    gte: formatSafeDate('2023-01-01'),
-                    lte: formatSafeDate('2023-04-30')
+                    gte: '2020-01-01',
+                    lte: '2026-12-31'
                 };
             }
 

@@ -165,14 +165,27 @@ const socialsDistributionsController = {
 
             // Extract the aggregation buckets
             const buckets = aggResponse.aggregations.source_counts.buckets;
-            const sourceCounts = buckets.reduce((acc, bucket) => {
-                // Only include sources with count > 0
+
+                const sourceCounts = buckets.reduce((acc, bucket) => {
                 if (bucket.doc_count > 0) {
-                    acc[bucket.key] = bucket.doc_count;
+                    // Normalize key (e.g., treat Linkedin and LinkedIn as same)
+                    const normalizedKey = bucket.key.toLowerCase();
+
+                    // Add or update count
+                    acc[normalizedKey] = (acc[normalizedKey] || 0) + bucket.doc_count;
                 }
                 return acc;
-            }, {});
-            return res.json(sourceCounts);
+                }, {});
+
+                // Reformat keys properly (capitalize "LinkedIn" etc. if you want)
+                const formattedCounts = {};
+                for (const key in sourceCounts) {
+                // Example: keep "LinkedIn" as preferred format
+                formattedCounts[key === "linkedin" ? "LinkedIn" : key] = sourceCounts[key];
+                }
+
+                return res.json(formattedCounts);
+
         } catch (error) {
             console.error('Error fetching social media distributions:', error);
             return res.status(500).json({ 

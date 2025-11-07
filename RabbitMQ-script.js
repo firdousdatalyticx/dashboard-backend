@@ -1,4 +1,6 @@
+require('dotenv').config();
 const amqp = require('amqplib');
+const prisma = require('./config/database');
 
 // RabbitMQ connection configuration
 const rabbitConfig = {
@@ -12,18 +14,150 @@ const rabbitConfig = {
 // Queue configuration
 const queueName = 'data_requests';
 
-// Message payload for RabbitMQ
-const messagePayload = {
-    queries: ["arab region", "arab world"],
-    start_date: "2020-01-01",
-    end_date: "2021-12-31",
-    source: ["Facebook", "Twitter"],
-    request_type: "POST"  // POST to initiate collection, GET to collect and dump
-};
+// Helper function to safely split and clean data
+function safeSplit(str, delimiter = ',') {
+    if (!str || str.trim() === '') return [];
+    return str.split(delimiter)
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+}
 
-async function publishToQueue() {
+/**
+ * Fetch all keywords, hashtags, and URLs for a given topic ID
+ * @param {number} topicId - The topic ID to fetch data for
+ * @returns {Object} Object containing arrays of keywords, hashtags, and URLs
+ */
+async function fetchTopicData(topicId) {
+    try {
+        console.log(`Fetching data for topic ID: ${topicId}`);
+        
+        // Fetch categories for the topic - explicitly select only needed columns
+        const categoryData = await prisma.topic_categories.findMany({
+            where: {
+                customer_topic_id: Number(topicId)
+            },
+            select: {
+                topic_urls: true,
+                topic_keywords: true,
+                topic_hash_tags: true
+            }
+        });
+
+        if (!categoryData || categoryData.length === 0) {
+            console.log(`No categories found for topic ID: ${topicId}`);
+            return {
+                keywords: [],
+                hashtags: [],
+                urls: [],
+                queries: []
+            };
+        }
+
+        // Collect all unique keywords, hashtags, and URLs
+        const allKeywords = new Set();
+        const allHashtags = new Set();
+        const allUrls = new Set();
+
+        categoryData.forEach(category => {
+            // Process URLs
+            const urls = safeSplit(category.topic_urls, ',');
+            urls.forEach(url => {
+                if (url.trim()) allUrls.add(url.trim());
+            });
+
+            // Process hashtags
+            const hashtags = safeSplit(category.topic_hash_tags, ',');
+            hashtags.forEach(hashtag => {
+                const cleanHashtag = hashtag.trim();
+                if (cleanHashtag) {
+                    // Add with # if not present
+                    if (!cleanHashtag.startsWith('#')) {
+                        allHashtags.add(`#${cleanHashtag}`);
+                    } else {
+                        allHashtags.add(cleanHashtag);
+                    }
+                }
+            });
+
+            // Process keywords
+            const keywords = safeSplit(category.topic_keywords, ',');
+            keywords.forEach(keyword => {
+                const cleanKeyword = keyword.trim();
+                if (cleanKeyword) {
+                    // Add the original keyword
+                    allKeywords.add(cleanKeyword);
+                    
+                    // If keyword doesn't start with #, also add it with # prefix
+                    if (!cleanKeyword.startsWith('#')) {
+                        allKeywords.add(`#${cleanKeyword}`);
+                    }
+                    
+                    // If keyword starts with #, also add it without # for general text matching
+                    if (cleanKeyword.startsWith('#')) {
+                        const withoutHash = cleanKeyword.substring(1);
+                        if (withoutHash.trim()) {
+                            allKeywords.add(withoutHash.trim());
+                        }
+                    }
+                }
+            });
+        });
+
+        // Combine all search terms (keywords + hashtags) for queries
+        const allQueries = [...allKeywords, ...allHashtags];
+
+        console.log(`Found ${allKeywords.size} keywords, ${allHashtags.size} hashtags, ${allUrls.size} URLs`);
+        console.log(`Total queries: ${allQueries.length}`);
+
+        return {
+            keywords: Array.from(allKeywords),
+            hashtags: Array.from(allHashtags),
+            urls: Array.from(allUrls),
+            queries: allQueries
+        };
+
+    } catch (error) {
+        console.error('Error fetching topic data:', error);
+        throw error;
+    }
+}
+
+async function publishToQueue(topicId) {
     let connection;
     try {
+        // Validate topic ID
+        if (!topicId) {
+            throw new Error('Topic ID is required');
+        }
+
+        // Fetch topic data from database
+        const topicData = await fetchTopicData(topicId);
+
+        if (topicData.queries.length === 0) {
+            throw new Error(`No keywords, hashtags, or URLs found for topic ID: ${topicId}`);
+        }
+
+        // Set date range: September 15 of current year to now
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const startDate = new Date(`${currentYear}-09-15T00:00:00.000Z`);
+        const endDate = now.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+
+        // Build message payload with fetched data
+        const messagePayload = {
+            queries: topicData.queries, // Comma-separated keywords and hashtags
+            start_date: startDate.toISOString().split('T')[0], // 2024-09-15
+            end_date: endDate, // Current date
+            source: ["Twitter"], // Default sources
+            request_type: "POST"  // POST to initiate collection, GET to collect and dump
+        };
+
+        console.log('\n=== Message Payload ===');
+        console.log(`Queries (${messagePayload.queries.length}):`, messagePayload.queries.slice(0, 10), '...');
+        console.log(`Date Range: ${messagePayload.start_date} to ${messagePayload.end_date}`);
+        console.log(`Sources:`, messagePayload.source);
+        console.log(`Request Type: ${messagePayload.request_type}\n`);
+
         console.log('Attempting to connect to RabbitMQ...');
         
         // Create RabbitMQ connection
@@ -53,7 +187,7 @@ async function publishToQueue() {
 
         // Publish message
         const result = channel.sendToQueue(queueName, message);
-        console.log('Message published to queue:', messagePayload);
+        console.log('Message published to queue successfully');
         console.log('Publish result:', result);
 
     } catch (error) {
@@ -65,7 +199,15 @@ async function publishToQueue() {
             console.error('Stack trace:', error.stack);
         }
     } finally {
-        // Close connection if it was established
+        // Close database connection
+        try {
+            await prisma.$disconnect();
+            console.log('Database connection closed');
+        } catch (error) {
+            console.error('Error closing database connection:', error);
+        }
+
+        // Close RabbitMQ connection if it was established
         if (connection) {
             try {
                 setTimeout(async () => {
@@ -74,7 +216,7 @@ async function publishToQueue() {
                     process.exit(0);
                 }, 500);
             } catch (error) {
-                console.error('Error closing connection:', error);
+                console.error('Error closing RabbitMQ connection:', error);
                 process.exit(1);
             }
         } else {
@@ -83,6 +225,34 @@ async function publishToQueue() {
     }
 }
 
-// Run the test
-console.log('Starting RabbitMQ test...');
-publishToQueue();
+// Main execution
+async function main() {
+    // Check if topicId is provided as command line argument
+    const topicId = process.argv[2];
+    
+    if (!topicId) {
+        console.error('Error: Topic ID is required');
+        console.error('Usage: node RabbitMQ-script.js <topicId>');
+        console.error('Example: node RabbitMQ-script.js 2638');
+        process.exit(1);
+    }
+
+    if (isNaN(Number(topicId))) {
+        console.error('Error: Topic ID must be a valid number');
+        process.exit(1);
+    }
+
+    console.log('Starting RabbitMQ script...');
+    console.log(`Topic ID: ${topicId}\n`);
+    
+    try {
+        await publishToQueue(topicId);
+        console.log('\nScript completed successfully');
+    } catch (error) {
+        console.error('\nScript failed:', error.message);
+        process.exit(1);
+    }
+}
+
+// Run the script
+main();

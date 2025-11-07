@@ -178,11 +178,20 @@ const socialsDistributionsController = {
                 }, {});
 
                 // Reformat keys properly (capitalize "LinkedIn" etc. if you want)
-                const formattedCounts = {};
+              const formattedCounts = {};
                 for (const key in sourceCounts) {
-                // Example: keep "LinkedIn" as preferred format
-                formattedCounts[key === "linkedin" ? "LinkedIn" : key] = sourceCounts[key];
+                // Handle special cases like LinkedIn
+                let formattedKey;
+                if (key.toLowerCase() === "linkedin") {
+                    formattedKey = "LinkedIn";
+                } else {
+                    // Capitalize the first letter dynamically
+                    formattedKey = key.charAt(0).toUpperCase() + key.slice(1);
                 }
+
+                formattedCounts[formattedKey] = sourceCounts[key];
+                }
+
 
                 return res.json(formattedCounts);
 

@@ -149,7 +149,7 @@ async function publishToQueue(topicId) {
             start_date: startDate.toISOString().split('T')[0], // 2024-09-15
             end_date: endDate, // Current date
             source: ["Twitter"], // Default sources
-            request_type: "POST"  // POST to initiate collection, GET to collect and dump
+            request_type: "GET"  // POST to initiate collection, GET to collect and dump
         };
 
         console.log('\n=== Message Payload ===');
@@ -256,3 +256,27 @@ async function main() {
 
 // Run the script
 main();
+
+
+// node RabbitMQ-script.js 2514 && \
+// node RabbitMQ-script.js 2515 && \
+// node RabbitMQ-script.js 2516 && \
+// node RabbitMQ-script.js 2517 && \
+// node RabbitMQ-script.js 2518 && \
+// node RabbitMQ-script.js 2519 && \
+// node RabbitMQ-script.js 2520 && \
+// node RabbitMQ-script.js 2522 && \
+// node RabbitMQ-script.js 2523 && \
+// node RabbitMQ-script.js 2510 && \
+// node RabbitMQ-script.js 2534 && \
+// node RabbitMQ-script.js 2535 && \
+// node RabbitMQ-script.js 2536 && \
+// node RabbitMQ-script.js 2537 && \
+// node RabbitMQ-script.js 2538 && \
+// node RabbitMQ-script.js 2539 && \
+// node RabbitMQ-script.js 2540 && \
+// node RabbitMQ-script.js 2541 && \
+// node RabbitMQ-script.js 2542 && \
+// node RabbitMQ-script.js 2585 && \
+// node RabbitMQ-script.js 2571
+

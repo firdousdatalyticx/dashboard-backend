@@ -124,7 +124,8 @@ async function fetchTopicData(topicId) {
   }
 }
 
-async function publishToQueue(topicId,startDate, endDate) {
+async function 
+publishToQueue(topicId,startDate, endDate) {
   let connection;
   try {
     // Validate topic ID
@@ -222,7 +223,7 @@ async function publishToQueue(topicId,startDate, endDate) {
         setTimeout(async () => {
           await connection.close();
           console.log("RabbitMQ connection closed");
-          process.exit(0);
+        //   process.exit(0);
         }, 500);
       } catch (error) {
         console.error("Error closing RabbitMQ connection:", error);
@@ -284,11 +285,13 @@ async function main() {
     );
     let i = 1;
     for (const range of ranges) {
-    console.log(`${i + 1}. ${range.start} → ${range.end}`);
+    console.log(`=>${i + 1}. ${range.start} → ${range.end}`);
       await publishToQueue(topicId, range.start, range.end);
       await new Promise((r) => setTimeout(r, 2000)); // wait 2 seconds
       i=i+1;
     }
+
+    process.exit(0);
   } catch (error) {
     console.error("\nScript failed:", error.message);
     process.exit(1);

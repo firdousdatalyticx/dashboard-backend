@@ -392,7 +392,7 @@ const keywordsController = {
                   for (let i = 0; i < keyHashArray.length; i++) {
                     let tempQueryString = topicQueryString
             
-                    if(parseInt(topicId)==2619){
+                    if(parseInt(topicId)==2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640){
                     tempQueryString =tempQueryString ?`${tempQueryString} AND source:("Linkedin" OR "LinkedIn")` :`source:("Linkedin" OR "LinkedIn")`
                     }else{
                     tempQueryString = tempQueryString

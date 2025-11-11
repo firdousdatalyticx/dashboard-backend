@@ -127,7 +127,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
   if (dateRange && dateRange.greaterThanTime && dateRange.lessThanTime) {
     query.bool.must.push({ range: { p_created_time: { gte: dateRange.greaterThanTime, lte: dateRange.lessThanTime } } });
   }
-  if (topicId===2619) {
+  if (topicId===2619 || topicId===2639 || topicId===2640) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
   } else if (isSpecialTopic) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'Facebook' } }, { match_phrase: { source: 'Twitter' } } ], minimum_should_match: 1 } });

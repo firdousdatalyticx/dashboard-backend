@@ -67,7 +67,7 @@ const leaderboardAnalysisController = {
         };
       }
             // Define source filter based on special topic
-            const sourceFilter =parseInt(topicId)==2619 ?
+            const sourceFilter =parseInt(topicId)==2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ?
              [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },

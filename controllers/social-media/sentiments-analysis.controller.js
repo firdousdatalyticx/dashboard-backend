@@ -1311,7 +1311,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
                 match_phrase: { source: source }
             });
     }
-    else if(topicIdNum===2619){
+    else if(topicIdNum===2619 || topicIdNum===2639 || topicIdNum===2640){
        query.bool.must.push({
               bool: {
                   should: [

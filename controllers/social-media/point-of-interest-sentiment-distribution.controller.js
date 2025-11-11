@@ -61,7 +61,7 @@ const poiSentimentDistributionController = {
  let sourceFilter =[];
             if(source=="All"){
             // Build source filter based on special topic
-             sourceFilter = parseInt(topicId)==2619 ?
+             sourceFilter = parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ?
              [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },

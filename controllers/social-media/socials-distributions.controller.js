@@ -280,7 +280,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
             }
         });
     }
-    if(topicId===2619){
+    if(topicId===2619 || topicId===2639 || topicId===2640){
             query.bool.must.push({
                         bool: {
                             should: [

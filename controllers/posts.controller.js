@@ -49,7 +49,7 @@ const buildElasticsearchQuery = (params) => {
   // Build query_string parts in an array
   const qsParts = [];
   if (topicQueryString) qsParts.push(topicQueryString);
-  if(topicId===2619){
+  if(topicId===2619 || topicId===2639 || topicId===2640){
  qsParts.push('source:("LinkedIn" OR "Linkedin")');
   }else
 

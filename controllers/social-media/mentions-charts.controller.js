@@ -1010,7 +1010,7 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      if (topicId && parseInt(topicId) === 2619) {
+      if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
       }
       // Apply special topic source filtering
@@ -1063,7 +1063,7 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      if (topicId && parseInt(topicId) === 2619) {
+      if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
       }
       // Apply special topic source filtering
@@ -1251,7 +1251,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       }
@@ -1400,7 +1400,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       }
@@ -1538,7 +1538,7 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       } else if (isSpecialTopic) {
@@ -1677,7 +1677,7 @@ const mentionsChartController = {
         selectedTab
       );
 
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640){
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       }
@@ -1819,7 +1819,7 @@ const mentionsChartController = {
           query: {},
         });
       }
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640){
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       }
@@ -1988,7 +1988,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       } else if (isSpecialTopic) {
@@ -2161,7 +2161,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       }
@@ -2406,7 +2406,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       } else if (isSpecialTopic) {
@@ -2668,7 +2668,7 @@ const mentionsChartController = {
         selectedTab
       );
 
-      if (topicId && parseInt(topicId) === 2619) {
+      if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
       }
       // Apply special topic source filtering
@@ -2732,7 +2732,7 @@ const mentionsChartController = {
         return res.status(200).json({ responseOutput: {} });
       }
 
-      if (topicId && parseInt(topicId) === 2619) {
+      if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
       } else {
         // Expanded list of sources (now fully dynamic)
@@ -5432,7 +5432,7 @@ const mentionsChartController = {
       let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
       
       // Apply source filtering based on topicId
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
       } else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
@@ -5643,7 +5643,7 @@ const mentionsChartController = {
       const isScadUser = false;
       const selectedTab = 'Social';
       let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
-      if (parseInt(topicId) === 2619) topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
       else if (isSpecialTopic) topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       else topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
 
@@ -5722,7 +5722,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640){
         topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
         // Apply special topic source filtering
       }

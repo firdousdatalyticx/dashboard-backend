@@ -152,7 +152,7 @@ const influencersController = {
 
         // Build source filter based on special topic
         let sourceFilterBool;
-        if (parseInt(topicId) === 2619) {
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
           sourceFilterBool = {
             bool: {
               should: [
@@ -350,7 +350,7 @@ const influencersController = {
 
       // Handle source filtering based on user type and selected tab
       let finalQueryString = filters.queryString;
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         finalQueryString = `${finalQueryString} AND source:('"LinkedIn" OR "Linkedin"')`;
       } else if (isSpecialTopic) {
         // For special topic, only use Facebook and Twitter
@@ -445,7 +445,7 @@ const influencersController = {
 
       // Handle source filtering based on user type and selected tab
       let finalQueryString = filters.queryString;
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         finalQueryString = `${finalQueryString} AND source:('"LinkedIn" OR "Linkedin"')`;
       } else if (isSpecialTopic) {
         // For special topic, only use Facebook and Twitter

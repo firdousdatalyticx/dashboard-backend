@@ -704,7 +704,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
                 match_phrase: { source: source }
             });
     }
-    else if (topicId === 2619) {
+    else if (topicId === 2619  ||  topicId === 2639 || topicId === 2640) {
     query.bool.must.push({
       bool: {
         should: [

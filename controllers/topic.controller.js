@@ -1507,7 +1507,7 @@ getTopicTotalCount: async (req, res) => {
       const socialMediaTerms = extractTermsFromCategoryData("all", processedCategories);
   
       // Determine social media sources based on special topic (matching getTopicStats)
-      const socialSources = numericTopicId === 2619 
+      const socialSources = numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640
         ? ["LinkedIn", "Linkedin"] 
         : isSpecialTopic
           ? ["Facebook", "Twitter"]

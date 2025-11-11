@@ -360,7 +360,7 @@ const topicCategoriesController = {
 
 
             // Determine social media sources based on special topic
-            const socialSources = numericTopicId === 2619 ? ["LinkedIn", "Linkedin"] : isSpecialTopic
+            const socialSources = numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 ? ["LinkedIn", "Linkedin"] : isSpecialTopic
                 ? ["Facebook", "Twitter"]
                 : [
                     "Facebook",

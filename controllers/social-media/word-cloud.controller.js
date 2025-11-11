@@ -28,7 +28,7 @@ const buildWordCloudParams = (options) => {
 
   const [sortField, sortOrder] = sort.split(":");
 
-  const sourceData =   source != "All" ? source : topicId && parseInt(topicId)===2619?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
+  const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
 
   // Base query structure
   const baseQuery = {
@@ -130,7 +130,7 @@ const buildPostsByPhraseParams = (options) => {
       ? "llm_positive_points.keyword"
       : "llm_negative_points.keyword";
 
-    const sourceData =   source != "All" ? source : topicId && parseInt(topicId)===2619?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
+    const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
 
   // Base query structure
   const baseQuery = {

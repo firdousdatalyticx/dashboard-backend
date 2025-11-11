@@ -500,7 +500,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
   
     console.log("topicId",topicId)
   // Handle special topic source filtering
-    if (topicId===2619) {
+    if (topicId===2619 ||  topicId === 2639 || topicId === 2640) {
         query.bool.must.push({
             bool: {
                 should: [

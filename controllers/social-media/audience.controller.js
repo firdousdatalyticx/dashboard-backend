@@ -180,7 +180,7 @@ const audienceController = {
 
       const topicQueryString = buildTopicQueryString(categoryData);
       let sourcesQuery = null;
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
       } else {
         sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
@@ -335,7 +335,7 @@ const audienceController = {
 
       const topicQueryString = buildTopicQueryString(categoryData);
       let sourcesQuery = null;
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
       } else {
         sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
@@ -523,7 +523,7 @@ const audienceController = {
 
       const topicQueryString = buildTopicQueryString(categoryData);
       let sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
       }
 
@@ -724,7 +724,7 @@ const audienceController = {
 
       const topicQueryString = buildTopicQueryString(categoryData);
       let sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
-      if (parseInt(topicId) === 2619) {
+      if (parseInt(topicId) === 2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
         sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
       }
 
@@ -1988,7 +1988,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
     },
   };
 
-  if (topicId === 2619) {
+  if (topicId === 2619  || topicId === 2639 || topicId === 2640) {
     query.bool.must.push({
       bool: {
         should: [

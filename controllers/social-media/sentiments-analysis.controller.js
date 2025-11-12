@@ -2,6 +2,28 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+  if (!sourceParam || sourceParam === 'All') {
+    return [];
+  }
+
+  if (Array.isArray(sourceParam)) {
+    return sourceParam
+      .filter(Boolean)
+      .map(src => src.trim())
+      .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+  }
+
+  if (typeof sourceParam === 'string') {
+    return sourceParam
+      .split(',')
+      .map(src => src.trim())
+      .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+  }
+
+  return [];
+};
+
 const getSentimentTrendData = async ({ query, formattedMinDate, formattedMaxDate, calendarInterval, formatPattern, analysisType }) => {
   const aggregations = {
     time_intervals: {
@@ -1306,12 +1328,9 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
         }
     };
 
-     if (source !== 'All') {
-            query.bool.must.push({
-                match_phrase: { source: source }
-            });
-    }
-    else if(topicIdNum===2619 || topicIdNum===2639 || topicIdNum===2640){
+    const normalizedSources = normalizeSourceInput(source);
+
+    if(topicIdNum===2619 || topicIdNum===2639 || topicIdNum===2640){
        query.bool.must.push({
               bool: {
                   should: [
@@ -1321,10 +1340,16 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
                   minimum_should_match: 1
               }
           });
-    }else 
-    // Handle special topic source filtering
-    if (isSpecialTopic) {
-        // For special topic, only allow Facebook and Twitter
+    } else if (normalizedSources.length > 0) {
+        query.bool.must.push({
+            bool: {
+                should: normalizedSources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
+        });
+    } else if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
                 should: [
@@ -1335,30 +1360,23 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
             }
         });
     } else {
-        // Original source filtering logic
-        if (source !== 'All') {
-            query.bool.must.push({
-                match_phrase: { source: source }
-            });
-        } else {
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                         { match_phrase: { source: "Linkedin" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        }
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                     { match_phrase: { source: "Linkedin" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
     }
 
     return query;

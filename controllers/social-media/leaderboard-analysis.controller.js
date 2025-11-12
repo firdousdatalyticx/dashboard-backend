@@ -1,5 +1,26 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 // Helper function to merge trend arrays by date
 function mergeArraysByDate(arr1, arr2) {
     const mergedMap = new Map();
@@ -66,8 +87,11 @@ const leaderboardAnalysisController = {
           lte: toDate,
         };
       }
+            const normalizedSources = normalizeSourceInput(source);
             // Define source filter based on special topic
-            const sourceFilter =parseInt(topicId)==2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ?
+            const sourceFilter = normalizedSources.length > 0
+            ? normalizedSources.map(src => ({ match_phrase: { source: src } }))
+            : parseInt(topicId)==2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ?
              [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },

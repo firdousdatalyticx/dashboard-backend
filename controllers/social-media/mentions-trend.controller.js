@@ -5,6 +5,28 @@ const prisma = require('../../config/database');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const mentionsTrendController = {
     /**
      * Get social media mentions trend data
@@ -860,6 +882,8 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
             ]
         }
     };
+    const normalizedSources = normalizeSourceInput(source);
+
     if (topicId === 2619 || topicId === 2639 || topicId === 2640) {
         query.bool.must.push({
             bool: {
@@ -871,7 +895,18 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
             }
         });
     }
-    // Handle special topic source filtering
+    // Apply explicit source filters if provided
+    else if (normalizedSources.length > 0) {
+        query.bool.must.push({
+            bool: {
+                should: normalizedSources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
+        });
+    }
+    // Handle special topic source filtering when no explicit filter provided
     else if (isSpecialTopic) {
         query.bool.must.push({
             bool: {
@@ -883,30 +918,23 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
             }
         });
     } else {
-        // Add source filter if a specific source is selected
-        if (source !== 'All') {
-            query.bool.must.push({
-                match_phrase: { source: source }
-            });
-        } else {
-            query.bool.must.push({
-                bool: {
-                    should: [
-                        { match_phrase: { source: "Facebook" } },
-                        { match_phrase: { source: "Twitter" } },
-                        { match_phrase: { source: "Instagram" } },
-                        { match_phrase: { source: "Youtube" } },
-                        { match_phrase: { source: "LinkedIn" } },
-                        { match_phrase: { source: "Linkedin" } },
-                        { match_phrase: { source: "Pinterest" } },
-                        { match_phrase: { source: "Web" } },
-                        { match_phrase: { source: "Reddit" } },
-                        { match_phrase: { source: "TikTok" } }
-                    ],
-                    minimum_should_match: 1
-                }
-            });
-        }
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
     }
 
     return query;

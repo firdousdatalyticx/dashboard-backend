@@ -6,6 +6,46 @@ const prisma = new PrismaClient();
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 /**
+ * Normalize source input to array of sources
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+  if (!source || source === 'All') {
+    return []; // No specific source filter
+  }
+  if (Array.isArray(source)) {
+    return source.filter(s => s && s.trim() !== '');
+  }
+  if (typeof source === 'string') {
+    return source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+  return [];
+}
+
+/**
+ * Build source filter string for query_string
+ * @param {string|Array} source - Source input
+ * @param {number} topicId - Topic ID for special handling
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
+ * @returns {string} Source filter string for query_string
+ */
+function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
+  const normalizedSources = normalizeSourceInput(source);
+  
+  if (normalizedSources.length > 0) {
+    const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+    return `source:(${sourcesStr})`;
+  } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+    return `source:("LinkedIn" OR "Linkedin")`;
+  } else if (isSpecialTopic) {
+    return `source:("Facebook" OR "Twitter")`;
+  } else {
+    return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
+  }
+}
+
+/**
  * Helper function to execute Elasticsearch count query
  * @param {Object} params Query parameters for Elasticsearch
  * @returns {Promise<Object>} Elasticsearch response
@@ -163,6 +203,9 @@ const keywordsController = {
                 const selectedTab ="";
                 let topicQueryString = ''
                 let responseArray= []
+                
+                // Check if this is the special topicId
+                const isSpecialTopic = topicId && parseInt(topicId) === 2600;
             
                 if (subtopicId) {
                   const all_touchpoints = await getAllTouchpoints(Number(subtopicId))
@@ -171,13 +214,15 @@ const keywordsController = {
                     const tp_id = all_touchpoints[i].cx_tp_tp_id
             
                     const tp_data = await getTouchpointData(tp_id)
-                    const tp_es_query_string = await buildTouchPointQueryString(tp_id)
+                    const tp_es_query_string = await buildTouchpointQueryString(tp_id)
             
                     let tempQueryString = topicQueryString
-            
-                   
-                    ? `${tempQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "All")`
-                    : `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web" OR "All")`
+                    
+                    // Apply source filtering using helper function
+                    const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+                    tempQueryString = tempQueryString
+                      ? `${tempQueryString} AND ${sourceFilter}`
+                      : sourceFilter;
 
 
             
@@ -391,14 +436,12 @@ const keywordsController = {
             
                   for (let i = 0; i < keyHashArray.length; i++) {
                     let tempQueryString = topicQueryString
-            
-                    if(parseInt(topicId)==2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640){
-                    tempQueryString =tempQueryString ?`${tempQueryString} AND source:("Linkedin" OR "LinkedIn")` :`source:("Linkedin" OR "LinkedIn")`
-                    }else{
+                    
+                    // Apply source filtering using helper function
+                    const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
                     tempQueryString = tempQueryString
-                        ? `${tempQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "All")`
-                        : `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "All")`
-                    }
+                      ? `${tempQueryString} AND ${sourceFilter}`
+                      : sourceFilter;
 
                    
                         
@@ -866,7 +909,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
     const query = {
         bool: {
             must: [
@@ -897,10 +940,34 @@ function buildBaseQuery(dateRange, source) {
         }
     };
 
-    // Add source filter if a specific source is selected
-    if (source !== 'All') {
+    const normalizedSources = normalizeSourceInput(source);
+
+    if (normalizedSources.length > 0) {
         query.bool.must.push({
-            match_phrase: { source: source }
+            bool: {
+                should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
+                minimum_should_match: 1
+            }
+        });
+    } else if (topicId === 2619 || topicId === 2639 || topicId === 2640) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
+    } else if (isSpecialTopic) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } }
+                ],
+                minimum_should_match: 1
+            }
         });
     } else {
         query.bool.must.push({
@@ -911,9 +978,11 @@ function buildBaseQuery(dateRange, source) {
                     { match_phrase: { source: "Instagram" } },
                     { match_phrase: { source: "Youtube" } },
                     { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } },
                     { match_phrase: { source: "Pinterest" } },
                     { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } }
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
                 ],
                 minimum_should_match: 1
             }

@@ -2,6 +2,24 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+/**
+ * Normalize source input to array of sources
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+  if (!source || source === 'All') {
+    return []; // No specific source filter
+  }
+  if (Array.isArray(source)) {
+    return source.filter(s => s && s.trim() !== '');
+  }
+  if (typeof source === 'string') {
+    return source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+  return [];
+}
+
 const fieldCountsController = {
     /**
      * Get counts for all 4 fields (sector, trust_dimensions, themes_sentiments, touchpoints)
@@ -71,19 +89,59 @@ const fieldCountsController = {
                             range: {
                                 p_created_time: dateRangeForQuery
                             }
-                        },
-                        {
-                            bool: {
-                                should: [
-                                    { match_phrase: { source: "Facebook" } },
-                                    { match_phrase: { source: "Twitter" } }
-                                ],
-                                minimum_should_match: 1
-                            }
                         }
                     ]
                 }
             };
+            
+            // Add source filter
+            const normalizedSources = normalizeSourceInput(source);
+            if (normalizedSources.length > 0) {
+                query.bool.must.push({
+                    bool: {
+                        should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
+                        minimum_should_match: 1
+                    }
+                });
+            } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "LinkedIn" } },
+                            { match_phrase: { source: "Linkedin" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            } else if (isSpecialTopic) {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "Facebook" } },
+                            { match_phrase: { source: "Twitter" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            } else {
+                query.bool.must.push({
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "Facebook" } },
+                            { match_phrase: { source: "Twitter" } },
+                            { match_phrase: { source: "Instagram" } },
+                            { match_phrase: { source: "Youtube" } },
+                            { match_phrase: { source: "LinkedIn" } },
+                            { match_phrase: { source: "Linkedin" } },
+                            { match_phrase: { source: "Pinterest" } },
+                            { match_phrase: { source: "Web" } },
+                            { match_phrase: { source: "Reddit" } },
+                            { match_phrase: { source: "TikTok" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            }
     
             // Add sentiment filter if provided
             if (sentiment) {
@@ -333,7 +391,7 @@ const fieldCountsController = {
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, isSpecialTopic);
+            }, source, isSpecialTopic, parseInt(topicId));
 
             // Add sentiment filter if provided
             if (sentiment) {
@@ -596,7 +654,7 @@ const formatPostData = (hit) => {
  * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
     const query = {
         bool: {
             must: [
@@ -617,16 +675,54 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false) {
         }
     };
 
-    // Handle special topic source filtering
-    query.bool.must.push({
-        bool: {
-            should: [
-                { match_phrase: { source: "Facebook" } },
-                { match_phrase: { source: "Twitter" } }
-            ],
-            minimum_should_match: 1
-        }
-    });
+    const normalizedSources = normalizeSourceInput(source);
+
+    if (normalizedSources.length > 0) {
+        query.bool.must.push({
+            bool: {
+                should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
+                minimum_should_match: 1
+            }
+        });
+    } else if (topicId === 2619 || topicId === 2639 || topicId === 2640) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
+    } else if (isSpecialTopic) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
+    } else {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } },
+                    { match_phrase: { source: "Pinterest" } },
+                    { match_phrase: { source: "Web" } },
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
+    }
 
     return query;
 }

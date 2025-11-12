@@ -234,6 +234,40 @@ const buildQueryString = async (topicId, isScadUser, selectedTab) => {
   return strToSearch;
 };
 
+/**
+ * Normalize source input and build source filter string for query_string
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @param {number} topicId - Topic ID for special handling
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
+ * @returns {string} Source filter string for query_string
+ */
+function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
+  // Normalize source input
+  let normalizedSources = [];
+  if (!source || source === 'All') {
+    normalizedSources = [];
+  } else if (Array.isArray(source)) {
+    normalizedSources = source.filter(s => s && s.trim() !== '');
+  } else if (typeof source === 'string') {
+    normalizedSources = source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+
+  // If specific sources provided, use them
+  if (normalizedSources.length > 0) {
+    const sourceStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+    return `source:(${sourceStr})`;
+  }
+
+  // Otherwise, use topic-specific defaults
+  if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
+    return 'source:("LinkedIn" OR "Linkedin")';
+  } else if (isSpecialTopic) {
+    return 'source:("Twitter" OR "Facebook")';
+  } else {
+    return 'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")';
+  }
+}
+
 const elasticSearchCount = async (params) => {
   try {
     // Elasticsearch `_count` API call
@@ -986,7 +1020,7 @@ const formatPostDataForLanguage = (hit, req) => {
 const mentionsChartController = {
   actionRequiredMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1010,15 +1044,9 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
  
       // Fetch mention actions in **one** query
@@ -1039,7 +1067,7 @@ const mentionsChartController = {
 
   typeofMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1063,15 +1091,9 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
 
 
@@ -1251,20 +1273,9 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        if (sources == "All") {
-          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-        } else {
-          topicQueryString = `${topicQueryString} AND source:(${sources})`;
-        }
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(sources, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
       const params = {
         size: 0,
@@ -1380,7 +1391,7 @@ const mentionsChartController = {
 
   recurrenceMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1400,16 +1411,9 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
    
       // **Single Aggregation Query**
@@ -1514,7 +1518,7 @@ const mentionsChartController = {
 
   urgencyMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1538,14 +1542,9 @@ const mentionsChartController = {
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      } else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
 
 
@@ -1656,7 +1655,7 @@ const mentionsChartController = {
 
   audienceMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1677,16 +1676,9 @@ const mentionsChartController = {
         selectedTab
       );
 
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640){
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
 
       // **Single Aggregation Query for Dynamic Urgency Levels**
@@ -2139,7 +2131,7 @@ const mentionsChartController = {
 
   complaintsAcrossCustomerJourneyStagesbyAudience: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -2161,16 +2153,9 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      }
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString += ` AND ${sourceFilter}`;
 
    
 
@@ -2375,7 +2360,7 @@ const mentionsChartController = {
 
   languageMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -2406,14 +2391,9 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-        // Apply special topic source filtering
-      } else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
     
 
@@ -2668,31 +2648,9 @@ const mentionsChartController = {
         selectedTab
       );
 
-      if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-      }
-      // Apply special topic source filtering
-
-      // Apply special topic source filtering
-      else if (isSpecialTopic) {
-        if (source != "All") {
-          // Only allow Facebook or Twitter for special topic
-          if (source === "Facebook" || source === "Twitter") {
-            topicQueryString = `${topicQueryString} AND source:("${source}")`;
-          } else {
-            // If source is not Facebook or Twitter, use Facebook and Twitter
-            topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-          }
-        } else {
-          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-        }
-      } else {
-        if (source != "All") {
-          topicQueryString = `${topicQueryString} AND source:("${source}")`;
-        } else {
-          topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-        }
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
     
 
@@ -2830,7 +2788,7 @@ const mentionsChartController = {
 
   productComplaints: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source = 'All' } = req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -2846,12 +2804,9 @@ const mentionsChartController = {
       //  if(topicQueryString==""){
       //   return res.status(200).json({ responseOutput:{} });
       // }
-      // Apply special topic source filtering
-      if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram"  OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
             // Apply special topic date range
       const effectiveFromDate =
@@ -3998,14 +3953,9 @@ const mentionsChartController = {
         selectedTab
       );
 
-      // Apply special topic source filtering
-      if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
-      }
-
-  
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
       // Build the main query
       const query = {
@@ -4061,13 +4011,20 @@ const mentionsChartController = {
         });
       }
 
-      // Add source filter if provided
-      if (source && source !== "") {
-        query.query.bool.must.push({
-          term: {
-            "source.keyword": source.trim(),
-          },
-        });
+      // Add source filter if provided (using normalized sources)
+      if (source && source !== "" && source !== "All") {
+        const normalizedSources = typeof source === 'string' 
+          ? source.split(',').map(s => s.trim()).filter(s => s !== '')
+          : Array.isArray(source) ? source.filter(s => s && s.trim() !== '') : [];
+        
+        if (normalizedSources.length > 0) {
+          query.query.bool.must.push({
+            bool: {
+              should: normalizedSources.map(s => ({ term: { "source.keyword": s.trim() } })),
+              minimum_should_match: 1
+            }
+          });
+        }
       }
 
       // Add subtopic filter if provided
@@ -5431,14 +5388,9 @@ const mentionsChartController = {
       
       let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
       
-      // Apply source filtering based on topicId
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-      } else if (isSpecialTopic) {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      } else {
-        topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
-      }
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
   
       // Build the base query
       const baseQuery = {
@@ -5643,9 +5595,9 @@ const mentionsChartController = {
       const isScadUser = false;
       const selectedTab = 'Social';
       let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) topicQueryString = `${topicQueryString} AND source:("LinkedIn" OR "Linkedin")`;
-      else if (isSpecialTopic) topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
-      else topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Web")`;
+      // Apply source filtering using helper function
+      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
       // base query
       const must = [

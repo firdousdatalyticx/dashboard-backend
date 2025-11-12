@@ -54,6 +54,46 @@ const getSourceIcon = (userSource) => {
   return userSource;
 };
 
+/**
+ * Normalize source input to array of sources
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+  if (!source || source === 'All') {
+    return []; // No specific source filter
+  }
+  if (Array.isArray(source)) {
+    return source.filter(s => s && s.trim() !== '');
+  }
+  if (typeof source === 'string') {
+    return source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+  return [];
+}
+
+/**
+ * Build source filter string for query_string
+ * @param {string|Array} source - Source input
+ * @param {number} topicId - Topic ID for special handling
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
+ * @returns {string} Source filter string for query_string
+ */
+function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
+  const normalizedSources = normalizeSourceInput(source);
+  
+  if (normalizedSources.length > 0) {
+    const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+    return `source:(${sourcesStr})`;
+  } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+    return `source:("LinkedIn" OR "Linkedin")`;
+  } else if (isSpecialTopic) {
+    return `source:("Facebook" OR "Twitter")`;
+  } else {
+    return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
+  }
+}
+
 // Helper function to create Elasticsearch query
 const createElasticQuery = (
   queryString,
@@ -147,12 +187,23 @@ const influencersController = {
 
       const finalDataArray = [];
 
+      // Get source parameter if provided
+      const source = req.body.source || 'All';
+      const normalizedSources = normalizeSourceInput(source);
+
       for (const followerType of INFLUENCER_TYPES) {
         const { type, from, to } = followerType;
 
-        // Build source filter based on special topic
+        // Build source filter based on special topic or normalized sources
         let sourceFilterBool;
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+        if (normalizedSources.length > 0) {
+          sourceFilterBool = {
+            bool: {
+              should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
+              minimum_should_match: 1,
+            },
+          };
+        } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
           sourceFilterBool = {
             bool: {
               should: [
@@ -349,20 +400,18 @@ const influencersController = {
       });
 
       // Handle source filtering based on user type and selected tab
+      const source = req.body.source || 'All';
       let finalQueryString = filters.queryString;
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        finalQueryString = `${finalQueryString} AND source:('"LinkedIn" OR "Linkedin"')`;
-      } else if (isSpecialTopic) {
-        // For special topic, only use Facebook and Twitter
-        finalQueryString = `${finalQueryString} AND source:('"Facebook" OR "Twitter"')`;
-      } else if (isScadUser === "true") {
-        if (selectedTab === "GOOGLE") {
-          finalQueryString = finalQueryString
-            ? `${finalQueryString} AND source:('"GoogleMyBusiness"')`
-            : `source:('"GoogleMyBusiness"')`;
-        } else {
-          finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
-        }
+      
+      if (isScadUser === "true" && selectedTab === "GOOGLE") {
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND source:("GoogleMyBusiness")`
+          : `source:("GoogleMyBusiness")`;
+      } else {
+        const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND ${sourceFilter}`
+          : sourceFilter;
       }
 
       // Execute Elasticsearch queries concurrently for each category
@@ -444,20 +493,18 @@ const influencersController = {
       });
 
       // Handle source filtering based on user type and selected tab
+      const source = req.query.source || 'All';
       let finalQueryString = filters.queryString;
-      if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        finalQueryString = `${finalQueryString} AND source:('"LinkedIn" OR "Linkedin"')`;
-      } else if (isSpecialTopic) {
-        // For special topic, only use Facebook and Twitter
-        finalQueryString = `${finalQueryString} AND source:('"Facebook" OR "Twitter"')`;
-      } else if (isScadUser === "true") {
-        if (selectedTab === "GOOGLE") {
-          finalQueryString = finalQueryString
-            ? `${finalQueryString} AND source:('"GoogleMyBusiness"')`
-            : `source:('"GoogleMyBusiness"')`;
-        } else {
-          finalQueryString = `${finalQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
-        }
+      
+      if (isScadUser === "true" && selectedTab === "GOOGLE") {
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND source:("GoogleMyBusiness")`
+          : `source:("GoogleMyBusiness")`;
+      } else {
+        const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND ${sourceFilter}`
+          : sourceFilter;
       }
 
       const index = CATEGORY_TYPES.indexOf(type);

@@ -439,6 +439,28 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const emotionPolarityController = {
     getEmotionPolarity: async (req, res) => {
         try {
@@ -512,47 +534,50 @@ const emotionPolarityController = {
                 };
             }
 
+            const normalizedSources = normalizeSourceInput(source);
             // Update source filter based on special topic
-            const sourceFilter = source=="All" || source=="" ? parseInt(topicId)==2619 ||  parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ? {
-                bool: {
-                    should: [
-                        { match_phrase: { source: 'LinkedIn' } },
-                         { match_phrase: { source: 'Linkedin' } },
-                    ],
-                    minimum_should_match: 1
+            const sourceFilter = normalizedSources.length > 0
+                ? {
+                    bool: {
+                        should: normalizedSources.map(src => ({
+                            match_phrase: { source: src }
+                        })),
+                        minimum_should_match: 1
+                    }
                 }
-            }:isSpecialTopic ? {
-                bool: {
-                    should: [
-                        { match_phrase: { source: 'Facebook' } },
-                        { match_phrase: { source: 'Twitter' } }
-                    ],
-                    minimum_should_match: 1
-                }
-            } : {
-                bool: {
-                    should: [
-                        { match_phrase: { source: 'Facebook' } },
-                        { match_phrase: { source: 'Twitter' } },
-                        { match_phrase: { source: 'Instagram' } },
-                        { match_phrase: { source: 'Youtube' } },
-                        { match_phrase: { source: 'Pinterest' } },
-                        { match_phrase: { source: 'Reddit' } },
-                        { match_phrase: { source: 'LinkedIn' } },
-                         { match_phrase: { source: 'Linkedin' } },
-                        { match_phrase: { source: 'Web' } },
-                        { match_phrase: { source: 'TikTok' } }
-                    ],
-                    minimum_should_match: 1
-                }
-            } : {
-                bool: {
-                    should: [
-                        { match_phrase: { source: source } },
-                    ],
-                    minimum_should_match: 1
-                }
-            };
+                : parseInt(topicId)==2619 ||  parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ? {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: 'LinkedIn' } },
+                             { match_phrase: { source: 'Linkedin' } },
+                        ],
+                        minimum_should_match: 1
+                    }
+                }:isSpecialTopic ? {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: 'Facebook' } },
+                            { match_phrase: { source: 'Twitter' } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                } : {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: 'Facebook' } },
+                            { match_phrase: { source: 'Twitter' } },
+                            { match_phrase: { source: 'Instagram' } },
+                            { match_phrase: { source: 'Youtube' } },
+                            { match_phrase: { source: 'Pinterest' } },
+                            { match_phrase: { source: 'Reddit' } },
+                            { match_phrase: { source: 'LinkedIn' } },
+                             { match_phrase: { source: 'Linkedin' } },
+                            { match_phrase: { source: 'Web' } },
+                            { match_phrase: { source: 'TikTok' } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
 
             // Build the main query filters array
             const queryFilters = [sourceFilter];

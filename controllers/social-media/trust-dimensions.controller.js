@@ -5,6 +5,46 @@ const processCategoryItems = require('../../helpers/processedCategoryItems');
 // Cap the number of posts we attach per theme in the word cloud to keep
 // processing and payload light without changing the response structure
 const WORDCLOUD_POSTS_CAP = 20;
+
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const trustDimensionsController = {
     /**
      * Get trust dimensions analysis data for social media posts
@@ -28,7 +68,7 @@ const trustDimensionsController = {
 
             // Get category data from middleware
             let categoryData = {};
-      
+
             if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
               categoryData = processCategoryItems(req.body.categoryItems);
             } else {
@@ -41,6 +81,16 @@ const trustDimensionsController = {
                     trustDimensions: [],
                     totalCount: 0
                 });
+            }
+
+            let workingCategory = category;
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({ success: false, error: 'Category not found', trustDimensions: [], totalCount: 0 });
+                }
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
             }
 
             // Set date range - for special topic, don't use default 90 days restriction
@@ -96,7 +146,7 @@ const trustDimensionsController = {
             }
 
             // Add category filters
-            addCategoryFilters(query, category, categoryData);
+            addCategoryFilters(query, workingCategory, categoryData);
 
             // Add filter to only include posts with trust_dimensions field
             query.bool.must.push({
@@ -174,13 +224,13 @@ const trustDimensionsController = {
         } = req.body;
         // Get category data from middleware
         let categoryData = {};
-      
+
         if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
           categoryData = processCategoryItems(req.body.categoryItems);
         } else {
           // Fall back to middleware data
           categoryData = req.processedCategories || {};
-        }     
+        }
 
         if (Object.keys(categoryData).length === 0) {
             return res.json({
@@ -188,6 +238,16 @@ const trustDimensionsController = {
                 trustDimensions: [],
                 totalTrustPosts: 0
             });
+        }
+
+        let workingCategory = category;
+        if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+            const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+            if (!matchedKey) {
+                return res.json({ success: false, error: 'Category not found', trustDimensions: [], totalTrustPosts: 0 });
+            }
+            categoryData = { [matchedKey]: categoryData[matchedKey] };
+            workingCategory = matchedKey;
         }
 
         // Handle date range based on timeSlot
@@ -328,8 +388,8 @@ const trustDimensionsController = {
                     minimum_should_match: 1
                 }
             });
-        } else if (categoryData[category]) {
-            const data = categoryData[category];
+        } else if (categoryData[workingCategory]) {
+            const data = categoryData[workingCategory];
 
             // Check if the category has any filtering criteria
             const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
@@ -497,7 +557,7 @@ getTrustDimensionsWordCloudPosts: async (req, res) => {
 
         // Get category data from middleware
         let categoryData = {};
-      
+
         if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
             categoryData = processCategoryItems(req.body.categoryItems);
         } else {
@@ -515,6 +575,16 @@ getTrustDimensionsWordCloudPosts: async (req, res) => {
                     totalPages: 0
                 }
             });
+        }
+
+        let workingCategory = category;
+        if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+            const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+            if (!matchedKey) {
+                return res.json({ success: false, error: 'Category not found', posts: [], totalPosts: 0, pagination: { page: parseInt(page), limit: parseInt(limit), totalPages: 0 } });
+            }
+            categoryData = { [matchedKey]: categoryData[matchedKey] };
+            workingCategory = matchedKey;
         }
 
         // Handle date range based on timeSlot (same logic as main controller)
@@ -660,8 +730,8 @@ getTrustDimensionsWordCloudPosts: async (req, res) => {
                     minimum_should_match: 1
                 }
             });
-        } else if (categoryData[category]) {
-            const data = categoryData[category];
+        } else if (categoryData[workingCategory]) {
+            const data = categoryData[workingCategory];
             const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
             const hasHashtags = Array.isArray(data.hashtags) && data.hashtags.length > 0;
             const hasUrls = Array.isArray(data.urls) && data.urls.length > 0;
@@ -793,12 +863,12 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
 
         // Get category data from middleware
         let categoryData = {};
-      
+
         if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
             categoryData = processCategoryItems(req.body.categoryItems);
         } else {
             categoryData = req.processedCategories || {};
-        }     
+        }
 
         if (Object.keys(categoryData).length === 0) {
             return res.json({
@@ -807,6 +877,16 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
                 toneTotals: {},
                 dimensionsByTone: {}
             });
+        }
+
+        let workingCategory = category;
+        if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+            const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+            if (!matchedKey) {
+                return res.json({ success: false, error: 'Category not found', trustDimensions: [], toneTotals: {}, dimensionsByTone: {} });
+            }
+            categoryData = { [matchedKey]: categoryData[matchedKey] };
+            workingCategory = matchedKey;
         }
 
         // [Same date handling logic as original...]
@@ -936,8 +1016,8 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
                     minimum_should_match: 1
                 }
             });
-        } else if (categoryData[category]) {
-            const data = categoryData[category];
+        } else if (categoryData[workingCategory]) {
+            const data = categoryData[workingCategory];
 
             // Check if the category has any filtering criteria
             const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
@@ -1116,6 +1196,16 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
                 return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
             }
 
+            let workingCategory = category;
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({ success: false, error: 'Category not found', posts: [], total: 0, page: Number(page), limit: Number(limit) });
+                }
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
+            }
+
             // Date range with 90 days default if not provided
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
@@ -1165,7 +1255,7 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
             }
 
             // Category filters
-            addCategoryFilters(query, category, categoryData);
+            addCategoryFilters(query, workingCategory, categoryData);
 
             // trust_dimensions exists
             query.bool.must.push({ exists: { field: 'trust_dimensions' } });

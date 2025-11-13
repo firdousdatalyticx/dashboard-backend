@@ -24,6 +24,45 @@ const normalizeSourceInput = (sourceParam) => {
   return [];
 };
 
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
 const emotionsController = {
   /**
    * Get emotions analysis data for social media posts
@@ -36,7 +75,7 @@ const emotionsController = {
       const {
         interval = "monthly",
         source = "All",
-        category = "all",
+        category: inputCategory = "all",
         topicId,
         fromDate,
         toDate,
@@ -60,6 +99,19 @@ const emotionsController = {
           success: true,
           emotions: [],
         });
+      }
+
+      let category = inputCategory;
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json({
+            success: true,
+            emotions: [],
+            error: 'Category not found'
+          });
+        }
+        category = matchedKey;
       }
 
       // Set default date range - last 90 days
@@ -408,7 +460,7 @@ const emotionsController = {
     const {
       interval = "monthly",
       source = "All",
-      category = "all",
+      category: inputCategory = "all",
       topicId,
       fromDate,
       toDate,
@@ -437,6 +489,20 @@ const emotionsController = {
         posts: [],
         total: 0
       });
+    }
+
+    let category = inputCategory;
+    if (category !== 'all' && category !== '' && category !== 'custom') {
+      const matchedKey = findMatchingCategoryKey(category, categoryData);
+      if (!matchedKey) {
+        return res.json({
+          success: true,
+          posts: [],
+          total: 0,
+          error: 'Category not found'
+        });
+      }
+      category = matchedKey;
     }
 
     // Set default date range - last 90 days if no dates provided

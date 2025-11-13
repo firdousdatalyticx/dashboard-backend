@@ -24,6 +24,39 @@ const normalizeSourceInput = (sourceParam) => {
     return [];
 };
 
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
 const socialsDistributionsController = {
     getDistributions: async (req, res) => {
         try {
@@ -56,8 +89,18 @@ const socialsDistributionsController = {
                 return res.json({});
             }
 
+            let workingCategory = category;
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({ error: 'Category not found' });
+                }
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
+            }
+
               // Build base query for filters processing
-                        const baseQueryString = buildBaseQueryString(category, categoryData);
+                        const baseQueryString = buildBaseQueryString(workingCategory, categoryData);
                         
                         // Process filters (time slot, date range, sentiment)
                         const filters = processFilters({
@@ -103,7 +146,7 @@ const socialsDistributionsController = {
                         );
             
                         // Add category filters
-                        addCategoryFilters(query, category, categoryData);
+                        addCategoryFilters(query, workingCategory, categoryData);
                         
                         // Apply sentiment filter if provided
                         if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {

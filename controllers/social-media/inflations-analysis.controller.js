@@ -20,6 +20,45 @@ function normalizeSourceInput(source) {
   return [];
 }
 
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const inflationController = {
     /**
      * Get inflation analysis data for social media posts
@@ -32,7 +71,7 @@ const inflationController = {
             const {
                 interval = 'monthly',
                 source = 'All',
-                category = 'all',
+                category: inputCategory = 'all',
                 topicId
             } = req.body;
 
@@ -53,6 +92,19 @@ const inflationController = {
                     success: true,
                     inflations: []
                 });
+            }
+
+            let category = inputCategory;
+            if (category !== 'all' && category !== '' && category !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(category, categoryData);
+                if (!matchedKey) {
+                    return res.json({
+                        success: true,
+                        inflations: [],
+                        error: 'Category not found'
+                    });
+                }
+                category = matchedKey;
             }
 
             // Set date range - for special topic, don't use default 90 days restriction

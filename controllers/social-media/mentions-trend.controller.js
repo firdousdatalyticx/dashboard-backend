@@ -27,6 +27,39 @@ const normalizeSourceInput = (sourceParam) => {
     return [];
 };
 
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
 const mentionsTrendController = {
     /**
      * Get social media mentions trend data
@@ -68,6 +101,19 @@ const mentionsTrendController = {
                     mentionsGraphData: '',
                     maxMentionData: '0'
                 });
+            }
+
+            if (category !== 'all' && category !== '' && category !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(category, categoryData);
+                if (!matchedKey) {
+                    return res.json({
+                        success: true,
+                        error: 'Category not found',
+                        mentionsGraphData: '',
+                        maxMentionData: '0'
+                    });
+                }
+                category = matchedKey;
             }
 
             // Build base query for filters processing
@@ -335,6 +381,19 @@ const mentionsTrendController = {
                 });
             }
 
+            if (category !== 'all' && category !== '' && category !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(category, categoryData);
+                if (!matchedKey) {
+                    return res.json({
+                        success: true,
+                        error: 'Category not found',
+                        mentionsGraphData: '',
+                        maxMentionData: '0'
+                    });
+                }
+                category = matchedKey;
+            }
+
             // Build base query for filters processing
             const baseQueryString = buildBaseQueryString(category, categoryData);
 
@@ -524,6 +583,19 @@ const mentionsTrendController = {
                     mentionsGraphData: '',
                     maxMentionData: ',0'
                 });
+            }
+
+            if (category !== 'all' && category !== '' && category !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(category, categoryData);
+                if (!matchedKey) {
+                    return res.json({
+                        success: false,
+                        error: 'Category not found',
+                        mentionsGraphData: '',
+                        maxMentionData: ',0'
+                    });
+                }
+                category = matchedKey;
             }
 
             // Check if this is the special topicId

@@ -4,6 +4,45 @@ const router = express.Router();
 const prisma = require("../../config/database");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 // Dedicated formatter for trust-dimension posts (top-level so it can be reused anywhere)
 function formatTrustPost(hit) {
   const src = hit._source || {};
@@ -1020,7 +1059,7 @@ const formatPostDataForLanguage = (hit, req) => {
 const mentionsChartController = {
   actionRequiredMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1028,6 +1067,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ responseOutput: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -1067,7 +1117,7 @@ const mentionsChartController = {
 
   typeofMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1075,6 +1125,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ responseOutput: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -1251,7 +1312,8 @@ const mentionsChartController = {
         topicId,
         sentimentType,
         sources = "All",
-        categoryItems
+        categoryItems,
+        category = 'all'
       } = req.body;
 
       // Determine which category data to use
@@ -1260,6 +1322,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ entities: [], total: 0 });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -1391,7 +1464,7 @@ const mentionsChartController = {
 
   recurrenceMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1399,6 +1472,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ responseOutput: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -1518,7 +1602,7 @@ const mentionsChartController = {
 
   urgencyMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1526,6 +1610,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ influencersCoverage: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -1655,7 +1750,7 @@ const mentionsChartController = {
 
   audienceMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1663,6 +1758,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ influencersCoverage: {}, result: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -1782,7 +1888,7 @@ const mentionsChartController = {
   },
   audienceMentionsAcrossMentionType: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1790,6 +1896,16 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          return res.status(200).json({ data: [], totalAudiences: 0, query: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -1958,7 +2074,7 @@ const mentionsChartController = {
 
   riskTypeAcrossCustomerJourney: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1966,6 +2082,16 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          return res.status(200).json({ data: [], totalAudiences: 0, result: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -2131,7 +2257,7 @@ const mentionsChartController = {
 
   complaintsAcrossCustomerJourneyStagesbyAudience: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -2139,6 +2265,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ data: [], totalAudiences: 0, result: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -3676,8 +3813,26 @@ const mentionsChartController = {
 
   migrationTopicsSummarye: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
-        req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems, category = 'all' } = req.body;
+
+      // Determine which category data to use
+      let categoryData = {};
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ responseOutput: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
+      }
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -3761,9 +3916,8 @@ const mentionsChartController = {
   migrationTopicsSummary: async (req, res) => {
     try {
       const { fromDate, toDate, subtopicId, topicId, sentimentType, source,
-        categoryItems
-       } =
-        req.body;
+        categoryItems, category = 'all'
+       } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -3771,6 +3925,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: false, topics: [], totalCount: 0, query: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId
@@ -3939,8 +4104,26 @@ const mentionsChartController = {
 
   eventTypePopularity: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
-        req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems, category = 'all' } = req.body;
+
+      // Determine which category data to use
+      let categoryData = {};
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: true, data: [], total: 0, results: [], query: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
+      }
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -4018,12 +4201,12 @@ const mentionsChartController = {
           : Array.isArray(source) ? source.filter(s => s && s.trim() !== '') : [];
         
         if (normalizedSources.length > 0) {
-          query.query.bool.must.push({
+        query.query.bool.must.push({
             bool: {
               should: normalizedSources.map(s => ({ term: { "source.keyword": s.trim() } })),
               minimum_should_match: 1
             }
-          });
+        });
         }
       }
 
@@ -4109,8 +4292,26 @@ const mentionsChartController = {
 
   llmMotivationPhase: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentiment, source } =
-        req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentiment, source, categoryItems, category = 'all' } = req.body;
+
+      // Determine which category data to use
+      let categoryData = {};
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: true, data: [], total: 0, query: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
+      }
 
       const topicIdNum = parseInt(topicId);
       const isSpecialTopic = topicIdNum === 2600;
@@ -4427,8 +4628,7 @@ const mentionsChartController = {
 
   llmMotivationSentimentTrend: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentiment, source, categoryItems } =
-        req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentiment, source, categoryItems, category = 'all' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -4436,6 +4636,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: true, data: {}, total: 0 });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       const topicIdNum = parseInt(topicId);
@@ -5371,8 +5582,8 @@ const mentionsChartController = {
 
   trustDimensionsEducationSystem: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } = req.body;
-  
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems, category = 'all' } = req.body;
+
       // Determine which category data to use
       let categoryData = {};
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -5380,7 +5591,18 @@ const mentionsChartController = {
       } else {
         categoryData = req.processedCategories || {};
       }
-  
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: true, data: [] });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
+      }
+
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
       const isScadUser = false;
@@ -5578,7 +5800,7 @@ const mentionsChartController = {
    // New: fetch posts for a specific trust dimension and emotion
    trustDimensionsEducationSystemPosts: async function(req, res) {
     try {
-      const { fromDate, toDate, topicId, sentimentType, source, categoryItems, dimension, emotion } = req.body;
+      const { fromDate, toDate, topicId, sentimentType, source, categoryItems, dimension, emotion, category = 'all' } = req.body;
 
       if (!dimension) return res.status(400).json({ success: false, error: 'dimension is required' });
 
@@ -5588,6 +5810,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: true, data: [] });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // topic/source filter
@@ -5653,8 +5886,7 @@ const mentionsChartController = {
 
   benchMarkingPresenceSentiment: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } =
-        req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems, category = 'all' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -5662,6 +5894,17 @@ const mentionsChartController = {
         categoryData = processCategoryItems(categoryItems);
       } else {
         categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: true, data: [] });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
       }
 
       // Check if this is the special topicId

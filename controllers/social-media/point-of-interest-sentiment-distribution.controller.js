@@ -21,6 +21,40 @@ const normalizeSourceInput = (sourceParam) => {
 
     return [];
 };
+
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const poiSentimentDistributionController = {
     getDistribution: async (req, res) => {
         try {
@@ -45,6 +79,16 @@ const poiSentimentDistributionController = {
             }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ distribution: [] });
+            }
+
+            let workingCategory = category;
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({ distribution: [], error: 'Category not found' });
+                }
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
             }
 
             // Calculate date filter based on special topic

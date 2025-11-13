@@ -20,6 +20,45 @@ function normalizeSourceInput(source) {
   return [];
 }
 
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const getTouchpointPosts = async (req, res) => {
   try {
     const {
@@ -47,6 +86,16 @@ const getTouchpointPosts = async (req, res) => {
     }
     if (Object.keys(categoryData).length === 0) {
       return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
+    }
+
+    let workingCategory = category;
+    if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+            return res.json({ success: false, error: 'Category not found', posts: [], total: 0, page: Number(page), limit: Number(limit) });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
     }
 
     // Date range
@@ -133,7 +182,7 @@ const getTouchpointPosts = async (req, res) => {
     }
 
     // Category filters
-    if (category === 'all') {
+    if (workingCategory === 'all') {
       query.bool.must.push({
         bool: {
           should: [
@@ -168,8 +217,8 @@ const getTouchpointPosts = async (req, res) => {
           minimum_should_match: 1
         }
       });
-    } else if (categoryData[category]) {
-      const data = categoryData[category];
+    } else if (categoryData[workingCategory]) {
+      const data = categoryData[workingCategory];
       const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
       const hasHashtags = Array.isArray(data.hashtags) && data.hashtags.length > 0;
       const hasUrls = Array.isArray(data.urls) && data.urls.length > 0;

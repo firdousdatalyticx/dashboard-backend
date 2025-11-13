@@ -2,6 +2,39 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { processFilters } = require('./filter.utils');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+  if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+    return selectedCategory;
+  }
+
+  const normalizedSelectedRaw = String(selectedCategory || '');
+  const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+  const categoryKeys = Object.keys(categoryData || {});
+
+  if (categoryKeys.length === 0) {
+    return null;
+  }
+
+  let matchedKey = categoryKeys.find(
+    key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+  );
+
+  if (!matchedKey) {
+    matchedKey = categoryKeys.find(
+      key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+    );
+  }
+
+  if (!matchedKey) {
+    matchedKey = categoryKeys.find(key => {
+      const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+      return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+    });
+  }
+
+  return matchedKey || null;
+};
+
 const getDistributionPosts = async (req, res) => {
   try {
     const {
@@ -33,8 +66,18 @@ const getDistributionPosts = async (req, res) => {
       return res.json({ posts: [] });
     }
 
+    let workingCategory = category;
+    if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+      const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+      if (!matchedKey) {
+        return res.json({ posts: [], error: 'Category not found' });
+      }
+      categoryData = { [matchedKey]: categoryData[matchedKey] };
+      workingCategory = matchedKey;
+    }
+
     // Build base query
-    const baseQueryString = buildBaseQueryString(category, categoryData);
+    const baseQueryString = buildBaseQueryString(workingCategory, categoryData);
     const filters = processFilters({ sentimentType, timeSlot, fromDate, toDate, queryString: baseQueryString, isSpecialTopic });
 
     const noDateProvided = (
@@ -57,7 +100,7 @@ const getDistributionPosts = async (req, res) => {
       parseInt(topicId)
     );
 
-    addCategoryFilters(query, category, categoryData);
+    addCategoryFilters(query, workingCategory, categoryData);
 
     if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
       if (sentimentType.includes(',')) {

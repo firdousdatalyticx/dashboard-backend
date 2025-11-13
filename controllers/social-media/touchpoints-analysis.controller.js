@@ -1,6 +1,45 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const touchpointsAnalysisController = {
     /**
      * Get touchpoints analysis data grouped by sentiment for stacked bar chart
@@ -23,7 +62,7 @@ const touchpointsAnalysisController = {
 
             // Get category data from middleware
             let categoryData = {};
-      
+
             if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
               categoryData = processCategoryItems(req.body.categoryItems);
             } else {
@@ -36,6 +75,16 @@ const touchpointsAnalysisController = {
                     touchpointsAnalysis: [],
                     totalCount: 0
                 });
+            }
+
+            let workingCategory = category;
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({ success: false, error: 'Category not found', touchpointsAnalysis: [], totalCount: 0 });
+                }
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
             }
 
             // Set date range
@@ -91,7 +140,7 @@ const touchpointsAnalysisController = {
             }
 
             // Add category filters
-            addCategoryFilters(query, category, categoryData);
+            addCategoryFilters(query, workingCategory, categoryData);
 
             // Add filter to only include posts with touchpoints field
             query.bool.must.push({

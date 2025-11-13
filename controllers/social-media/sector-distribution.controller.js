@@ -1,6 +1,40 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const sectorDistributionController = {
     /**
      * Get sector distribution analysis data for social media posts
@@ -37,6 +71,21 @@ const sectorDistributionController = {
                     sectors: [],
                     totalCount: 0
                 });
+            }
+
+            let workingCategory = category;
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({
+                        success: true,
+                        sectors: [],
+                        totalCount: 0,
+                        error: 'Category not found'
+                    });
+                }
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
             }
 
             // Set date range
@@ -92,7 +141,7 @@ const sectorDistributionController = {
             }
 
             // Add category filters
-            addCategoryFilters(query, category, categoryData);
+            addCategoryFilters(query, workingCategory !== 'all' ? workingCategory : 'all', categoryData);
 
             // Add filter to only include posts with sector field
             query.bool.must.push({
@@ -204,6 +253,16 @@ const sectorDistributionController = {
                 return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
             }
 
+            let workingCategory = category;
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit), error: 'Category not found' });
+                }
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
+            }
+
             // Set date range
             const now = new Date();
             let effectiveGreaterThanTime, effectiveLessThanTime;
@@ -232,7 +291,7 @@ const sectorDistributionController = {
             }
 
             // Add category filters
-            addCategoryFilters(query, category, categoryData);
+            addCategoryFilters(query, workingCategory !== 'all' ? workingCategory : 'all', categoryData);
 
             // Add filter to only include posts with sector field
             query.bool.must.push({ exists: { field: 'sector' } });

@@ -461,6 +461,45 @@ const normalizeSourceInput = (sourceParam) => {
     return [];
 };
 
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
 const emotionPolarityController = {
     getEmotionPolarity: async (req, res) => {
         try {
@@ -483,8 +522,44 @@ const emotionPolarityController = {
                 sentiment,
                 source,
                 timeSlot,
-                toDate
+                toDate,
+                category = 'all'
             } = params;
+
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({
+                    stats: {
+                        mean: 0,
+                        min: -1,
+                        max: 1,
+                        count: 0
+                    },
+                    emotions: [],
+                    totalCount: 0,
+                    distribution: [],
+                    error: 'No category data available'
+                });
+            }
+
+            let finalCategory = category;
+            if (finalCategory !== 'all' && finalCategory !== '' && finalCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(finalCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({
+                        stats: {
+                            mean: 0,
+                            min: -1,
+                            max: 1,
+                            count: 0
+                        },
+                        emotions: [],
+                        totalCount: 0,
+                        distribution: [],
+                        error: 'Category not found'
+                    });
+                }
+                finalCategory = matchedKey;
+            }
             
             // Check if this is the special topicId
             const isSpecialTopic = topicId && parseInt(topicId) === 2600;

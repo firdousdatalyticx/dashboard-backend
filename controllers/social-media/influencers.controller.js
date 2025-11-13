@@ -73,6 +73,45 @@ function normalizeSourceInput(source) {
 }
 
 /**
+ * Find matching category key with flexible matching.
+ * @param {string} selectedCategory
+ * @param {Object} categoryData
+ * @returns {string|null}
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+  if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+    return selectedCategory;
+  }
+
+  const normalizedSelectedRaw = String(selectedCategory || '');
+  const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+  const categoryKeys = Object.keys(categoryData || {});
+
+  if (categoryKeys.length === 0) {
+    return null;
+  }
+
+  let matchedKey = categoryKeys.find(
+    key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+  );
+
+  if (!matchedKey) {
+    matchedKey = categoryKeys.find(
+      key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+    );
+  }
+
+  if (!matchedKey) {
+    matchedKey = categoryKeys.find(key => {
+      const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+      return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+    });
+  }
+
+  return matchedKey || null;
+}
+
+/**
  * Build source filter string for query_string
  * @param {string|Array} source - Source input
  * @param {number} topicId - Topic ID for special handling
@@ -155,11 +194,13 @@ const influencersController = {
         sentimentType,
         isScadUser = "false",
         topicId,
+        category: inputCategory = 'all',
       } = req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
+      let category = inputCategory;
       let categoryData = {};
       
       if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
@@ -172,6 +213,17 @@ const influencersController = {
         return res.json({
           finalDataArray: [],
         });
+      }
+
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json({
+            finalDataArray: [],
+            error: 'Category not found'
+          });
+        }
+        category = matchedKey;
       }
 
       const topicQueryString = buildTopicQueryString(categoryData);
@@ -367,11 +419,13 @@ const influencersController = {
         isScadUser = "false",
         selectedTab = "",
         topicId,
+        category: inputCategory = 'all',
       } = req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
+      let category = inputCategory;
       let categoryData = {};
       
       if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
@@ -385,6 +439,18 @@ const influencersController = {
           success: true,
           infArray: {},
         });
+      }
+
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json({
+            success: true,
+            infArray: {},
+            error: 'Category not found'
+          });
+        }
+        category = matchedKey;
       }
 
       // Build initial topic query string
@@ -458,6 +524,7 @@ const influencersController = {
         selectedTab = "",
         type,
         topicId,
+        category: inputCategory = 'all',
       } = req.query;
 
       // Check if this is the special topicId
@@ -478,6 +545,20 @@ const influencersController = {
           success: true,
           infArray: {},
         });
+      }
+
+      let category = inputCategory;
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json({
+            success: true,
+            responseArray: [],
+            total: 0,
+            error: 'Category not found'
+          });
+        }
+        category = matchedKey;
       }
 
       // Build initial topic query string

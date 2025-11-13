@@ -4,6 +4,78 @@ const { buildQueryString } = require("../utils/query.utils");
 const { format } = require("date-fns");
 const prisma = new PrismaClient();
 const processCategoryItems = require('../helpers/processedCategoryItems');
+
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    return matchedKey || null;
+}
+
+/**
+ * Normalize source input - handles various formats
+ * @param {string|string[]|undefined} source - Source parameter
+ * @returns {string[]} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+    if (!source || source === 'All') {
+        return []; // No specific source filter
+    }
+    if (Array.isArray(source)) {
+        return source.filter(s => s && s.trim() !== '');
+    }
+    if (typeof source === 'string') {
+        return source.split(',').map(s => s.trim()).filter(s => s !== '');
+    }
+    return [];
+}
+
+/**
+ * Build source filter string for query_string queries
+ * @param {string|string[]|undefined} source - Source parameter
+ * @param {string|number} topicId - Topic ID
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
+ * @returns {string} Source filter string
+ */
+function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
+    const normalizedSources = normalizeSourceInput(source);
+
+    if (normalizedSources.length > 0) {
+        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        return `source:(${sourcesStr})`;
+    } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+        return `source:("LinkedIn" OR "Linkedin")`;
+    } else if (isSpecialTopic) {
+        return `source:("Facebook" OR "Twitter")`;
+    } else {
+        return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
+    }
+}
 /**
  * Safely format a date for Elasticsearch (yyyy-MM-dd)
  */
@@ -43,58 +115,65 @@ const buildElasticsearchQuery = (params) => {
     click,
     isSpecialTopic = false,
     llm_mention_type,
-    topicId
+    topicId,
+    source
   } = params;
 
   // Build query_string parts in an array
   const qsParts = [];
   if (topicQueryString) qsParts.push(topicQueryString);
-  if(topicId===2619 || topicId===2639 || topicId===2640){
- qsParts.push('source:("LinkedIn" OR "Linkedin")');
-  }else
 
-  // Source filtering – handle special topic case first
-  if (isSpecialTopic) {
-    // For special topic, only allow Facebook and Twitter
-    qsParts.push('source:("Facebook" OR "Twitter")');
+  // Handle source filtering - prioritize the source parameter if provided
+  if (source && source !== 'All') {
+    // Use the new source filtering logic
+    const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+    qsParts.push(sourceFilter);
   } else {
-    // Original source filtering logic
-    const allSocialSources =
-      '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")';
-    switch (postTypeSource) {
-      case "News":
-        qsParts.push('source:("FakeNews" OR "News")');
-        break;
-      case "YouTube":
-      case "Videos":
-        qsParts.push('source:("Youtube" OR "Vimeo")');
-        break;
-      case "Web":
-        qsParts.push('source:("FakeNews" OR "News" OR "Blogs" OR "Web")');
-        break;
-      case "GoogleMyBusiness":
-        qsParts.push('source:("GoogleMyBusiness")');
-        break;
-      case "All":
-        if (isScadUser === "true") {
-          qsParts.push(
-            selectedTab === "GOOGLE"
-              ? 'source:("GoogleMyBusiness")'
-              : `source:${allSocialSources}`
-          );
-        }
-        break;
-      default:
-        if (postTypeSource && postTypeSource !== "undefined")
-          qsParts.push(`source:("${postTypeSource}")`);
-    }
+    // Fall back to existing postTypeSource logic
+    if(topicId===2619 || topicId===2639 || topicId===2640){
+      qsParts.push('source:("LinkedIn" OR "Linkedin")');
+    } else if (isSpecialTopic) {
+      // For special topic, only allow Facebook and Twitter
+      qsParts.push('source:("Facebook" OR "Twitter")');
+    } else {
+      // Original source filtering logic
+      const allSocialSources =
+        '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")';
+      switch (postTypeSource) {
+        case "News":
+          qsParts.push('source:("FakeNews" OR "News")');
+          break;
+        case "YouTube":
+        case "Videos":
+          qsParts.push('source:("Youtube" OR "Vimeo")');
+          break;
+        case "Web":
+          qsParts.push('source:("FakeNews" OR "News" OR "Blogs" OR "Web")');
+          break;
+        case "GoogleMyBusiness":
+          qsParts.push('source:("GoogleMyBusiness")');
+          break;
+        case "All":
+          if (isScadUser === "true") {
+            qsParts.push(
+              selectedTab === "GOOGLE"
+                ? 'source:("GoogleMyBusiness")'
+                : `source:${allSocialSources}`
+            );
+          }
+          break;
+        default:
+          if (postTypeSource && postTypeSource !== "undefined")
+            qsParts.push(`source:("${postTypeSource}")`);
+      }
 
-    // For non-GoogleMyBusiness sources, ensure all social sources are covered if needed
-    if (
-      postTypeSource !== "GoogleMyBusiness" &&
-      !["News", "YouTube", "Videos", "Web"].includes(postTypeSource)
-    ) {
-      qsParts.push(`source:${allSocialSources}`);
+      // For non-GoogleMyBusiness sources, ensure all social sources are covered if needed
+      if (
+        postTypeSource !== "GoogleMyBusiness" &&
+        !["News", "YouTube", "Videos", "Web"].includes(postTypeSource)
+      ) {
+        qsParts.push(`source:${allSocialSources}`);
+      }
     }
   }
 
@@ -331,34 +410,45 @@ const buildElasticsearchQuery = (params) => {
     });
     must.push({ match_phrase: { "llm_entities.Organization": postType } });
 
-    // Handle special topic source filtering for entities
-    if (isSpecialTopic) {
+    // Handle source filtering for entities - use source parameter if provided
+    const normalizedSources = normalizeSourceInput(source);
+    if (normalizedSources.length > 0) {
       must.push({
         bool: {
-          should: [
-            { match_phrase: { source: "Facebook" } },
-            { match_phrase: { source: "Twitter" } },
-          ],
+          should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
           minimum_should_match: 1,
         },
       });
     } else {
-      must.push({
-        bool: {
-          should: [
-            { match_phrase: { source: "Facebook" } },
-            { match_phrase: { source: "Twitter" } },
-            { match_phrase: { source: "Instagram" } },
-            { match_phrase: { source: "Youtube" } },
-            { match_phrase: { source: "Pinterest" } },
-            { match_phrase: { source: "Reddit" } },
-            { match_phrase: { source: "LinkedIn" } },
-            { match_phrase: { source: "Web" } },  
-            { match_phrase: { source: "TikTok" } },
-          ],
-          minimum_should_match: 1,
-        },
-      });
+      // Fall back to default logic
+      if (isSpecialTopic) {
+        must.push({
+          bool: {
+            should: [
+              { match_phrase: { source: "Facebook" } },
+              { match_phrase: { source: "Twitter" } },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      } else {
+        must.push({
+          bool: {
+            should: [
+              { match_phrase: { source: "Facebook" } },
+              { match_phrase: { source: "Twitter" } },
+              { match_phrase: { source: "Instagram" } },
+              { match_phrase: { source: "Youtube" } },
+              { match_phrase: { source: "Pinterest" } },
+              { match_phrase: { source: "Reddit" } },
+              { match_phrase: { source: "LinkedIn" } },
+              { match_phrase: { source: "Web" } },
+              { match_phrase: { source: "TikTok" } },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      }
     }
   } else if (postType === "socialMediaSourcesPosts") {
     // For social sources, force the source filter and a date range.
@@ -648,6 +738,7 @@ const postsController = {
         limit,
         rating,
         category,
+        source,
         click = "false",
         llm_mention_type,
         type,
@@ -673,13 +764,13 @@ const postsController = {
 
       // Get category data from middleware if available.
       let categoryData = {};
-      
+
       if (parsedCategoryItems && parsedCategoryItems.length > 0) {
         categoryData = processCategoryItems(parsedCategoryItems);
       } else {
         // Fall back to middleware data
         categoryData = req.processedCategories || {};
-      }    
+      }
 
       console.log(categoryData, "categoryData");
 
@@ -701,10 +792,31 @@ const postsController = {
       let greaterThanTime = inputGreaterThanTime;
       let lessThanTime = inputLessThanTime;
 
- 
+
         // Original logic for regular topics
         greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
         lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
+
+      // Apply category filtering logic after date range is initialized
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({
+            success: true,
+            hits: [],
+            responseArray: [],
+            total: 0,
+            dateRange: {
+              greaterThanTime: greaterThanTime || "now-90d",
+              lessThanTime: lessThanTime || "now",
+            },
+          });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
+      }
       
 
       // For GoogleMyBusiness, make sure time is properly formatted for consistency with review-trends
@@ -748,7 +860,8 @@ const postsController = {
         click,
         isSpecialTopic,
         llm_mention_type,
-        topicId:parseInt(topicId)
+        topicId: parseInt(topicId),
+        source
       };
 
       const esQuery = buildElasticsearchQuery(queryParams);

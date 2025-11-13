@@ -20,6 +20,45 @@ function normalizeSourceInput(source) {
   return [];
 }
 
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const fieldCountsController = {
     /**
      * Get counts for all 4 fields (sector, trust_dimensions, themes_sentiments, touchpoints)
@@ -31,7 +70,7 @@ const fieldCountsController = {
         try {
             const {
                 source = 'All',
-                category = 'all',
+                category: inputCategory = 'all',
                 topicId,
                 greaterThanTime,
                 lessThanTime,
@@ -62,6 +101,25 @@ const fieldCountsController = {
                     },
                     totalCount: 0
                 });
+            }
+
+            let category = inputCategory;
+            if (category !== 'all' && category !== '' && category !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(category, categoryData);
+                if (!matchedKey) {
+                    return res.json({
+                        success: true,
+                        fieldCounts: {
+                            sector: { total: 0, items: [] },
+                            trust_dimensions: { total: 0, items: [] },
+                            themes_sentiments: { total: 0, items: [] },
+                            touchpoints: { total: 0, items: [] }
+                        },
+                        totalCount: 0,
+                        error: 'Category not found'
+                    });
+                }
+                category = matchedKey;
             }
     
             // Set date range - Use date math like your working query
@@ -326,7 +384,7 @@ const fieldCountsController = {
         try {
             const {
                 source = 'All',
-                category = 'all',
+                category: inputCategory = 'all',
                 topicId,
                 greaterThanTime,
                 lessThanTime,
@@ -372,6 +430,22 @@ const fieldCountsController = {
                     page: Number(page),
                     limit: Number(limit)
                 });
+            }
+
+            let category = inputCategory;
+            if (category !== 'all' && category !== '' && category !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(category, categoryData);
+                if (!matchedKey) {
+                    return res.json({
+                        success: true,
+                        posts: [],
+                        total: 0,
+                        page: Number(page),
+                        limit: Number(limit),
+                        error: 'Category not found'
+                    });
+                }
+                category = matchedKey;
             }
 
             // Set date range

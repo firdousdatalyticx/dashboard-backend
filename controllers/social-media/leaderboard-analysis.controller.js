@@ -41,6 +41,39 @@ function mergeArraysByDate(arr1, arr2) {
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const leaderboardAnalysisController = {
     getLeaderboardAnalysis: async (req, res) => {
         try {
@@ -64,6 +97,15 @@ const leaderboardAnalysisController = {
             }
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ leaderboard: [] });
+            }
+
+            let workingCategory = category;
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+                if (!matchedKey) {
+                    return res.json({ leaderboard: [], error: 'Category not found' });
+                }
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
             }
 
             // Calculate date filter - for special topic, use wider range

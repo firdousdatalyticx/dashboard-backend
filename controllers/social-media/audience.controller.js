@@ -149,6 +149,46 @@ const prisma = require('../../config/database');
   
   return elasticAggs;
 };
+
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
 const audienceController = {
   getAudience: async (req, res) => {
     try {
@@ -162,6 +202,7 @@ const audienceController = {
         categoryItems
       } = req.body;
 
+      let category = req.body.category || 'all';
       let categoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -176,6 +217,17 @@ const audienceController = {
         return res.json({
           data_array: [],
         });
+      }
+
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json({
+            data_array: [],
+            error: 'Category not found'
+          });
+        }
+        category = matchedKey;
       }
 
       const topicQueryString = buildTopicQueryString(categoryData);
@@ -304,6 +356,7 @@ const audienceController = {
         categoryItems
       } = req.body;
 
+      let category = req.body.category || 'all';
       let categoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -505,6 +558,7 @@ const audienceController = {
         categoryItems
       } = req.body;
 
+      let category = req.body.category || 'all';
       let categoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -699,6 +753,7 @@ const audienceController = {
         categoryItems
       } = req.body;
 
+      let category = req.body.category || 'all';
       let categoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -1422,7 +1477,7 @@ const audienceController = {
         fromDate,
         toDate,
         sentimentType,
-        category = "all",
+        category: inputCategory = "all",
         source = "All",
         topicId,
         categoryItems
@@ -1431,6 +1486,7 @@ const audienceController = {
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
+      let category = inputCategory;
       let categoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
@@ -1444,6 +1500,17 @@ const audienceController = {
         return res.json({
           responseArray: [],
         });
+      }
+
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json({
+            responseArray: [],
+            error: 'Category not found'
+          });
+        }
+        category = matchedKey;
       }
 
       // Build base query for filters processing

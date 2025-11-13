@@ -6,6 +6,45 @@ const prisma = new PrismaClient();
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 /**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
+/**
  * Normalize source input to array of sources
  * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
  * @returns {Array} Array of normalized sources
@@ -203,9 +242,19 @@ const keywordsController = {
                 const selectedTab ="";
                 let topicQueryString = ''
                 let responseArray= []
-                
+
                 // Check if this is the special topicId
                 const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+                let workingCategory = category;
+                if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                    const matchedKey = findMatchingCategoryKey(workingCategory, req.processedCategories || {});
+                    if (!matchedKey) {
+                        // Category not found, return empty response
+                        return res.status(200).json({ success: true, responseArray: [] });
+                    }
+                    workingCategory = matchedKey;
+                }
             
                 if (subtopicId) {
                   const all_touchpoints = await getAllTouchpoints(Number(subtopicId))

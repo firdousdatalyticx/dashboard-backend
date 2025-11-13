@@ -6,6 +6,33 @@ const prisma = new PrismaClient();
 const processCategoryItems = require('../helpers/processedCategoryItems');
 
 /**
+ * Normalize source input - handles various formats
+ * @param {string|string[]|undefined} source - Source parameter
+ * @returns {string[]} Array of normalized sources
+ */
+function normalizeSourceInput(sourceParam) {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+}
+
+/**
  * Find matching category key with flexible matching
  * @param {string} selectedCategory - Category to find
  * @param {Object} categoryData - Category data object
@@ -34,47 +61,14 @@ function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
         );
     }
 
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
     return matchedKey || null;
-}
-
-/**
- * Normalize source input - handles various formats
- * @param {string|string[]|undefined} source - Source parameter
- * @returns {string[]} Array of normalized sources
- */
-function normalizeSourceInput(source) {
-    if (!source || source === 'All') {
-        return []; // No specific source filter
-    }
-    if (Array.isArray(source)) {
-        return source.filter(s => s && s.trim() !== '');
-    }
-    if (typeof source === 'string') {
-        return source.split(',').map(s => s.trim()).filter(s => s !== '');
-    }
-    return [];
-}
-
-/**
- * Build source filter string for query_string queries
- * @param {string|string[]|undefined} source - Source parameter
- * @param {string|number} topicId - Topic ID
- * @param {boolean} isSpecialTopic - Whether this is a special topic
- * @returns {string} Source filter string
- */
-function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
-    const normalizedSources = normalizeSourceInput(source);
-
-    if (normalizedSources.length > 0) {
-        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
-        return `source:(${sourcesStr})`;
-    } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        return `source:("LinkedIn" OR "Linkedin")`;
-    } else if (isSpecialTopic) {
-        return `source:("Facebook" OR "Twitter")`;
-    } else {
-        return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
-    }
 }
 /**
  * Safely format a date for Elasticsearch (yyyy-MM-dd)
@@ -123,20 +117,22 @@ const buildElasticsearchQuery = (params) => {
   const qsParts = [];
   if (topicQueryString) qsParts.push(topicQueryString);
 
-  // Handle source filtering - prioritize the source parameter if provided
-  if (source && source !== 'All') {
-    // Use the new source filtering logic
-    const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
-    qsParts.push(sourceFilter);
+  // Source filtering logic - prioritize source parameter over postTypeSource
+  const normalizedSources = normalizeSourceInput(source);
+
+  if (normalizedSources.length > 0) {
+    // Specific sources provided via source parameter - use these
+    const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+    qsParts.push(`source:(${sourcesStr})`);
   } else {
-    // Fall back to existing postTypeSource logic
-    if(topicId===2619 || topicId===2639 || topicId===2640){
+    // No specific sources provided, use topic/postTypeSource logic
+    if (topicId === 2619 || topicId === 2639 || topicId === 2640) {
       qsParts.push('source:("LinkedIn" OR "Linkedin")');
     } else if (isSpecialTopic) {
       // For special topic, only allow Facebook and Twitter
       qsParts.push('source:("Facebook" OR "Twitter")');
     } else {
-      // Original source filtering logic
+      // Original source filtering logic based on postTypeSource
       const allSocialSources =
         '("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")';
       switch (postTypeSource) {
@@ -160,19 +156,17 @@ const buildElasticsearchQuery = (params) => {
                 ? 'source:("GoogleMyBusiness")'
                 : `source:${allSocialSources}`
             );
+          } else {
+            qsParts.push(`source:${allSocialSources}`);
           }
           break;
         default:
           if (postTypeSource && postTypeSource !== "undefined")
             qsParts.push(`source:("${postTypeSource}")`);
-      }
-
-      // For non-GoogleMyBusiness sources, ensure all social sources are covered if needed
-      if (
-        postTypeSource !== "GoogleMyBusiness" &&
-        !["News", "YouTube", "Videos", "Web"].includes(postTypeSource)
-      ) {
-        qsParts.push(`source:${allSocialSources}`);
+          else {
+            // Default: all social sources
+            qsParts.push(`source:${allSocialSources}`);
+          }
       }
     }
   }
@@ -410,45 +404,34 @@ const buildElasticsearchQuery = (params) => {
     });
     must.push({ match_phrase: { "llm_entities.Organization": postType } });
 
-    // Handle source filtering for entities - use source parameter if provided
-    const normalizedSources = normalizeSourceInput(source);
-    if (normalizedSources.length > 0) {
+    // Handle special topic source filtering for entities
+    if (isSpecialTopic) {
       must.push({
         bool: {
-          should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
+          should: [
+            { match_phrase: { source: "Facebook" } },
+            { match_phrase: { source: "Twitter" } },
+          ],
           minimum_should_match: 1,
         },
       });
     } else {
-      // Fall back to default logic
-      if (isSpecialTopic) {
-        must.push({
-          bool: {
-            should: [
-              { match_phrase: { source: "Facebook" } },
-              { match_phrase: { source: "Twitter" } },
-            ],
-            minimum_should_match: 1,
-          },
-        });
-      } else {
-        must.push({
-          bool: {
-            should: [
-              { match_phrase: { source: "Facebook" } },
-              { match_phrase: { source: "Twitter" } },
-              { match_phrase: { source: "Instagram" } },
-              { match_phrase: { source: "Youtube" } },
-              { match_phrase: { source: "Pinterest" } },
-              { match_phrase: { source: "Reddit" } },
-              { match_phrase: { source: "LinkedIn" } },
-              { match_phrase: { source: "Web" } },
-              { match_phrase: { source: "TikTok" } },
-            ],
-            minimum_should_match: 1,
-          },
-        });
-      }
+      must.push({
+        bool: {
+          should: [
+            { match_phrase: { source: "Facebook" } },
+            { match_phrase: { source: "Twitter" } },
+            { match_phrase: { source: "Instagram" } },
+            { match_phrase: { source: "Youtube" } },
+            { match_phrase: { source: "Pinterest" } },
+            { match_phrase: { source: "Reddit" } },
+            { match_phrase: { source: "LinkedIn" } },
+            { match_phrase: { source: "Web" } },  
+            { match_phrase: { source: "TikTok" } },
+          ],
+          minimum_should_match: 1,
+        },
+      });
     }
   } else if (postType === "socialMediaSourcesPosts") {
     // For social sources, force the source filter and a date range.
@@ -733,18 +716,18 @@ const postsController = {
         country,
         greaterThanTime: inputGreaterThanTime,
         lessThanTime: inputLessThanTime,
+        timeSlot,
         touchId,
         parentAccountId,
         limit,
         rating,
         category,
-        source,
         click = "false",
         llm_mention_type,
         type,
-        categoryItems
+        categoryItems,
+        source: sources // URL parameter is 'sources' but we use 'source' internally
       } = req.query;
-
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -760,8 +743,6 @@ const postsController = {
         parsedCategoryItems = decodedItems.split(',').map(item => item.trim()).filter(item => item.length > 0);
       }
 
-
-
       // Get category data from middleware if available.
       let categoryData = {};
 
@@ -772,7 +753,21 @@ const postsController = {
         categoryData = req.processedCategories || {};
       }
 
-      console.log(categoryData, "categoryData");
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && Object.keys(categoryData).length > 0) {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json({
+            success: true,
+            error: 'Category not found',
+            hits: [],
+            responseArray: [],
+            total: 0
+          });
+        }
+        selectedCategory = matchedKey;
+      }
 
       // Parse and validate rating if provided.
       const requestedRatingValue = rating ? parseInt(rating, 10) : null;
@@ -781,6 +776,13 @@ const postsController = {
 
       // Build base topic query string if topicId provided.
       let topicQueryString = "";
+      if (topicId) {
+        topicQueryString = await buildQueryString(
+          parseInt(topicId),
+          isScadUser,
+          selectedTab
+        );
+      }
 
       // Handle touchpoint query if provided.
       let touchPointQueryString = "";
@@ -792,30 +794,17 @@ const postsController = {
       let greaterThanTime = inputGreaterThanTime;
       let lessThanTime = inputLessThanTime;
 
-
+      // Handle timeSlot parameter - this overrides explicit dates
+      if (timeSlot) {
+        // When timeSlot is provided, calculate last 90 days
+        const now = new Date();
+        const ninetyDaysAgo = new Date(now.getTime() - (90 * 24 * 60 * 60 * 1000));
+        greaterThanTime = ninetyDaysAgo.toISOString();
+        lessThanTime = now.toISOString();
+      } else {
         // Original logic for regular topics
         greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
         lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
-
-      // Apply category filtering logic after date range is initialized
-      let workingCategory = category;
-      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-        if (!matchedKey) {
-          // Category not found, return empty response
-          return res.status(200).json({
-            success: true,
-            hits: [],
-            responseArray: [],
-            total: 0,
-            dateRange: {
-              greaterThanTime: greaterThanTime || "now-90d",
-              lessThanTime: lessThanTime || "now",
-            },
-          });
-        }
-        categoryData = { [matchedKey]: categoryData[matchedKey] };
-        workingCategory = matchedKey;
       }
       
 
@@ -861,90 +850,16 @@ const postsController = {
         isSpecialTopic,
         llm_mention_type,
         topicId: parseInt(topicId),
-        source
+        source: sources
       };
 
       const esQuery = buildElasticsearchQuery(queryParams);
 
-      // Apply category filters if needed (for social media sources).
-      const isSocialMedia =
-        !postTypeSource ||
-        [
-          "Twitter",
-          "Facebook",
-          "Instagram",
-          "Youtube",
-          "Pinterest",
-          "Reddit",
-          "LinkedIn",
-          "Web",
-          "TikTok",
-          "All",
-        ].includes(postTypeSource);
+      // Apply category filters when a specific category is provided
+      if (selectedCategory && selectedCategory !== 'all' && Object.keys(categoryData).length > 0) {
+        addCategoryFilters(esQuery.query, selectedCategory, categoryData);
 
-      // Always apply category filters for social media when topicId is present
-      if (isSocialMedia && topicId && Object.keys(categoryData).length > 0) {
-        if (category && category !== "all") {
-          // If a specific category is selected, apply that filter
-          addCategoryFilters(esQuery.query, category, categoryData);
-        } else {
-          // If no specific category is selected but we have category data from topicId,
-          // apply a combined filter from all categories
-         
-          const categoryKeys = Object.keys(categoryData);
-          if (categoryKeys.length > 0) {
-            const shouldClauses = [];
-
-            // Collect all filters from all categories
-            categoryKeys.forEach((categoryKey) => {
-              const data = categoryData[categoryKey];
-              const keywords = data.keywords || [];
-              const hashtags = data.hashtags || [];
-              const urls = data.urls || [];
-
-              // Add each keyword, hashtag and URL as a should clause
-              [...keywords, ...hashtags, ...urls].forEach((term) => {
-                if (term && term.trim() !== "") {
-                  shouldClauses.push({
-                    multi_match: {
-                      query: term,
-                      fields: [
-                        "p_message_text",
-                        "p_message",
-                        "keywords",
-                        "title",
-                        "hashtags",
-                        "u_source",
-                        "p_url",
-                      ],
-                      type: "phrase",
-                    },
-                  });
-                }
-              });
-            });
-
-            // Only add the filter if we have clauses to add
-            if (shouldClauses.length > 0) {
-              esQuery.query.bool.must.push({
-                bool: {
-                  should: shouldClauses,
-                  minimum_should_match: 1,
-                },
-              });
-            }
-          }
-        }
-      } else if (
-        !isSocialMedia &&
-        category &&
-        category !== "all" &&
-        Object.keys(categoryData).length > 0
-      ) {
-        addCategoryFilters(esQuery.query, category, categoryData);
-      }
-
-      if (isSocialMedia) {
+        // Check if we have valid category filters
         const result = hasMultiMatchWithFields(esQuery);
         if (result == false) {
          return res.status(200).json({
@@ -953,12 +868,13 @@ const postsController = {
             responseArray: [],
             total: 0,
             dateRange: {
-              greaterThanTime: "now-90d",
-              lessThanTime: "now",
+              greaterThanTime: greaterThanTime,
+              lessThanTime: lessThanTime,
             },
           });
         }
       }
+
 
       if(type==="Popular Posts"){
         esQuery.sort=[
@@ -1044,6 +960,99 @@ const postsController = {
     }
   },
 };
+
+/**
+ * Add category filters to the query
+ * @param {Object} query - Elasticsearch query object
+ * @param {string} selectedCategory - Category to filter by
+ * @param {Object} categoryData - Category data with filters
+ */
+function addCategoryFilters(query, selectedCategory, categoryData) {
+  if (selectedCategory === 'all') {
+    query.bool.must.push({
+      bool: {
+        should: [
+          ...Object.values(categoryData).flatMap(data =>
+            (data.keywords || []).map(keyword => ({
+              multi_match: {
+                query: keyword,
+                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                type: 'phrase'
+              }
+            }))
+          ),
+          ...Object.values(categoryData).flatMap(data =>
+            (data.hashtags || []).map(hashtag => ({
+              multi_match: {
+                query: hashtag,
+                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                type: 'phrase'
+              }
+            }))
+          ),
+          ...Object.values(categoryData).flatMap(data =>
+            (data.urls || []).map(url => ({
+              multi_match: {
+                query: url,
+                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                type: 'phrase'
+              }
+            }))
+          )
+        ],
+        minimum_should_match: 1
+      }
+    });
+  } else if (categoryData[selectedCategory]) {
+    const data = categoryData[selectedCategory];
+
+    // Check if the category has any filtering criteria
+    const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
+    const hasHashtags = Array.isArray(data.hashtags) && data.hashtags.length > 0;
+    const hasUrls = Array.isArray(data.urls) && data.urls.length > 0;
+
+    // Only add the filter if there's at least one criteria
+    if (hasKeywords || hasHashtags || hasUrls) {
+      query.bool.must.push({
+        bool: {
+          should: [
+            ...(data.keywords || []).map(keyword => ({
+              multi_match: {
+                query: keyword,
+                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                type: 'phrase'
+              }
+            })),
+            ...(data.hashtags || []).map(hashtag => ({
+              multi_match: {
+                query: hashtag,
+                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                type: 'phrase'
+              }
+            })),
+            ...(data.urls || []).map(url => ({
+              multi_match: {
+                query: url,
+                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                type: 'phrase'
+              }
+            }))
+          ],
+          minimum_should_match: 1
+        }
+      });
+    } else {
+      // If the category has no filtering criteria, add a condition that will match nothing
+      query.bool.must.push({
+        bool: {
+          must_not: {
+            match_all: {}
+          }
+        }
+      });
+    }
+  }
+}
 
 function hasMultiMatchWithFields(query) {
   const mustClauses = query?.query?.bool?.must || [];

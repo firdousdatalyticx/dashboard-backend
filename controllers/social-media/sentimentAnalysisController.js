@@ -3,6 +3,61 @@ const { elasticClient } = require("../../config/elasticsearch");
 
 const { processFilters } = require("./filter.utils");
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
 const sentimentAnalysisController = {
   getPosts: async (req, res) => {
     try {
@@ -27,16 +82,35 @@ const sentimentAnalysisController = {
         limit = 50,
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        // Import processCategoryItems if needed
+        const processCategoryItems = require('../../helpers/processedCategoryItems');
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json([]);
       }
 
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json([]);
+        }
+        selectedCategory = matchedKey;
+      }
+
       // Build base query
       const query = buildAnalysisQuery({
         categoryData,
-        category,
+        category: selectedCategory,
         timeSlot,
         fromDate,
         toDate,
@@ -161,7 +235,14 @@ const sentimentAnalysisController = {
         dataSource,
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        const processCategoryItems = require('../../helpers/processedCategoryItems');
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json({
@@ -172,10 +253,25 @@ const sentimentAnalysisController = {
         });
       }
 
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json({
+            positive: 0,
+            negative: 0,
+            neutral: 0,
+            total: 0,
+          });
+        }
+        selectedCategory = matchedKey;
+      }
+
       // Build base query (reuse your existing logic)
       const query = buildAnalysisQuery({
         categoryData,
-        category,
+        category: selectedCategory,
         timeSlot,
         fromDate,
         toDate,
@@ -244,15 +340,32 @@ const sentimentAnalysisController = {
         dataSource,
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        const processCategoryItems = require('../../helpers/processedCategoryItems');
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json([]);
       }
 
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json([]);
+        }
+        selectedCategory = matchedKey;
+      }
+
       const query = buildAnalysisQuery({
         categoryData,
-        category,
+        category: selectedCategory,
         timeSlot,
         fromDate,
         toDate,
@@ -315,15 +428,32 @@ const sentimentAnalysisController = {
         dataSource,
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        const processCategoryItems = require('../../helpers/processedCategoryItems');
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json([]);
       }
 
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json([]);
+        }
+        selectedCategory = matchedKey;
+      }
+
       const query = buildAnalysisQuery({
         categoryData,
-        category,
+        category: selectedCategory,
         timeSlot,
         fromDate,
         toDate,
@@ -410,15 +540,32 @@ const sentimentAnalysisController = {
         postsPerBucket = 10, // Number of posts per time bucket
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        const processCategoryItems = require('../../helpers/processedCategoryItems');
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json([]);
       }
 
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json([]);
+        }
+        selectedCategory = matchedKey;
+      }
+
       const query = buildAnalysisQuery({
         categoryData,
-        category,
+        category: selectedCategory,
         timeSlot,
         fromDate,
         toDate,
@@ -668,15 +815,32 @@ const sentimentAnalysisController = {
         limit = 100,
       } = req.body;
 
-      const categoryData = req.processedCategories || {};
+      // Determine which category data to use
+      let categoryData = {};
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        const processCategoryItems = require('../../helpers/processedCategoryItems');
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
 
       if (Object.keys(categoryData).length === 0) {
         return res.json([]);
       }
 
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (!matchedKey) {
+          return res.json([]);
+        }
+        selectedCategory = matchedKey;
+      }
+
       const query = buildAnalysisQuery({
         categoryData,
-        category,
+        category: selectedCategory,
         timeSlot,
         fromDate,
         toDate,
@@ -770,42 +934,35 @@ function buildAnalysisQuery(params) {
   // Add category filters
   addCategoryFilters(query, category, categoryData);
 
-  // Add source filter if a specific source is selected
-  if (sources !== "All") {
-    let sourceArray = [];
-    if (typeof sources === "string" && sources.includes(",")) {
-      sourceArray = sources
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s);
-    } else if (typeof sources === "string") {
-      sourceArray = [sources.trim()];
-    } else if (Array.isArray(sources)) {
-      sourceArray = sources;
-    }
+  // Add source filter using the same logic as other controllers
+  const normalizedSources = normalizeSourceInput(sources);
 
-    if (sourceArray.length === 1) {
-      query.bool.must.push({
-        term: { "source.keyword": sourceArray[0] },
-      });
-    } else if (sourceArray.length > 1) {
-      query.bool.must.push({
-        bool: {
-          should: sourceArray.map((s) => ({ term: { "source.keyword": s } })),
-          minimum_should_match: 1,
-        },
-      });
-    }
+  if (normalizedSources.length > 0) {
+    // Specific sources provided via sources parameter
+    query.bool.must.push({
+      bool: {
+        should: normalizedSources.map(src => ({
+          match_phrase: { source: src }
+        })),
+        minimum_should_match: 1
+      }
+    });
   } else {
+    // When sources='All' or not specified, use default sources
     query.bool.must.push({
       bool: {
         should: [
-          { term: { "source.keyword": "Facebook" } },
-          { term: { "source.keyword": "Twitter" } },
-          { term: { "source.keyword": "Instagram" } },
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } },
+          { match_phrase: { source: "Instagram" } },
+          { match_phrase: { source: "Youtube" } },
+          { match_phrase: { source: "LinkedIn" } },
+          { match_phrase: { source: "Web" } },
+          { match_phrase: { source: "Reddit" } },
+          { match_phrase: { source: "TikTok" } }
         ],
-        minimum_should_match: 1,
-      },
+        minimum_should_match: 1
+      }
     });
   }
 

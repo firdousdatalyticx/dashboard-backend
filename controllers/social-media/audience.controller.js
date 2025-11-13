@@ -6,6 +6,61 @@ const { processFilters } = require("./filter.utils");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 const prisma = require('../../config/database');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
  createCountryWiseAggregations = (categoryData) => {
   // Group data by country
   const countryGroups = {};
@@ -150,44 +205,6 @@ const prisma = require('../../config/database');
   return elasticAggs;
 };
 
-/**
- * Find matching category key with flexible matching
- * @param {string} selectedCategory - Category to find
- * @param {Object} categoryData - Category data object
- * @returns {string|null} Matched category key or null
- */
-const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
-    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
-        return selectedCategory;
-    }
-
-    const normalizedSelectedRaw = String(selectedCategory || '');
-    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
-    const categoryKeys = Object.keys(categoryData || {});
-
-    if (categoryKeys.length === 0) {
-        return null;
-    }
-
-    let matchedKey = categoryKeys.find(
-        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
-    );
-
-    if (!matchedKey) {
-        matchedKey = categoryKeys.find(
-            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
-        );
-    }
-
-    if (!matchedKey) {
-        matchedKey = categoryKeys.find(key => {
-            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
-            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
-        });
-    }
-
-    return matchedKey || null;
-};
 
 const audienceController = {
   getAudience: async (req, res) => {
@@ -199,43 +216,57 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
-        categoryItems
+        categoryItems,
+        source = 'All',
+        category = 'all'
       } = req.body;
 
-      let category = req.body.category || 'all';
-      let categoryData = {};
+      // Determine which category data to use
+      let audienceCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        audienceCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        audienceCategoryData = req.processedCategories || {};
       }
 
-      if (Object.keys(categoryData).length === 0) {
+      if (Object.keys(audienceCategoryData).length === 0) {
         return res.json({
           data_array: [],
         });
       }
 
-      if (category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, categoryData);
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, audienceCategoryData);
         if (!matchedKey) {
           return res.json({
             data_array: [],
             error: 'Category not found'
           });
         }
-        category = matchedKey;
+        selectedCategory = matchedKey;
       }
 
-      const topicQueryString = buildTopicQueryString(categoryData);
-      let sourcesQuery = null;
-      if (parseInt(topicId) === 2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+      const topicQueryString = buildTopicQueryString(audienceCategoryData);
+
+      // Source filtering logic
+      const normalizedSources = normalizeSourceInput(source);
+      let sourcesQuery = '';
+
+      if (normalizedSources.length > 0) {
+        // Specific sources provided
+        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
-        sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        // Default logic based on topic
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+        } else {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        }
       }
 
       // Process filters for time range
@@ -353,21 +384,22 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
-        categoryItems
+        categoryItems,
+        source = 'All',
+        category = 'all'
       } = req.body;
 
-      let category = req.body.category || 'all';
-      let categoryData = {};
+      // Determine which category data to use
+      let countryCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        breakdownCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        breakdownCategoryData = req.processedCategories || {};
       }
 
-      if (Object.keys(categoryData).length === 0) {
+      if (Object.keys(breakdownCategoryData).length === 0) {
         return res.json({
           data_array: [],
           summary: {
@@ -386,12 +418,49 @@ const audienceController = {
         });
       }
 
-      const topicQueryString = buildTopicQueryString(categoryData);
-      let sourcesQuery = null;
-      if (parseInt(topicId) === 2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
+        if (!matchedKey) {
+          return res.json({
+            data_array: [],
+            summary: {
+              total_posts: 0,
+              total_unique_commenters: 0,
+              total_repeat_commenters: 0,
+              average_unique_per_post: 0,
+              average_repeat_per_post: 0,
+              all_unique_commenters: [],
+              all_repeat_commenters: [],
+              commenter_breakdown: {
+                repeat_commenters: { total_count: 0, list: [] },
+                unique_commenters: { total_count: 0, list: [] },
+              },
+            },
+            error: 'Category not found'
+          });
+        }
+        selectedCategory = matchedKey;
+      }
+
+      const topicQueryString = buildTopicQueryString(seniorityCategoryData);
+
+      // Source filtering logic
+      const normalizedSources = normalizeSourceInput(source);
+      let sourcesQuery = '';
+
+      if (normalizedSources.length > 0) {
+        // Specific sources provided
+        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
-        sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        // Default logic based on topic
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+        } else {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        }
       }
 
       // Process filters for time range
@@ -555,30 +624,58 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
-        categoryItems
+        categoryItems,
+        source = 'All',
+        category = 'all'
       } = req.body;
 
-      let category = req.body.category || 'all';
-      let categoryData = {};
+      // Determine which category data to use
+      let trendCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        trendCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        trendCategoryData = req.processedCategories || {};
       }
-      if (Object.keys(categoryData).length === 0) {
+      if (Object.keys(trendCategoryData).length === 0) {
         return res.json({
           dates: [],
           maxTrendData: "0,0",
         });
       }
 
-      const topicQueryString = buildTopicQueryString(categoryData);
-      let sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
-      if (parseInt(topicId) === 2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
+        if (!matchedKey) {
+          return res.json({
+            dates: [],
+            maxTrendData: "0,0",
+            error: 'Category not found'
+          });
+        }
+        selectedCategory = matchedKey;
+      }
+
+      const topicQueryString = buildTopicQueryString(seniorityCategoryData);
+
+      // Source filtering logic
+      const normalizedSources = normalizeSourceInput(source);
+      let sourcesQuery = '';
+
+      if (normalizedSources.length > 0) {
+        // Specific sources provided
+        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        sourcesQuery = ` AND source:(${sourcesStr})`;
+      } else {
+        // Default logic based on topic
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+        } else {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        }
       }
 
       // Process filters for time range
@@ -750,20 +847,21 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
-        categoryItems
+        categoryItems,
+        source = 'All',
+        category = 'all'
       } = req.body;
 
-      let category = req.body.category || 'all';
-      let categoryData = {};
+      // Determine which category data to use
+      let seniorityCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        seniorityCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        seniorityCategoryData = req.processedCategories || {};
       }
-      if (Object.keys(categoryData).length === 0) {
+      if (Object.keys(seniorityCategoryData).length === 0) {
         return res.json({
           data_array: [],
           summary: {
@@ -777,10 +875,44 @@ const audienceController = {
         });
       }
 
-      const topicQueryString = buildTopicQueryString(categoryData);
-      let sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
-      if (parseInt(topicId) === 2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
-        sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
+        if (!matchedKey) {
+          return res.json({
+            data_array: [],
+            summary: {
+              seniority_breakdown: {},
+              top_commenters_by_seniority: {},
+              insights: {
+                most_active_seniority: "",
+                highest_engagement_seniority: "",
+              },
+            },
+            error: 'Category not found'
+          });
+        }
+        selectedCategory = matchedKey;
+      }
+
+      const topicQueryString = buildTopicQueryString(seniorityCategoryData);
+
+      // Source filtering logic
+      const normalizedSources = normalizeSourceInput(source);
+      let sourcesQuery = '';
+
+      if (normalizedSources.length > 0) {
+        // Specific sources provided
+        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        sourcesQuery = ` AND source:(${sourcesStr})`;
+      } else {
+        // Default logic based on topic
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+        } else {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        }
       }
 
       const filters = processFilters({
@@ -1486,24 +1618,25 @@ const audienceController = {
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-      let category = inputCategory;
-      let categoryData = {};
+      // Determine which category data to use
+      let countryCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        countryCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        countryCategoryData = req.processedCategories || {};
       }
-      if (Object.keys(categoryData).length === 0) {
+      if (Object.keys(countryCategoryData).length === 0) {
         return res.json({
           responseArray: [],
         });
       }
 
-      if (category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, categoryData);
+      // Handle category parameter - validate if provided
+      let category = inputCategory;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
         if (!matchedKey) {
           return res.json({
             responseArray: [],
@@ -1514,7 +1647,7 @@ const audienceController = {
       }
 
       // Build base query for filters processing
-      const baseQueryString = buildBaseQueryString(category, categoryData);
+      const baseQueryString = buildBaseQueryString(category, countryCategoryData);
 
       // Process filters (time slot, date range, sentiment)
       const filters = processFilters({
@@ -1678,6 +1811,26 @@ const audienceController = {
         categoryItems
       } = req.body;
 
+      // Determine which category data to use
+      let undpCategoryData = {};
+
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        undpCategoryData = processCategoryItems(categoryItems);
+      } else {
+        // Fall back to middleware data
+        undpCategoryData = req.processedCategories || {};
+      }
+
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, undpCategoryData);
+        if (!matchedKey) {
+          return res.json([]);
+        }
+        selectedCategory = matchedKey;
+      }
+
    const filters = processFilters({
         sentimentType,
         timeSlot,
@@ -1706,28 +1859,39 @@ const audienceController = {
   // Create country-wise aggregations
   const countryAggs = createCountryWiseAggregations(categoryData);
   
+  // Source filtering logic
+  const normalizedSources = normalizeSourceInput(source);
+  let sourceFilter = {};
+
+  if (normalizedSources.length > 0) {
+    // Specific sources provided
+    sourceFilter = {
+      bool: {
+        should: normalizedSources.map(src => ({
+          match_phrase: { source: src }
+        })),
+        minimum_should_match: 1
+      }
+    };
+  } else {
+    // Default to Facebook and Twitter
+    sourceFilter = {
+      bool: {
+        should: [
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } }
+        ],
+        minimum_should_match: 1
+      }
+    };
+  }
+
   // Your Elasticsearch query
   const elasticQuery = {
     "query":{
     "bool": {
         "must": [
-            {
-                "bool": {
-                    "should": [
-                        {
-                            "match_phrase": {
-                                "source": "Facebook"
-                            }
-                        },
-                        {
-                            "match_phrase": {
-                                "source": "Twitter"
-                            }
-                        }
-                    ],
-                    "minimum_should_match": 1
-                }
-            },
+            sourceFilter,
                {
                     "range": {
                         "p_created_time": {
@@ -2018,23 +2182,6 @@ function buildBaseQueryString(selectedCategory, categoryData) {
   return queryString;
 }
 
-/**
- * Normalize source input to array of sources
- * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
- * @returns {Array} Array of normalized sources
- */
-function normalizeSourceInput(source) {
-  if (!source || source === 'All') {
-    return []; // No specific source filter
-  }
-  if (Array.isArray(source)) {
-    return source.filter(s => s && s.trim() !== '');
-  }
-  if (typeof source === 'string') {
-    return source.split(',').map(s => s.trim()).filter(s => s !== '');
-  }
-  return [];
-}
 
 /**
  * Build base query with date range and source filter
@@ -2269,3 +2416,4 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
 }
 
 module.exports = audienceController;
+

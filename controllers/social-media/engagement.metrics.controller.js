@@ -289,6 +289,7 @@ const engagementController = {
                 });
             }
 
+            let selectedCategory = category;
             if (category !== 'all' && category !== '' && category !== 'custom') {
                 const matchedKey = findMatchingCategoryKey(category, categoryData);
                 if (!matchedKey) {
@@ -300,7 +301,7 @@ const engagementController = {
                         error: 'Category not found'
                     });
                 }
-                category = matchedKey;
+                selectedCategory = matchedKey;
             }
 
             let query = buildTopicQueryString(categoryData);

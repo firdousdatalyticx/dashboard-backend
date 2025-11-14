@@ -151,17 +151,19 @@ const sentimentsController = {
             }
 
             let workingCategory = category;
+            // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
             if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
                 const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-                if (!matchedKey) {
-                    return res.json({
-                        success: true,
-                        sentiments: [],
-                        error: 'Category not found'
-                    });
+
+                if (matchedKey) {
+                    // Category found - filter to only this category
+                    categoryData = { [matchedKey]: categoryData[matchedKey] };
+                    workingCategory = matchedKey;
+                } else {
+                    // Category not found - keep all categoryData and set workingCategory to 'all'
+                    // This maintains existing functionality
+                    workingCategory = 'all';
                 }
-                categoryData = { [matchedKey]: categoryData[matchedKey] };
-                workingCategory = matchedKey;
             }
 
             // Set default date range - last 90 days
@@ -214,6 +216,30 @@ const sentimentsController = {
                 greaterThanTime,
                 lessThanTime
             }, source, isSpecialTopic, parseInt(topicId));
+
+            if(workingCategory=="all" && category!=="all"){
+                const categoryFilter = {
+                    bool: {
+                        should:  [
+                            {
+                                "multi_match": {
+                                    "query": category,
+                                    "fields": [
+                                        "p_message_text",
+                                        "p_message",
+                                        "hashtags",
+                                        "u_source",
+                                        "p_url"
+                                    ],
+                                    "type": "phrase"
+                                }
+                            }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
+                query.bool.must.push(categoryFilter);
+            }
 
             // Add category filters
             addCategoryFilters(query, workingCategory, categoryData);
@@ -502,18 +528,19 @@ const sentimentsController = {
         }
 
         let workingCategory = category;
+        // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
         if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
             const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-            if (!matchedKey) {
-                return res.json({
-                    success: true,
-                    posts: [],
-                    total: 0,
-                    error: 'Category not found'
-                });
+
+            if (matchedKey) {
+                // Category found - filter to only this category
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
+            } else {
+                // Category not found - keep all categoryData and set workingCategory to 'all'
+                // This maintains existing functionality
+                workingCategory = 'all';
             }
-            categoryData = { [matchedKey]: categoryData[matchedKey] };
-            workingCategory = matchedKey;
         }
 
         // Set default date range - last 90 days
@@ -540,6 +567,30 @@ const sentimentsController = {
             greaterThanTime,
             lessThanTime
         }, source, isSpecialTopic, parseInt(topicId));
+
+        if(workingCategory=="all" && category!=="all"){
+            const categoryFilter = {
+                bool: {
+                    should:  [
+                        {
+                            "multi_match": {
+                                "query": category,
+                                "fields": [
+                                    "p_message_text",
+                                    "p_message",
+                                    "hashtags",
+                                    "u_source",
+                                    "p_url"
+                                ],
+                                "type": "phrase"
+                            }
+                        }
+                    ],
+                    minimum_should_match: 1
+                }
+            };
+            query.bool.must.push(categoryFilter);
+        }
 
         // Add category filters
         addCategoryFilters(query, workingCategory, categoryData);
@@ -691,22 +742,19 @@ llmMotivationSentimentTrend: async (req, res) => {
     }
 
     let workingCategory = category;
+    // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
     if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
       const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-      if (!matchedKey) {
-        return res.json({
-          success: true,
-          sentiments: [],
-          phases: [],
-          preEventData: [],
-          postEventData: [],
-          executionDaysData: [],
-          eventTypeBreakdown: {},
-          error: 'Category not found'
-        });
+
+      if (matchedKey) {
+        // Category found - filter to only this category
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
+      } else {
+        // Category not found - keep all categoryData and set workingCategory to 'all'
+        // This maintains existing functionality
+        workingCategory = 'all';
       }
-      categoryData = { [matchedKey]: categoryData[matchedKey] };
-      workingCategory = matchedKey;
     }
 
     const now = new Date();
@@ -731,6 +779,31 @@ llmMotivationSentimentTrend: async (req, res) => {
     const formattedMaxDate = format(parseISO(lessThanTime), formatPattern);
 
     const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic, topicIdNum);
+
+    if(workingCategory=="all" && category!=="all"){
+        const categoryFilter = {
+            bool: {
+                should:  [
+                    {
+                        "multi_match": {
+                            "query": category,
+                            "fields": [
+                                "p_message_text",
+                                "p_message",
+                                "hashtags",
+                                "u_source",
+                                "p_url"
+                            ],
+                            "type": "phrase"
+                        }
+                    }
+                ],
+                minimum_should_match: 1
+            }
+        };
+        query.bool.must.push(categoryFilter);
+    }
+
     addCategoryFilters(query, workingCategory, categoryData);
 
     if (sentiment && sentiment !== "" && sentiment !== "All") {

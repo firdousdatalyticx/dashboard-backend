@@ -138,56 +138,122 @@ const createElasticQuery = (
   queryString,
   greaterThanTime,
   lessThanTime,
-  range
-) => ({
-  index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-  body: {
-    query: {
-      bool: {
-        must: [
-          { query_string: { query: queryString } },
-          {
-            range: {
-              p_created_time: { gte: greaterThanTime, lte: lessThanTime },
+  range,
+  category
+) => {
+  const queryBody = {
+    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+    body: {
+      query: {
+        bool: {
+          must: [
+            { query_string: { query: queryString } },
+            {
+              range: {
+                p_created_time: {
+                  gte: greaterThanTime,
+                  lte: lessThanTime,
+                },
+              },
             },
-          },
-          { range: range },
-        ],
+            { range: range },
+          ],
+        },
       },
     },
-  },
-});
+  };
+
+  // ✅ Add category filter only if category is not "all"
+  if (category && category !== "all") {
+    const categoryFilter = {
+      bool: {
+        should: [
+          {
+            multi_match: {
+              query: category,
+              fields: [
+                "p_message_text",
+                "p_message",
+                "hashtags",
+                "u_source",
+                "p_url",
+              ],
+              type: "phrase",
+            },
+          },
+        ],
+        minimum_should_match: 1,
+      },
+    };
+
+    queryBody.body.query.bool.must.push(categoryFilter);
+  }
+
+  return queryBody;
+};
 
 // Helper function to create Elasticsearch query
 const createElasticQueryPost = (
   queryString,
   greaterThanTime,
   lessThanTime,
-  range
-) => ({
-  index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-  body: {
-    query: {
+  range,
+  category
+) => {
+  const queryBody = {
+    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+    body: {
+      query: {
+        bool: {
+          must: [
+            { query_string: { query: queryString } },
+            {
+              range: {
+                p_created_time: { gte: greaterThanTime, lte: lessThanTime },
+              },
+            },
+            { range: range },
+          ],
+        },
+      },
+      size: 30,
+    },
+  };
+
+  // ✅ Apply category filter only if valid
+  if (category && category !== "all") {
+    const categoryFilter = {
       bool: {
-        must: [
-          { query_string: { query: queryString } },
+        should: [
           {
-            range: {
-              p_created_time: { gte: greaterThanTime, lte: lessThanTime },
+            multi_match: {
+              query: category,
+              fields: [
+                "p_message_text",
+                "p_message",
+                "hashtags",
+                "u_source",
+                "p_url",
+              ],
+              type: "phrase",
             },
           },
-          { range: range },
         ],
+        minimum_should_match: 1,
       },
-    },
-    size: 30,
-  },
-});
+    };
+
+    queryBody.body.query.bool.must.push(categoryFilter);
+  }
+
+  return queryBody;
+};
+
 
 const influencersController = {
   getInfluencers: async (req, res) => {
     try {
-      const {
+      let {
         timeSlot,
         fromDate,
         toDate,
@@ -217,13 +283,11 @@ const influencersController = {
 
       if (category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json({
-            finalDataArray: [],
-            error: 'Category not found'
-          });
+        if (matchedKey) {
+          category = matchedKey;
+        }else{
+           inputCategory = "all";
         }
-        category = matchedKey;
       }
 
       const topicQueryString = buildTopicQueryString(categoryData);
@@ -348,6 +412,29 @@ const influencersController = {
           },
         };
 
+          if(inputCategory!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                params.body.query.bool.must.push(categoryFilter);
+                        }
         const results = await elasticClient.search(params);
 
         if (!results?.aggregations?.group_by_user?.buckets) {
@@ -411,7 +498,7 @@ const influencersController = {
 
   getInfluencerCategories: async (req, res) => {
     try {
-      const {
+      let {
         timeSlot,
         fromDate,
         toDate,
@@ -443,14 +530,11 @@ const influencersController = {
 
       if (category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json({
-            success: true,
-            infArray: {},
-            error: 'Category not found'
-          });
+        if (matchedKey) {
+          category = matchedKey;
+        }else{
+          inputCategory="all";
         }
-        category = matchedKey;
       }
 
       // Build initial topic query string
@@ -488,7 +572,8 @@ const influencersController = {
               finalQueryString,
               filters.greaterThanTime,
               filters.lessThanTime,
-              range
+              range,
+              inputCategory==="all"?category:"all"
             )
           )
         )
@@ -515,7 +600,7 @@ const influencersController = {
 
   getInfluencerPost: async (req, res) => {
     try {
-      const {
+      let {
         timeSlot,
         greaterThanTime,
         lessThanTime,
@@ -550,15 +635,11 @@ const influencersController = {
       let category = inputCategory;
       if (category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json({
-            success: true,
-            responseArray: [],
-            total: 0,
-            error: 'Category not found'
-          });
+        if (matchedKey) {
+          category = matchedKey;
+        }else{
+          inputCategory="all";
         }
-        category = matchedKey;
       }
 
       // Build initial topic query string
@@ -594,7 +675,8 @@ const influencersController = {
           finalQueryString,
           filters.greaterThanTime,
           filters.lessThanTime,
-          INFLUENCER_CATEGORY_QUERIES[index]
+          INFLUENCER_CATEGORY_QUERIES[index],
+          inputCategory==="all"?category:"all"
         )
       );
 

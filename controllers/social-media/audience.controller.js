@@ -241,13 +241,11 @@ const audienceController = {
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, audienceCategoryData);
-        if (!matchedKey) {
-          return res.json({
-            data_array: [],
-            error: 'Category not found'
-          });
-        }
+        if (matchedKey) {
         selectedCategory = matchedKey;
+        }else{
+          selectedCategory="all"
+        }
       }
 
       const topicQueryString = buildTopicQueryString(audienceCategoryData);
@@ -337,6 +335,31 @@ const audienceController = {
         },
       };
 
+      if(selectedCategory!="all"){
+    const categoryFilter = {
+      bool: {
+        should: [
+          {
+            multi_match: {
+              query: category,
+              fields: [
+                "p_message_text",
+                "p_message",
+                "hashtags",
+                "u_source",
+                "p_url",
+              ],
+              type: "phrase",
+            },
+          },
+        ],
+        minimum_should_match: 1,
+      },
+    };
+
+    params.body.query.bool.must.push(categoryFilter);
+  }
+      
       const results = await elasticClient.search(params);
 
       if (!results?.aggregations?.group_by_user?.buckets) {

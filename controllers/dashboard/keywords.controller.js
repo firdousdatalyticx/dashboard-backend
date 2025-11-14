@@ -249,11 +249,11 @@ const keywordsController = {
                 let workingCategory = category;
                 if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
                     const matchedKey = findMatchingCategoryKey(workingCategory, req.processedCategories || {});
-                    if (!matchedKey) {
-                        // Category not found, return empty response
-                        return res.status(200).json({ success: true, responseArray: [] });
+                    if (matchedKey) {
+                    workingCategory = matchedKey;  
+                    }else{
+                    workingCategory="all";
                     }
-                    workingCategory = matchedKey;
                 }
             
                 if (subtopicId) {
@@ -299,6 +299,31 @@ const keywordsController = {
                       }
                     }
             
+                    if(workingCategory!="all"){
+                         const categoryFilter = {
+                        bool: {
+                            should: [
+                            {
+                                multi_match: {
+                                query: category,
+                                fields: [
+                                    "p_message_text",
+                                    "p_message",
+                                    "hashtags",
+                                    "u_source",
+                                    "p_url",
+                                ],
+                                type: "phrase",
+                                },
+                            },
+                            ],
+                            minimum_should_match: 1,
+                        },
+                        };
+
+                        params.body.query.bool.must.push(categoryFilter);
+  
+                    }
                     if (sentimentType) {
                         params.body.query.bool.must.push({
                         match: { predicted_sentiment_value: sentimentType.trim() }

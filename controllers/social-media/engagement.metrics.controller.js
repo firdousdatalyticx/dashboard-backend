@@ -68,40 +68,71 @@ function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
  * @param {Object} aggs Aggregations to perform
  * @returns {Object} Elasticsearch query object
  */
-const elasticQueryTemplate = (queryString, gte, lte, aggs) => ({
-    size: 0,
-    query: {
-        bool: {
-            must: [
-                {
-                    query_string: {
-                        query: queryString,
-                        default_operator: "OR" // Use OR for better performance
-                    }
-                },
-                {
-                    range: {
-                        p_created_time: {
-                            gte: gte,
-                            lte: lte,
-                            format: "yyyy-MM-dd" // Specify format for better performance
+const elasticQueryTemplate = (queryString, gte, lte, aggs, category) => {
+    
+    const baseQuery = {
+        size: 0,
+        query: {
+            bool: {
+                must: [
+                    {
+                        query_string: {
+                            query: queryString,
+                            default_operator: "OR"
+                        }
+                    },
+                    {
+                        range: {
+                            p_created_time: {
+                                gte: gte,
+                                lte: lte,
+                                format: "yyyy-MM-dd"
+                            }
+                        }
+                    },
+                    {
+                        range: {
+                            created_at: {
+                                gte: gte,
+                                lte: lte,
+                                format: "yyyy-MM-dd"
+                            }
                         }
                     }
-                },
-                                {
-                    range: {
-                        created_at: {
-                            gte: gte,
-                            lte: lte,
-                            format: "yyyy-MM-dd" // Specify format for better performance
+                ]
+            }
+        },
+        aggs: aggs
+    };
+
+    // ✅ Add Category Filter
+    if (category && category !== "all") {
+        const categoryFilter = {
+            bool: {
+                should: [
+                    {
+                        multi_match: {
+                            query: category,
+                            fields: [
+                                "p_message_text",
+                                "p_message",
+                                "hashtags",
+                                "u_source",
+                                "p_url"
+                            ],
+                            type: "phrase"
                         }
                     }
-                }
-            ]
-        }
-    },
-    aggs: aggs
-});
+                ],
+                minimum_should_match: 1
+            }
+        };
+
+        baseQuery.query.bool.must.push(categoryFilter);
+    }
+
+    return baseQuery;
+};
 
 /**
  * Execute Elasticsearch query with timeout for better performance
@@ -292,16 +323,11 @@ const engagementController = {
             let selectedCategory = category;
             if (category !== 'all' && category !== '' && category !== 'custom') {
                 const matchedKey = findMatchingCategoryKey(category, categoryData);
-                if (!matchedKey) {
-                    return res.json({
-                        success: true,
-                        totalCount: 0,
-                        percentageDifference: "increase|0.00",
-                        graphData: [],
-                        error: 'Category not found'
-                    });
+                if (matchedKey) {
+                  selectedCategory = matchedKey;
+                }else{
+                    selectedCategory="all";
                 }
-                selectedCategory = matchedKey;
             }
 
             let query = buildTopicQueryString(categoryData);
@@ -342,7 +368,6 @@ const engagementController = {
                 greaterThanTime = '2023-01-01';
                 lessThanTime = '2023-04-30';
             }
-            console.log(filters.queryString)
             let response, graphData, totalCount;
             if (type === 'shares') {
                 const aggsShares = {
@@ -351,7 +376,7 @@ const engagementController = {
            
                 // Get current period data
                 const shares = await executeQuery(
-                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsShares)
+                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsShares,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalShares = shares.aggregations.total_shares.value;
 
@@ -359,7 +384,7 @@ const engagementController = {
           
                 // Get comparison period data
                 const sharesCompare = await executeQuery(
-                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsShares)
+                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsShares,category!=="all" && selectedCategory=="all"?category:"all")
                 );
 
                 const totalSharesCompare = sharesCompare.aggregations.total_shares.value;
@@ -380,13 +405,13 @@ const engagementController = {
 
                 // Get current period data
                 const comments = await executeQuery(
-                    elasticQueryTemplate(filters.queryString, greaterThanTime, lessThanTime, aggsComments)
+                    elasticQueryTemplate(filters.queryString, greaterThanTime, lessThanTime, aggsComments,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalComments = comments.aggregations.total_comments.value;
 
                 // Get comparison period data
                 const commentsCompare = await executeQuery(
-                    elasticQueryTemplate(filters.queryString, incDecFromDate, incDecToDate, aggsComments)
+                    elasticQueryTemplate(filters.queryString, incDecFromDate, incDecToDate, aggsComments,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalCommentsCompare = commentsCompare.aggregations.total_comments.value;
 
@@ -406,13 +431,13 @@ const engagementController = {
 
                 // Get current period data
                 const likes = await executeQuery(
-                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsLikes)
+                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsLikes,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalLikes = likes.aggregations.total_likes.value;
 
                 // Get comparison period data
                 const likesCompare = await executeQuery(
-                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsLikes)
+                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsLikes,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalLikesCompare = likesCompare.aggregations.total_likes.value;
 
@@ -436,7 +461,7 @@ const engagementController = {
              
                 // Get current period data
                 const engagement = await executeQuery(
-                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsEngagements)
+                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsEngagements,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalEngagement = 
                     engagement.aggregations.total_shares.value +
@@ -446,7 +471,7 @@ const engagementController = {
 
                 // Get comparison period data
                 const engagementCompare = await executeQuery(
-                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsEngagements)
+                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsEngagements,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalEngagementCompare = 
                     engagementCompare.aggregations.total_shares.value +

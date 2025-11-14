@@ -717,16 +717,11 @@ const postsController = {
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && Object.keys(categoryData).length > 0) {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json({
-            success: true,
-            error: 'Category not found',
-            hits: [],
-            responseArray: [],
-            total: 0
-          });
+        if (matchedKey) {
+               selectedCategory = matchedKey;
+        }else{
+          selectedCategory="all";
         }
-        selectedCategory = matchedKey;
       }
 
       // Parse and validate rating if provided.
@@ -818,6 +813,8 @@ const postsController = {
       // Apply category filters when a specific category is provided
       if (selectedCategory && selectedCategory !== 'all' && Object.keys(categoryData).length > 0) {
         addCategoryFilters(esQuery.query, selectedCategory, categoryData);
+        
+
 
         // Check if we have valid category filters
         const result = hasMultiMatchWithFields(esQuery);
@@ -864,6 +861,32 @@ const postsController = {
         }
       ];
       }
+
+         if(selectedCategory!="all"){
+                         const categoryFilter = {
+                        bool: {
+                            should: [
+                            {
+                                multi_match: {
+                                query: category,
+                                fields: [
+                                    "p_message_text",
+                                    "p_message",
+                                    "hashtags",
+                                    "u_source",
+                                    "p_url",
+                                ],
+                                type: "phrase",
+                                },
+                            },
+                            ],
+                            minimum_should_match: 1,
+                        },
+                        };
+
+                        esQuery.query.bool.must.push(categoryFilter);
+  
+                    }
       // Execute the Elasticsearch query.
       const results = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,

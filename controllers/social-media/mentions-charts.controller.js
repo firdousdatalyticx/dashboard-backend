@@ -1403,12 +1403,13 @@ const mentionsChartController = {
       let workingCategory = category;
       if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
         const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-        if (!matchedKey) {
-          // Category not found, return empty response
-          return res.status(200).json({ entities: [], total: 0 });
+        if (matchedKey) {
+           categoryData = { [matchedKey]: categoryData[matchedKey] };
+           workingCategory = matchedKey;
+        }else{
+          workingCategory="all";
         }
-        categoryData = { [matchedKey]: categoryData[matchedKey] };
-        workingCategory = matchedKey;
+
       }
 
       // Check if this is the special topicId
@@ -1465,6 +1466,31 @@ const mentionsChartController = {
         },
       };
 
+          // ✅ Add Category Filter
+    if (workingCategory=="all" && category !== "all") {
+        const categoryFilter = {
+            bool: {
+                should: [
+                    {
+                        multi_match: {
+                            query: category,
+                            fields: [
+                                "p_message_text",
+                                "p_message",
+                                "hashtags",
+                                "u_source",
+                                "p_url"
+                            ],
+                            type: "phrase"
+                        }
+                    }
+                ],
+                minimum_should_match: 1
+            }
+        };
+
+        params.query.bool.must.push(categoryFilter);
+    }
       if (sentimentType && sentimentType != "") {
         params.query.bool.must.push({
           match: {
@@ -1553,12 +1579,14 @@ const mentionsChartController = {
       let workingCategory = category;
       if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
         const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-        if (!matchedKey) {
-          // Category not found, return empty response
-          return res.status(200).json({ responseOutput: {} });
-        }
-        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        if (matchedKey) {
+           categoryData = { [matchedKey]: categoryData[matchedKey] };
         workingCategory = matchedKey;
+                 }else{
+               categoryData=categoryData;
+                 workingCategory="all"; 
+                 }
+       
       }
 
       // Check if this is the special topicId
@@ -1601,6 +1629,32 @@ const mentionsChartController = {
           },
         },
       };
+
+
+
+          if(workingCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.query.bool.must.push(categoryFilter);
+                        }
            // Add category filters to the query
            if (Object.keys(categoryData).length > 0) {
             const categoryFilters = [];
@@ -2028,11 +2082,12 @@ const mentionsChartController = {
       let workingCategory = category;
       if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
         const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-        if (!matchedKey) {
-          return res.status(200).json({ data: [], totalAudiences: 0, query: {} });
-        }
+        if (matchedKey) {
         categoryData = { [matchedKey]: categoryData[matchedKey] };
-        workingCategory = matchedKey;
+        workingCategory = matchedKey;        }else{
+          workingCategory="all";
+        }
+
       }
 
       // Check if this is the special topicId

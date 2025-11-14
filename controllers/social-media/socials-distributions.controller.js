@@ -88,20 +88,24 @@ const socialsDistributionsController = {
             if (Object.keys(categoryData).length === 0) {
                 return res.json({});
             }
-
             let workingCategory = category;
-            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
-                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-                if (!matchedKey) {
-                    return res.json({ error: 'Category not found' });
-                }
+          // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+        if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+            const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+            
+            if (matchedKey) {
+                // Category found - filter to only this category
                 categoryData = { [matchedKey]: categoryData[matchedKey] };
                 workingCategory = matchedKey;
+            } else {
+                // Category not found - keep all categoryData and set workingCategory to 'all'
+                // This maintains existing functionality
+                workingCategory = 'all';
             }
+        }
 
               // Build base query for filters processing
                         const baseQueryString = buildBaseQueryString(workingCategory, categoryData);
-                        
                         // Process filters (time slot, date range, sentiment)
                         const filters = processFilters({
                             sentimentType,
@@ -144,7 +148,32 @@ const socialsDistributionsController = {
                             isSpecialTopic,
                             parseInt(topicId)
                         );
-            
+
+                        if(workingCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
+
+                    //    return res.send(query)
                         // Add category filters
                         addCategoryFilters(query, workingCategory, categoryData);
                         

@@ -102,22 +102,19 @@ const mentionsTrendController = {
                     maxMentionData: '0'
                 });
             }
-
+            let workingCategory = categoryData;
             if (category !== 'all' && category !== '' && category !== 'custom') {
                 const matchedKey = findMatchingCategoryKey(category, categoryData);
-                if (!matchedKey) {
-                    return res.json({
-                        success: true,
-                        error: 'Category not found',
-                        mentionsGraphData: '',
-                        maxMentionData: '0'
-                    });
+                if (matchedKey) {
+                  workingCategory = matchedKey;
+                }else{
+                categoryData=categoryData;
+                workingCategory = 'all';
                 }
-                category = matchedKey;
             }
 
             // Build base query for filters processing
-            const baseQueryString = buildBaseQueryString(category, categoryData);
+            const baseQueryString = buildBaseQueryString(workingCategory, categoryData);
 
             // Process filters (time slot, date range, sentiment)
             const filters = processFilters({
@@ -148,8 +145,31 @@ const mentionsTrendController = {
             }, source, isSpecialTopic, Number(req.body.topicId));
 
             // Add category filters
-            addCategoryFilters(query, category, categoryData);
+            addCategoryFilters(query, workingCategory, categoryData);
 
+              if(workingCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
             // Apply sentiment filter if provided
             if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
                 if (sentimentType.includes(',')) {
@@ -184,6 +204,7 @@ const mentionsTrendController = {
                 };
                 query.bool.must.push(mentionTypeFilter);
             }
+
 
             // Execute combined aggregation query with posts
             const combinedQuery = {
@@ -243,6 +264,8 @@ const mentionsTrendController = {
                     }
                 }
             };
+
+
 
             // Execute combined query
             const response = await elasticClient.search({

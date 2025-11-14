@@ -69,11 +69,12 @@ const getDistributionPosts = async (req, res) => {
     let workingCategory = category;
     if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
       const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-      if (!matchedKey) {
-        return res.json({ posts: [], error: 'Category not found' });
-      }
+      if (matchedKey) {
       categoryData = { [matchedKey]: categoryData[matchedKey] };
       workingCategory = matchedKey;
+    }else{
+      workingCategory="all";
+    }
     }
 
     // Build base query
@@ -102,6 +103,29 @@ const getDistributionPosts = async (req, res) => {
 
     addCategoryFilters(query, workingCategory, categoryData);
 
+     if(workingCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
     if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
       if (sentimentType.includes(',')) {
         const sentimentArray = sentimentType.split(',');

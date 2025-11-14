@@ -343,7 +343,8 @@ const getActionRequired = async (
   toDate,
   topicQueryString,
   sentimentType,
-  categoryData
+  categoryData,
+  category
 ) => {
   const query = {
     size: 0,
@@ -375,6 +376,30 @@ const getActionRequired = async (
     },
   };
 
+
+    if(category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.query.bool.must.push(categoryFilter);
+                        }
   if (sentimentType && sentimentType != "") {
     query.query.bool.must.push({
       match: {
@@ -495,9 +520,9 @@ const getPosts = async (
   res,
   source,
   llm_mention_type,
-  req
+  req,
+  category ="all"
 ) => {
-
 
   const query = {
     size: 30,
@@ -519,6 +544,29 @@ const getPosts = async (
     sort: [{ p_created_time: { order: "desc" } }],
   };
 
+      if(category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.query.bool.must.push(categoryFilter);
+                        }
   if (field == "llm_mention_action") {
     query.query.bool.must.push({
       term: { "llm_mention_action.keyword": type },
@@ -676,6 +724,7 @@ const getPosts = async (
 
     query.query.bool.must.push(mentionTypeFilter);
   }
+
 
   const results = await elasticClient.search({
     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1072,12 +1121,14 @@ const mentionsChartController = {
       let workingCategory = category;
       if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
         const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-        if (!matchedKey) {
-          // Category not found, return empty response
-          return res.status(200).json({ responseOutput: {} });
-        }
+        if (matchedKey) {
         categoryData = { [matchedKey]: categoryData[matchedKey] };
         workingCategory = matchedKey;
+        }else{
+          categoryData=categoryData;
+          workingCategory="all";
+        }
+     
       }
 
       // Check if this is the special topicId
@@ -1098,14 +1149,14 @@ const mentionsChartController = {
       const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
       topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
- 
       // Fetch mention actions in **one** query
       const response = await getActionRequired(
         fromDate,
         toDate,
         topicQueryString,
         sentimentType,
-        categoryData
+        categoryData,
+        workingCategory=="all" &&category!=="all"?category:"all"
       );
 
       return res.status(200).json(response);
@@ -1130,12 +1181,13 @@ const mentionsChartController = {
       let workingCategory = category;
       if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
         const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-        if (!matchedKey) {
-          // Category not found, return empty response
-          return res.status(200).json({ responseOutput: {} });
-        }
+        if (matchedKey) {
         categoryData = { [matchedKey]: categoryData[matchedKey] };
         workingCategory = matchedKey;
+        }else{
+        categoryData=categoryData;
+        workingCategory="all";
+        }
       }
 
       // Check if this is the special topicId
@@ -1189,6 +1241,30 @@ const mentionsChartController = {
           },
         },
       };
+
+          if(workingCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.query.bool.must.push(categoryFilter);
+                        }
 
       if (sentimentType && sentimentType != "") {
         query.query.bool.must.push({
@@ -1615,12 +1691,14 @@ const mentionsChartController = {
       let workingCategory = category;
       if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
         const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-        if (!matchedKey) {
-          // Category not found, return empty response
-          return res.status(200).json({ influencersCoverage: {} });
-        }
-        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        if (matchedKey) {
+            categoryData = { [matchedKey]: categoryData[matchedKey] };
         workingCategory = matchedKey;
+        }else{
+          workingCategory="all";
+          categoryData=categoryData;
+        }
+      
       }
 
       // Check if this is the special topicId
@@ -1668,7 +1746,29 @@ const mentionsChartController = {
           },
         },
       };
-
+      if(workingCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.query.bool.must.push(categoryFilter);
+                        }
            // Add category filters to the query
            if (Object.keys(categoryData).length > 0) {
             const categoryFilters = [];
@@ -1761,15 +1861,18 @@ const mentionsChartController = {
       }
 
       let workingCategory = category;
-      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-        if (!matchedKey) {
-          // Category not found, return empty response
-          return res.status(200).json({ influencersCoverage: {}, result: {} });
+           if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+            const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+            
+            if (matchedKey) {
+                // Category found - filter to only this category
+                categoryData = { [matchedKey]: categoryData[matchedKey] };
+                workingCategory = matchedKey;
+            } else {
+                workingCategory = 'all';
+            }
         }
-        categoryData = { [matchedKey]: categoryData[matchedKey] };
-        workingCategory = matchedKey;
-      }
+      
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
@@ -1812,6 +1915,30 @@ const mentionsChartController = {
           },
         },
       };
+
+          if(workingCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.query.bool.must.push(categoryFilter);
+                        }
 
            // Add category filters to the query
            if (Object.keys(categoryData).length > 0) {
@@ -1979,6 +2106,32 @@ const mentionsChartController = {
           },
         },
       };
+
+
+
+          if(workingCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.query.bool.must.push(categoryFilter);
+                        }
 
            // Add category filters to the query
            if (Object.keys(categoryData).length > 0) {
@@ -2497,7 +2650,7 @@ const mentionsChartController = {
 
   languageMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All' } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All',category="all" } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -2506,6 +2659,7 @@ const mentionsChartController = {
       } else {
         categoryData = req.processedCategories || {};
       }
+
 
       // Standard languages list for filtering
       const standardLanguages = [
@@ -2559,6 +2713,29 @@ const mentionsChartController = {
           },
         });
       }
+   if(category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                baseQuery.bool.must.push(categoryFilter);
+                        }
 
       // Add category filters to the query
       if (Object.keys(categoryData).length > 0) {
@@ -2773,7 +2950,7 @@ const mentionsChartController = {
         value,
         interval,
       } = req.query;
-
+      let category = req.query.category||"all"
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
@@ -2804,7 +2981,8 @@ const mentionsChartController = {
         res,
         source,
         undefined, // llm_mention_type
-        req // <-- Pass req here
+        req, // <-- Pass req here,
+        category
       );
     } catch (error) {
       console.error("Error fetching data:", error);

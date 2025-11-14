@@ -101,10 +101,11 @@ const sentimentAnalysisController = {
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json([]);
-        }
+        if (matchedKey) {
         selectedCategory = matchedKey;
+        }else{
+        selectedCategory = "all"
+        }
       }
 
       // Build base query
@@ -157,6 +158,30 @@ const sentimentAnalysisController = {
           },
         });
       }
+
+       if(selectedCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
 
       // Fetch posts
       const response = await elasticClient.search({
@@ -257,15 +282,11 @@ const sentimentAnalysisController = {
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json({
-            positive: 0,
-            negative: 0,
-            neutral: 0,
-            total: 0,
-          });
+        if (matchedKey) {
+            selectedCategory = matchedKey;
+        }else{
+        selectedCategory="all";
         }
-        selectedCategory = matchedKey;
       }
 
       // Build base query (reuse your existing logic)
@@ -284,6 +305,29 @@ const sentimentAnalysisController = {
         dataSource,
       });
 
+       if(selectedCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
       const aggQuery = {
         query: query,
         size: 0,
@@ -357,10 +401,12 @@ const sentimentAnalysisController = {
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json([]);
+        if (matchedKey) {
+           selectedCategory = matchedKey;
+        }else{
+          selectedCategory="all"
         }
-        selectedCategory = matchedKey;
+       
       }
 
       const query = buildAnalysisQuery({
@@ -377,6 +423,29 @@ const sentimentAnalysisController = {
         cities,
         dataSource,
       });
+       if(selectedCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
 
       const aggQuery = {
         query: query,
@@ -441,14 +510,16 @@ const sentimentAnalysisController = {
         return res.json([]);
       }
 
-      // Handle category parameter - validate if provided
+     // Handle category parameter - validate if provided
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json([]);
+        if (matchedKey) {
+           selectedCategory = matchedKey;
+        }else{
+          selectedCategory="all"
         }
-        selectedCategory = matchedKey;
+       
       }
 
       const query = buildAnalysisQuery({
@@ -466,6 +537,29 @@ const sentimentAnalysisController = {
         dataSource,
       });
 
+        if(selectedCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
       const aggQuery = {
         query: query,
         size: 0,
@@ -553,14 +647,16 @@ const sentimentAnalysisController = {
         return res.json([]);
       }
 
-      // Handle category parameter - validate if provided
+ // Handle category parameter - validate if provided
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json([]);
+        if (matchedKey) {
+           selectedCategory = matchedKey;
+        }else{
+          selectedCategory="all"
         }
-        selectedCategory = matchedKey;
+       
       }
 
       const query = buildAnalysisQuery({
@@ -578,6 +674,29 @@ const sentimentAnalysisController = {
         dataSource,
       });
 
+       if(selectedCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
       const aggQuery = {
         query: query,
         size: 0,
@@ -733,6 +852,18 @@ const sentimentAnalysisController = {
         return res.json([]);
       }
 
+       // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (matchedKey) {
+           selectedCategory = matchedKey;
+        }else{
+          selectedCategory="all"
+        }
+       
+      }
+
       const query = buildAnalysisQuery({
         categoryData,
         category,
@@ -747,6 +878,30 @@ const sentimentAnalysisController = {
         cities,
         dataSource,
       });
+
+          if(selectedCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
 
       const aggQuery = {
         query: query,
@@ -828,14 +983,16 @@ const sentimentAnalysisController = {
         return res.json([]);
       }
 
-      // Handle category parameter - validate if provided
+         // Handle category parameter - validate if provided
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json([]);
+        if (matchedKey) {
+           selectedCategory = matchedKey;
+        }else{
+          selectedCategory="all"
         }
-        selectedCategory = matchedKey;
+       
       }
 
       const query = buildAnalysisQuery({
@@ -852,6 +1009,30 @@ const sentimentAnalysisController = {
         cities,
         dataSource,
       });
+
+          if(selectedCategory=="all" && category!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                query.bool.must.push(categoryFilter);
+                        }
 
       // Fetch posts to extract keywords
       const response = await elasticClient.search({

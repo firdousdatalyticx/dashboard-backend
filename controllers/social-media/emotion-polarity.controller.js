@@ -542,23 +542,19 @@ const emotionPolarityController = {
             }
 
             let finalCategory = category;
+            // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
             if (finalCategory !== 'all' && finalCategory !== '' && finalCategory !== 'custom') {
                 const matchedKey = findMatchingCategoryKey(finalCategory, categoryData);
-                if (!matchedKey) {
-                    return res.json({
-                        stats: {
-                            mean: 0,
-                            min: -1,
-                            max: 1,
-                            count: 0
-                        },
-                        emotions: [],
-                        totalCount: 0,
-                        distribution: [],
-                        error: 'Category not found'
-                    });
+
+                if (matchedKey) {
+                    // Category found - filter to only this category
+                    categoryData = { [matchedKey]: categoryData[matchedKey] };
+                    finalCategory = matchedKey;
+                } else {
+                    // Category not found - keep all categoryData and set finalCategory to 'all'
+                    // This maintains existing functionality
+                    finalCategory = 'all';
                 }
-                finalCategory = matchedKey;
             }
             
             // Check if this is the special topicId
@@ -656,6 +652,31 @@ const emotionPolarityController = {
 
             // Build the main query filters array
             const queryFilters = [sourceFilter];
+
+            // Add fallback category filter if needed
+            if(finalCategory=="all" && category!=="all"){
+                const categoryFilter = {
+                    bool: {
+                        should:  [
+                            {
+                                "multi_match": {
+                                    "query": category,
+                                    "fields": [
+                                        "p_message_text",
+                                        "p_message",
+                                        "hashtags",
+                                        "u_source",
+                                        "p_url"
+                                    ],
+                                    "type": "phrase"
+                                }
+                            }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
+                queryFilters.push(categoryFilter);
+            }
             
             // Add date range filter if exists
             if (dateRangeFilter) {

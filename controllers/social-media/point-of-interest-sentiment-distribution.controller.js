@@ -82,13 +82,19 @@ const poiSentimentDistributionController = {
             }
 
             let workingCategory = category;
+            // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
             if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
                 const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-                if (!matchedKey) {
-                    return res.json({ distribution: [], error: 'Category not found' });
+
+                if (matchedKey) {
+                    // Category found - filter to only this category
+                    categoryData = { [matchedKey]: categoryData[matchedKey] };
+                    workingCategory = matchedKey;
+                } else {
+                    // Category not found - keep all categoryData and set workingCategory to 'all'
+                    // This maintains existing functionality
+                    workingCategory = 'all';
                 }
-                categoryData = { [matchedKey]: categoryData[matchedKey] };
-                workingCategory = matchedKey;
             }
 
             // Calculate date filter based on special topic
@@ -122,6 +128,12 @@ const poiSentimentDistributionController = {
             // If no valid categories with search criteria, return empty results
             if (validCategories.length === 0) {
                 return res.json({ distribution: [] });
+            }
+
+            // Add fallback category filter if needed (when category not found in database)
+            let hasFallbackFilter = false;
+            if(workingCategory=="all" && category!=="all"){
+                hasFallbackFilter = true;
             }
  let sourceFilter =[];
             const normalizedSources = normalizeSourceInput(source);
@@ -162,6 +174,7 @@ const poiSentimentDistributionController = {
                     query: {
                         bool: {
                             must: [
+                                // Main category filter using valid categories
                                 {
                                     bool: {
                                         should: validCategories.map(([categoryName, data]) => ({
@@ -221,7 +234,26 @@ const poiSentimentDistributionController = {
                                         })),
                                         minimum_should_match: 1
                                     }
-                                }
+                                },
+                                // Fallback category filter when category not found in database
+                                ...(hasFallbackFilter ? [{
+                                    bool: {
+                                        should: [{
+                                            multi_match: {
+                                                query: category,
+                                                fields: [
+                                                    'p_message_text',
+                                                    'p_message',
+                                                    'hashtags',
+                                                    'u_source',
+                                                    'p_url'
+                                                ],
+                                                type: 'phrase'
+                                            }
+                                        }],
+                                        minimum_should_match: 1
+                                    }
+                                }] : [])
                             ],
                             filter: {
                                 bool: {
@@ -246,6 +278,30 @@ const poiSentimentDistributionController = {
                         categories: {
                             filters: {
                                 filters: Object.fromEntries(
+                                hasFallbackFilter ?
+                                    // When using fallback filter, only include the fallback category
+                                    [[
+                                        category, // Use the original category name as key
+                                        {
+                                            bool: {
+                                                should: [{
+                                                    multi_match: {
+                                                        query: category,
+                                                        fields: [
+                                                            'p_message_text',
+                                                            'p_message',
+                                                            'hashtags',
+                                                            'u_source',
+                                                            'p_url'
+                                                        ],
+                                                        type: 'phrase'
+                                                    }
+                                                }],
+                                                minimum_should_match: 1
+                                            }
+                                        }
+                                    ]] :
+                                    // Include valid categories when not using fallback
                                     validCategories.map(([categoryName, data]) => [
                                         categoryName,
                                         {
@@ -304,7 +360,7 @@ const poiSentimentDistributionController = {
                                             }
                                         }
                                     ])
-                                )
+                            )
                             },
                             aggs: {
                                 sentiments: {

@@ -102,16 +102,19 @@ const emotionsController = {
       }
 
       let category = inputCategory;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
       if (category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
-        if (!matchedKey) {
-          return res.json({
-            success: true,
-            emotions: [],
-            error: 'Category not found'
-          });
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          category = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set category to 'all'
+          // This maintains existing functionality
+          category = 'all';
         }
-        category = matchedKey;
       }
 
       // Set default date range - last 90 days
@@ -170,6 +173,30 @@ const emotionsController = {
         isSpecialTopic,
         parseInt(topicId)
       );
+
+      if(category=="all" && inputCategory!=="all"){
+        const categoryFilter = {
+            bool: {
+                should:  [
+                    {
+                        "multi_match": {
+                            "query": inputCategory,
+                            "fields": [
+                                "p_message_text",
+                                "p_message",
+                                "hashtags",
+                                "u_source",
+                                "p_url"
+                            ],
+                            "type": "phrase"
+                        }
+                    }
+                ],
+                minimum_should_match: 1
+            }
+        };
+        query.bool.must.push(categoryFilter);
+      }
 
       // Add category filters
       addCategoryFilters(query, category, categoryData);
@@ -492,17 +519,19 @@ const emotionsController = {
     }
 
     let category = inputCategory;
+    // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
     if (category !== 'all' && category !== '' && category !== 'custom') {
       const matchedKey = findMatchingCategoryKey(category, categoryData);
-      if (!matchedKey) {
-        return res.json({
-          success: true,
-          posts: [],
-          total: 0,
-          error: 'Category not found'
-        });
+
+      if (matchedKey) {
+        // Category found - filter to only this category
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        category = matchedKey;
+      } else {
+        // Category not found - keep all categoryData and set category to 'all'
+        // This maintains existing functionality
+        category = 'all';
       }
-      category = matchedKey;
     }
 
     // Set default date range - last 90 days if no dates provided
@@ -532,6 +561,30 @@ const emotionsController = {
       isSpecialTopic,
       parseInt(topicId)
     );
+
+    if(category=="all" && inputCategory!=="all"){
+      const categoryFilter = {
+          bool: {
+              should:  [
+                  {
+                      "multi_match": {
+                          "query": inputCategory,
+                          "fields": [
+                              "p_message_text",
+                              "p_message",
+                              "hashtags",
+                              "u_source",
+                              "p_url"
+                          ],
+                          "type": "phrase"
+                      }
+                  }
+              ],
+              minimum_should_match: 1
+          }
+      };
+      query.bool.must.push(categoryFilter);
+    }
 
     // Add category filters
     addCategoryFilters(query, category, categoryData);

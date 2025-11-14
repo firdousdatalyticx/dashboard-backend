@@ -100,12 +100,19 @@ const leaderboardAnalysisController = {
             }
 
             let workingCategory = category;
+            // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
             if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
                 const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
-                if (!matchedKey) {
-                    return res.json({ leaderboard: [], error: 'Category not found' });
+
+                if (matchedKey) {
+                    // Category found - filter to only this category
+                    categoryData = { [matchedKey]: categoryData[matchedKey] };
+                    workingCategory = matchedKey;
+                } else {
+                    // Category not found - keep all categoryData and set workingCategory to 'all'
+                    // This maintains existing functionality
+                    workingCategory = 'all';
                 }
-                categoryData = { [matchedKey]: categoryData[matchedKey] };
             }
 
             // Calculate date filter - for special topic, use wider range
@@ -181,6 +188,12 @@ const leaderboardAnalysisController = {
                 return res.json({ leaderboard: emptyLeaderboard });
             }
 
+            // Add fallback category filter if needed (when category not found in database)
+            let hasFallbackFilter = false;
+            if(workingCategory=="all" && category!=="all"){
+                hasFallbackFilter = true;
+            }
+
             const params = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: {
@@ -188,6 +201,7 @@ const leaderboardAnalysisController = {
                     query: {
                         bool: {
                             must: [
+                                // Main category filter using valid categories
                                 {
                                     bool: {
                                         should: validCategories.map(([categoryName, data]) => ({
@@ -247,7 +261,26 @@ const leaderboardAnalysisController = {
                                         })),
                                         minimum_should_match: 1
                                     }
-                                }
+                                },
+                                // Fallback category filter when category not found in database
+                                ...(hasFallbackFilter ? [{
+                                    bool: {
+                                        should: [{
+                                            multi_match: {
+                                                query: category,
+                                                fields: [
+                                                    'p_message_text',
+                                                    'p_message',
+                                                    'hashtags',
+                                                    'u_source',
+                                                    'p_url'
+                                                ],
+                                                type: 'phrase'
+                                            }
+                                        }],
+                                        minimum_should_match: 1
+                                    }
+                                }] : [])
                             ],
                             filter: {
                                 bool: {
@@ -272,64 +305,88 @@ const leaderboardAnalysisController = {
                         categories: {
                             filters: {
                                 filters: Object.fromEntries(
-                                    validCategories.map(([categoryName, data]) => [
-                                        categoryName,
-                                        {
-                                            bool: {
-                                                should: [
-                                                    // Keywords matching
-                                                    ...(data.keywords || []).map(keyword => ({
+                                    hasFallbackFilter ?
+                                        // When using fallback filter, only include the fallback category
+                                        [[
+                                            category, // Use the original category name as key
+                                            {
+                                                bool: {
+                                                    should: [{
                                                         multi_match: {
-                                                            query: keyword,
+                                                            query: category,
                                                             fields: [
                                                                 'p_message_text',
                                                                 'p_message',
-                                                                'keywords',
-                                                                'title',
                                                                 'hashtags',
                                                                 'u_source',
                                                                 'p_url'
                                                             ],
                                                             type: 'phrase'
                                                         }
-                                                    })),
-                                                    // Hashtags matching
-                                                    ...(data.hashtags || []).map(hashtag => ({
-                                                        multi_match: {
-                                                            query: hashtag,
-                                                            fields: [
-                                                                'p_message_text',
-                                                                'p_message',
-                                                                'keywords',
-                                                                'title',
-                                                                'hashtags',
-                                                                'u_source',
-                                                                'p_url'
-                                                            ],
-                                                            type: 'phrase'
-                                                        }
-                                                    })),
-                                                    // URLs matching
-                                                    ...(data.urls || []).map(url => ({
-                                                        multi_match: {
-                                                            query: url,
-                                                            fields: [
-                                                                'p_message_text',
-                                                                'p_message',
-                                                                'keywords',
-                                                                'title',
-                                                                'hashtags',
-                                                                'u_source',
-                                                                'p_url'
-                                                            ],
-                                                            type: 'phrase'
-                                                        }
-                                                    }))
-                                                ],
-                                                minimum_should_match: 1
+                                                    }],
+                                                    minimum_should_match: 1
+                                                }
                                             }
-                                        }
-                                    ])
+                                        ]] :
+                                        // Include valid categories when not using fallback
+                                        validCategories.map(([categoryName, data]) => [
+                                            categoryName,
+                                            {
+                                                bool: {
+                                                    should: [
+                                                        // Keywords matching
+                                                        ...(data.keywords || []).map(keyword => ({
+                                                            multi_match: {
+                                                                query: keyword,
+                                                                fields: [
+                                                                    'p_message_text',
+                                                                    'p_message',
+                                                                    'keywords',
+                                                                    'title',
+                                                                    'hashtags',
+                                                                    'u_source',
+                                                                    'p_url'
+                                                                ],
+                                                                type: 'phrase'
+                                                            }
+                                                        })),
+                                                        // Hashtags matching
+                                                        ...(data.hashtags || []).map(hashtag => ({
+                                                            multi_match: {
+                                                                query: hashtag,
+                                                                fields: [
+                                                                    'p_message_text',
+                                                                    'p_message',
+                                                                    'keywords',
+                                                                    'title',
+                                                                    'hashtags',
+                                                                    'u_source',
+                                                                    'p_url'
+                                                                ],
+                                                                type: 'phrase'
+                                                            }
+                                                        })),
+                                                        // URLs matching
+                                                        ...(data.urls || []).map(url => ({
+                                                            multi_match: {
+                                                                query: url,
+                                                                fields: [
+                                                                    'p_message_text',
+                                                                    'p_message',
+                                                                    'keywords',
+                                                                    'title',
+                                                                    'hashtags',
+                                                                    'u_source',
+                                                                    'p_url'
+                                                                ],
+                                                                type: 'phrase'
+                                                            }
+                                                        }))
+                                                    ],
+                                                    minimum_should_match: 1
+                                                }
+                                            }
+                                        ])
                                 )
                             },
                             aggs: {

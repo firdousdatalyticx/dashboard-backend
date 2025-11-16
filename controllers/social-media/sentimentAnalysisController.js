@@ -132,15 +132,54 @@ const sentimentAnalysisController = {
       }
 
       if (subtopic) {
-        query.bool.must.push({
-          match_phrase: { "llm_subtopic.keyword": subtopic },
-        });
+        query.bool.must.push(
+          
+             {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": subtopic,
+                                                    "fields": [
+                                                        "llm_subtopic"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                }
+
+
+        //   {
+        //   match_phrase: { "llm_subtopic.keyword": subtopic },
+        // }
+      );
       }
 
       if (emotion) {
-        query.bool.must.push({
-          match_phrase: { "llm_emotion.keyword": emotion },
-        });
+        query.bool.must.push(
+          {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": emotion,
+                                                    "fields": [
+                                                        "llm_emotion"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                }
+        //                         {
+        //   match_phrase: { "llm_emotion.keyword": emotion },
+        // }
+      );
       }
 
       if (keyword) {
@@ -183,6 +222,8 @@ const sentimentAnalysisController = {
                                 query.bool.must.push(categoryFilter);
                         }
 
+
+                    //  r res.send(query)
       // Fetch posts
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -215,27 +256,6 @@ const sentimentAnalysisController = {
 
       const posts =
         response?.hits?.hits?.map((hit) => formatPostData(hit)) || [];
-
-      // const posts = response.hits.hits.map(hit => ({
-      //     id: hit._id,
-      //     ...hit._source,
-      //     // Map field names to match frontend expectations
-      //     message: hit._source.p_message_text || hit._source.p_message || '',
-      //     created_at: hit._source.p_created_time,
-      //     username: hit._source.u_username,
-      //     fullname: hit._source.u_fullname,
-      //     profile_pic: hit._source.u_profile_pic_url,
-      //     predicted_sentiment: hit._source.predicted_sentiment_value,
-      //     subtopic: hit._source.llm_subtopic,
-      //     emotion: hit._source.llm_emotion,
-      //     keywords: hit._source.llm_keywords,
-      //     url: hit._source.p_url,
-      //     image_url: hit._source.p_image_url,
-      //     video_url: hit._source.p_video_url,
-      //     likes: hit._source.like_count || 0,
-      //     comments: hit._source.comment_count || 0,
-      //     shares: hit._source.share_count || 0
-      // }));
 
       return res.json(posts);
     } catch (error) {
@@ -1593,6 +1613,10 @@ const formatPostData = (hit) => {
     created_at: new Date(
       source.p_created_time || source.created_at
     ).toLocaleString(),
+    llm_subtopic:source.llm_subtopic,
+    llm_emotion:source.llm_emotion,
+    llm_keywords:source.llm_keywords
+
   };
 };
 

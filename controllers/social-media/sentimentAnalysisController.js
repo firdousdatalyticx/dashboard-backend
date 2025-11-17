@@ -80,6 +80,7 @@ const sentimentAnalysisController = {
         keyword,
         specificDate,
         limit = 50,
+        topicId
       } = req.body;
 
       // Determine which category data to use
@@ -122,6 +123,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       });
 
       // Add specific filters based on click context
@@ -277,6 +279,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       } = req.body;
 
       // Determine which category data to use
@@ -322,6 +325,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       });
 
        if(selectedCategory=="all" && category!=="all"){
@@ -401,6 +405,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       } = req.body;
 
       // Determine which category data to use
@@ -441,6 +446,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       });
        if(selectedCategory=="all" && category!=="all"){
                          const categoryFilter = {
@@ -514,6 +520,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       } = req.body;
 
       // Determine which category data to use
@@ -554,6 +561,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       });
 
         if(selectedCategory=="all" && category!=="all"){
@@ -652,6 +660,7 @@ const sentimentAnalysisController = {
         interval = "month", // day, week, month, year
         includePosts = true, // Flag to include posts or not
         postsPerBucket = 10, // Number of posts per time bucket
+        topicId
       } = req.body;
 
       // Determine which category data to use
@@ -692,6 +701,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       });
 
        if(selectedCategory=="all" && category!=="all"){
@@ -864,6 +874,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       } = req.body;
 
       const categoryData = req.processedCategories || {};
@@ -897,6 +908,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       });
 
           if(selectedCategory=="all" && category!=="all"){
@@ -988,6 +1000,7 @@ const sentimentAnalysisController = {
         cities,
         dataSource,
         limit = 100,
+        topicId
       } = req.body;
 
       // Determine which category data to use
@@ -1028,6 +1041,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        topicId
       });
 
           if(selectedCategory=="all" && category!=="all"){
@@ -1105,6 +1119,7 @@ function buildAnalysisQuery(params) {
     organizations,
     cities,
     dataSource,
+    topicId
   } = params;
 
   // Build base query with time range
@@ -1148,7 +1163,18 @@ function buildAnalysisQuery(params) {
         minimum_should_match: 1
       }
     });
-  } else {
+  }else if(topicId && topicId === 2641){        
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                ],
+                minimum_should_match: 1
+            }
+        });
+    } else  {
     // When sources='All' or not specified, use default sources
     query.bool.must.push({
       bool: {

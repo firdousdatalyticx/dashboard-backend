@@ -262,7 +262,9 @@ const audienceController = {
         // Default logic based on topic
         if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
-        } else {
+        } else  if (parseInt(topicId) === 2641) {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
+        }else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }
       }

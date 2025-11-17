@@ -144,7 +144,12 @@ const leaderboardAnalysisController = {
              [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },
-            ]: isSpecialTopic ? [
+            ]:parseInt(topicId)==2641?
+            [   { match_phrase: { source: 'Facebook' } },
+                { match_phrase: { source: 'Twitter' } },
+                { match_phrase: { source: 'Instagram' } }]
+            
+            :isSpecialTopic ? [
                 { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } }
             ] : [

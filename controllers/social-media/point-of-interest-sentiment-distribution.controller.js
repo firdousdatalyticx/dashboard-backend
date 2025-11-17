@@ -152,7 +152,14 @@ const poiSentimentDistributionController = {
                 { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } }
             ];
-        } else {
+        } 
+         else if (parseInt(topicId) === 2641){
+             sourceFilter = [
+                { match_phrase: { source: 'Facebook' } },
+                { match_phrase: { source: 'Twitter' } },
+                 { match_phrase: { source: 'Instagram' } },
+            ];
+        }else {
              sourceFilter = [
                 { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } },

@@ -1012,7 +1012,18 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
                 minimum_should_match: 1
             }
         });
-    } else {
+    } else if(topicId === 2641){        
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                ],
+                minimum_should_match: 1
+            }
+        });
+    }else{
         query.bool.must.push({
             bool: {
                 should: [

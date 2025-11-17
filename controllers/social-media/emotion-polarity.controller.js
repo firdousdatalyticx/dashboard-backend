@@ -632,7 +632,17 @@ const emotionPolarityController = {
                         ],
                         minimum_should_match: 1
                     }
-                } : {
+                } : parseInt(topicId)==2641 ? {
+
+                      bool: {
+                        should: [
+                            { match_phrase: { source: 'Facebook' } },
+                            { match_phrase: { source: 'Twitter' } },
+                            { match_phrase: { source: 'Facebook' } },
+                        ],
+                        minimum_should_match: 1
+                    }
+                }:{
                     bool: {
                         should: [
                             { match_phrase: { source: 'Facebook' } },

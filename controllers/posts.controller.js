@@ -372,6 +372,17 @@ const buildElasticsearchQuery = (params) => {
             minimum_should_match: 1,
           },
         });
+      } else if (topicId==2641) {
+        must.push({
+          bool: {
+            should: [
+              { match_phrase: { source: "Facebook" } },
+              { match_phrase: { source: "Twitter" } },
+              { match_phrase: { source: "Instagram" } },
+            ],
+            minimum_should_match: 1,
+          },
+        });
       } else {
         must.push({
           bool: {
@@ -925,6 +936,7 @@ const postsController = {
           ? `${filteredHits.length}/${hits.length}`
           : undefined,
         dateRange: { greaterThanTime, lessThanTime },
+        esQuery
       });
     } catch (error) {
       console.error("Error fetching posts:", error);

@@ -398,7 +398,7 @@ const audienceController = {
       });
     }
   },
-  getCommenterEngagementBreakdown: async (req, res) => {
+getCommenterEngagementBreakdown: async (req, res) => {
     try {
       const {
         timeSlot,
@@ -413,7 +413,7 @@ const audienceController = {
       } = req.body;
 
       // Determine which category data to use
-      let countryCategoryData = {};
+      let breakdownCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
         breakdownCategoryData = processCategoryItems(categoryItems);
@@ -444,7 +444,7 @@ const audienceController = {
       // Handle category parameter - validate if provided
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
+        const matchedKey = findMatchingCategoryKey(category, breakdownCategoryData);
         if (!matchedKey) {
           return res.json({
             data_array: [],
@@ -467,7 +467,7 @@ const audienceController = {
         selectedCategory = matchedKey;
       }
 
-      const topicQueryString = buildTopicQueryString(seniorityCategoryData);
+      const topicQueryString = buildTopicQueryString(breakdownCategoryData);
 
       // Source filtering logic
       const normalizedSources = normalizeSourceInput(source);
@@ -661,6 +661,7 @@ const audienceController = {
         // Fall back to middleware data
         trendCategoryData = req.processedCategories || {};
       }
+      
       if (Object.keys(trendCategoryData).length === 0) {
         return res.json({
           dates: [],
@@ -671,7 +672,7 @@ const audienceController = {
       // Handle category parameter - validate if provided
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
+        const matchedKey = findMatchingCategoryKey(category, trendCategoryData);
         if (!matchedKey) {
           return res.json({
             dates: [],
@@ -682,7 +683,7 @@ const audienceController = {
         selectedCategory = matchedKey;
       }
 
-      const topicQueryString = buildTopicQueryString(seniorityCategoryData);
+      const topicQueryString = buildTopicQueryString(trendCategoryData);
 
       // Source filtering logic
       const normalizedSources = normalizeSourceInput(source);
@@ -712,8 +713,8 @@ const audienceController = {
 
       // Gather all filter terms
       let allFilterTerms = [];
-      if (categoryData) {
-        Object.values(categoryData).forEach((data) => {
+      if (trendCategoryData) {
+        Object.values(trendCategoryData).forEach((data) => {
           if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
           if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
           if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);

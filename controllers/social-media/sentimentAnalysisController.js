@@ -127,7 +127,7 @@ const sentimentAnalysisController = {
       // Add specific filters based on click context
       if (sentimentType) {
         query.bool.must.push({
-          match: { "predicted_sentiment_value.keyword": sentimentType },
+          match: { "predicted_sentiment_value": sentimentType },
         });
       }
 
@@ -223,7 +223,6 @@ const sentimentAnalysisController = {
                         }
 
 
-                    //  r res.send(query)
       // Fetch posts
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -600,6 +599,7 @@ const sentimentAnalysisController = {
           },
         },
       };
+
 
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,

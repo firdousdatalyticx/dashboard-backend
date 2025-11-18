@@ -80,7 +80,8 @@ const entitiesController = {
                 limit = 10,
                 maxPostsPerEntity = 200, // Safety limit for max posts to fetch per entity
                 topicId,
-                categoryItems
+                categoryItems,
+                llm_mention_type
             } = params;
             
             // Check if this is the special topicId
@@ -201,7 +202,42 @@ const entitiesController = {
                     });
                 }
             }
-            
+
+            // LLM Mention Type filtering logic
+            let mentionTypesArray = [];
+
+            if (llm_mention_type) {
+              if (Array.isArray(llm_mention_type)) {
+                mentionTypesArray = llm_mention_type;
+              } else if (typeof llm_mention_type === "string") {
+                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+              }
+            }
+
+            // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+            if (mentionTypesArray.length > 0) {
+              query.bool.must.push({
+                bool: {
+                  should: mentionTypesArray.map(type => ({
+                    match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+                }
+              });
+            }
+            // CASE 2: If no LLM Mention Type given → apply must_not filter
+            else if(Number(topicId) == 2641) {
+              query.bool.must.push({
+                bool: {
+                  must_not: [
+                    { match: { llm_mention_type: "Promotion" }},
+                    { match: { llm_mention_type: "Booking" }},
+                    { match: { llm_mention_type: "Others" }}
+                  ]
+                }
+              });
+            }
+
             // For compatibility with posts controller
             // If query doesn't already contain a p_created_time filter, add it
             const hasCreatedTimeFilter = query.bool.must.some(clause => 

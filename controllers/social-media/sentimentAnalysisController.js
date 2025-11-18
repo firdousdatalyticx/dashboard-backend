@@ -1259,7 +1259,8 @@ const sentimentAnalysisController = {
       });
 
       const result = Object.entries(keywordFrequency)
-        .map(([text, value]) => ({ text, value }))
+         .map(([text, value]) => ({ text, value }))
+        .filter(item => item.value >= 2) // only keep keywords with value >= 10
         .sort((a, b) => b.value - a.value)
         .slice(0, limit);
 

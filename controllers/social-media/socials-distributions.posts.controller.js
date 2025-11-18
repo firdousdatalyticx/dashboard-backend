@@ -136,11 +136,42 @@ const getDistributionPosts = async (req, res) => {
       }
     }
 
-    const mentionTypesArray = typeof llm_mention_type === 'string' ? llm_mention_type.split(',').map(s => s.trim()) : llm_mention_type;
-    if (llm_mention_type && llm_mention_type !== "" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
-      const mentionTypeFilter = { bool: { should: mentionTypesArray.map(type => ({ match: { llm_mention_type: type } })), minimum_should_match: 1 } };
-      query.bool.must.push(mentionTypeFilter);
-    }
+        // Normalize input into array
+        const mentionTypesArray =
+          typeof llm_mention_type === "string"
+            ? llm_mention_type.split(",").map(s => s.trim())
+            : llm_mention_type;
+
+        // CASE 1: If llm_mention_type has values → apply SHOULD filter
+        if (
+          llm_mention_type &&
+          llm_mention_type !== "" &&
+          Array.isArray(mentionTypesArray) &&
+          mentionTypesArray.length > 0
+        ) {
+          query.bool.must.push({
+            bool: {
+              should: mentionTypesArray.map(type => ({
+                match: { llm_mention_type: type }
+              })),
+              minimum_should_match: 1
+            }
+          });
+        }
+
+        // CASE 2: If llm_mention_type is NOT provided AND topicId == 2641 → apply MUST_NOT filter
+        else if (Number(topicId) === 2641) {
+          query.bool.must.push({
+            bool: {
+              must_not: [
+                { match: { llm_mention_type: "Promotion" } },
+                { match: { llm_mention_type: "Booking" } },
+                { match: { llm_mention_type: "Others" } }
+              ]
+            }
+          });
+        }
+
 
     // Source filter for the posts we want
     if (sourceName === 'LinkedIn') {

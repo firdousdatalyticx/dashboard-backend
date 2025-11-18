@@ -80,7 +80,8 @@ const sentimentAnalysisController = {
         keyword,
         specificDate,
         limit = 50,
-        topicId
+        topicId,
+        type
       } = req.body;
 
       // Determine which category data to use
@@ -223,16 +224,10 @@ const sentimentAnalysisController = {
                                 };
                                 query.bool.must.push(categoryFilter);
                         }
-
-
-      // Fetch posts
-      const response = await elasticClient.search({
-        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        body: {
-          query: query,
-          size: limit,
-          sort: [{ p_created_time: { order: "desc" } }],
-          _source: [
+        const sourceFields =
+      type === "summary"
+        ? ["p_message_text"]
+        : [
             "p_message_text",
             "p_message",
             "p_created_time",
@@ -251,12 +246,28 @@ const sentimentAnalysisController = {
             "like_count",
             "comment_count",
             "share_count",
-          ],
+          ];
+
+      // Fetch posts
+      const response = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          query: query,
+          size: limit,
+          sort: [{ p_created_time: { order: "desc" } }],
+          _source: sourceFields,
         },
       });
 
-      const posts =
-        response?.hits?.hits?.map((hit) => formatPostData(hit)) || [];
+      let posts = response?.hits?.hits || [];
+      if (type === "summary") {
+      return res.json(
+        posts.map((hit) => hit._source?.p_message_text || "")
+      );
+    }
+
+       posts =
+        posts?.map((hit) => formatPostData(hit)) || [];
 
       return res.json(posts);
     } catch (error) {

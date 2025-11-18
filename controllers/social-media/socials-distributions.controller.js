@@ -199,36 +199,43 @@ const socialsDistributionsController = {
                             }
                         }
 
-                        // Apply LLM Mention Type filter if provided (sync with mentions-trend)
-                        if (llm_mention_type && llm_mention_type !== "" && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
-                            const mentionTypeFilter = {
-                                bool: {
-                                    should: llm_mention_type.map(type => ({
-                                        match: { llm_mention_type: type }
-                                    })),
-                                    minimum_should_match: 1
-                                }
-                            };
-                            query.bool.must.push(mentionTypeFilter);
+
+
+                        // Normalize input into array
+                        let mentionTypesArray = [];
+
+                        if (llm_mention_type) {
+                            if (Array.isArray(llm_mention_type)) {
+                                mentionTypesArray = llm_mention_type;
+                            } else if (typeof llm_mention_type === "string") {
+                                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+                            }
                         }
 
-                        // Normalize the input for string-based llm_mention_type
-                        const mentionTypesArray = typeof llm_mention_type === 'string' 
-                            ? llm_mention_type.split(',').map(s => s.trim()) 
-                            : llm_mention_type;
-
-                        // Apply LLM Mention Type filter if provided (handle string input)
-                        if (llm_mention_type && llm_mention_type !== "" && mentionTypesArray && Array.isArray(mentionTypesArray) && mentionTypesArray.length > 0) {
-                            const mentionTypeFilter = {
+                        // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+                        if (mentionTypesArray.length > 0) {
+                            query.bool.must.push({
                                 bool: {
                                     should: mentionTypesArray.map(type => ({
                                         match: { llm_mention_type: type }
                                     })),
                                     minimum_should_match: 1
                                 }
-                            };
-                            query.bool.must.push(mentionTypeFilter);
+                            });
+                        } 
+                        // CASE 2: If no LLM Mention Type given → apply must_not filter
+                        else if(Number(topicId) == 2641) {
+                            query.bool.must.push({
+                                bool: {
+                                    must_not: [
+                                        { match: { llm_mention_type: "Promotion" }},
+                                        { match: { llm_mention_type: "Booking" }},
+                                        { match: { llm_mention_type: "Others" }}
+                                    ]
+                                }
+                            });
                         }
+
           
             // Now create the aggregation query with the same base query
             const aggQuery = {
@@ -245,7 +252,8 @@ const socialsDistributionsController = {
             };
        
 
-            // return res.send(aggQuery)
+
+
             // Execute the aggregation query
             const aggResponse = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,

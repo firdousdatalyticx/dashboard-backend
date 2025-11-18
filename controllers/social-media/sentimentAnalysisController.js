@@ -1204,35 +1204,38 @@ function buildAnalysisQuery(params) {
     });
   }
 
-  // Add LLM mention type filter
-  if (llm_mention_type && llm_mention_type !== "All") {
-    let mentionTypes = Array.isArray(llm_mention_type)
-      ? llm_mention_type
-      : [llm_mention_type];
+  // LLM Mention Type filtering logic
+  let mentionTypesArray = [];
 
-    if (mentionTypes.length === 1) {
-      query.bool.must.push({
-        match: { llm_mention_type: mentionTypes[0] },
-      });
-    } else {
-      query.bool.must.push({
-        bool: {
-          should: mentionTypes.map((type) => ({
-            match: { llm_mention_type: type },
-          })),
-          minimum_should_match: 1,
-        },
-      });
+  if (llm_mention_type) {
+    if (Array.isArray(llm_mention_type)) {
+      mentionTypesArray = llm_mention_type;
+    } else if (typeof llm_mention_type === "string") {
+      mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
     }
-  } else {
-    // Exclude Promotion, Booking, Others by default
-    const excludeMentionTypes = ["Promotion", "Booking", "Others"];
+  }
+
+  // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+  if (mentionTypesArray.length > 0) {
     query.bool.must.push({
       bool: {
-        must_not: excludeMentionTypes.map((type) => ({
-          match: { llm_mention_type: type },
+        should: mentionTypesArray.map(type => ({
+          match: { llm_mention_type: type }
         })),
-      },
+        minimum_should_match: 1
+      }
+    });
+  }
+  // CASE 2: If no LLM Mention Type given → apply must_not filter
+  else if(Number(topicId) == 2641) {
+    query.bool.must.push({
+      bool: {
+        must_not: [
+          { match: { llm_mention_type: "Promotion" }},
+          { match: { llm_mention_type: "Booking" }},
+          { match: { llm_mention_type: "Others" }}
+        ]
+      }
     });
   }
 

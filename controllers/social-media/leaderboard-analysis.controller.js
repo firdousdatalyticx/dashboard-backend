@@ -462,18 +462,40 @@ const leaderboardAnalysisController = {
                 }
             }
 
-            // Apply LLM Mention Type filter if provided
-                if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
-                    const mentionTypeFilter = {
-                        bool: {
-                            should: llm_mention_type.map(type => ({
-                                match: { llm_mention_type: type }
-                            })),
-                            minimum_should_match: 1
-                        }
-                    };
-                     params.body.query.bool.must.push(mentionTypeFilter);
+            // LLM Mention Type filtering logic
+            let mentionTypesArray = [];
+
+            if (llm_mention_type) {
+              if (Array.isArray(llm_mention_type)) {
+                mentionTypesArray = llm_mention_type;
+              } else if (typeof llm_mention_type === "string") {
+                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+              }
+            }
+
+            // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+            if (mentionTypesArray.length > 0) {
+              params.body.query.bool.must.push({
+                bool: {
+                  should: mentionTypesArray.map(type => ({
+                    match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
                 }
+              });
+            }
+            // CASE 2: If no LLM Mention Type given → apply must_not filter
+            else if(Number(topicId) == 2641) {
+              params.body.query.bool.must.push({
+                bool: {
+                  must_not: [
+                    { match: { llm_mention_type: "Promotion" }},
+                    { match: { llm_mention_type: "Booking" }},
+                    { match: { llm_mention_type: "Others" }}
+                  ]
+                }
+              });
+            }
             const result = await elasticClient.search(params);
 
             // Gather all filter terms

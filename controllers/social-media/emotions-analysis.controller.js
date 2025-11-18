@@ -80,6 +80,7 @@ const emotionsController = {
         fromDate,
         toDate,
         sentiment,
+        llm_mention_type,
       } = req.body;
 
       // Check if this is the special topicId
@@ -207,6 +208,41 @@ const emotionsController = {
           match_phrase: {
             predicted_sentiment_value: sentiment,
           },
+        });
+      }
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+      // CASE 2: If no LLM Mention Type given → apply must_not filter
+      else if(Number(topicId) == 2641) {
+        query.bool.must.push({
+          bool: {
+            must_not: [
+              { match: { llm_mention_type: "Promotion" }},
+              { match: { llm_mention_type: "Booking" }},
+              { match: { llm_mention_type: "Others" }}
+            ]
+          }
         });
       }
 
@@ -494,7 +530,8 @@ const emotionsController = {
       sentiment,
       emotion,
       page = 1,
-      limit = 30
+      limit = 30,
+      llm_mention_type
     } = req.body;
 
     // Check if this is the special topicId
@@ -603,6 +640,41 @@ const emotionsController = {
       query.bool.must.push({
         term: {
           "llm_emotion.keyword": emotion
+        }
+      });
+    }
+
+    // LLM Mention Type filtering logic
+    let mentionTypesArray = [];
+
+    if (llm_mention_type) {
+      if (Array.isArray(llm_mention_type)) {
+        mentionTypesArray = llm_mention_type;
+      } else if (typeof llm_mention_type === "string") {
+        mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+      }
+    }
+
+    // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+    if (mentionTypesArray.length > 0) {
+      query.bool.must.push({
+        bool: {
+          should: mentionTypesArray.map(type => ({
+            match: { llm_mention_type: type }
+          })),
+          minimum_should_match: 1
+        }
+      });
+    }
+    // CASE 2: If no LLM Mention Type given → apply must_not filter
+    else if(Number(topicId) == 2641) {
+      query.bool.must.push({
+        bool: {
+          must_not: [
+            { match: { llm_mention_type: "Promotion" }},
+            { match: { llm_mention_type: "Booking" }},
+            { match: { llm_mention_type: "Others" }}
+          ]
         }
       });
     }

@@ -513,7 +513,7 @@ const emotionPolarityController = {
             }            
             // Get request parameters
             const params = req.method === 'POST' ? req.body : req.query;
-            const { 
+            const {
                 maxPostsPerEmotion = 30,
                 topEmotionsCount = 10, // Default to top 10 emotions
                 skipEmptyEmotions = true, // Whether to skip emotions with zero posts
@@ -523,7 +523,8 @@ const emotionPolarityController = {
                 source,
                 timeSlot,
                 toDate,
-                category = 'all'
+                category = 'all',
+                llm_mention_type
             } = params;
 
             if (Object.keys(categoryData).length === 0) {
@@ -754,6 +755,41 @@ const emotionPolarityController = {
                     }
                 }
             };
+
+            // LLM Mention Type filtering logic
+            let mentionTypesArray = [];
+
+            if (llm_mention_type) {
+              if (Array.isArray(llm_mention_type)) {
+                mentionTypesArray = llm_mention_type;
+              } else if (typeof llm_mention_type === "string") {
+                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+              }
+            }
+
+            // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+            if (mentionTypesArray.length > 0) {
+              elasticParams.body.query.bool.must.push({
+                bool: {
+                  should: mentionTypesArray.map(type => ({
+                    match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+                }
+              });
+            }
+            // CASE 2: If no LLM Mention Type given → apply must_not filter
+            else if(Number(topicId) == 2641) {
+              elasticParams.body.query.bool.must.push({
+                bool: {
+                  must_not: [
+                    { match: { llm_mention_type: "Promotion" }},
+                    { match: { llm_mention_type: "Booking" }},
+                    { match: { llm_mention_type: "Others" }}
+                  ]
+                }
+              });
+            }
 
             const results = await elasticClient.search(elasticParams);
 

@@ -218,7 +218,8 @@ const audienceController = {
         topicId,
         categoryItems,
         source = 'All',
-        category = 'all'
+        category = 'all',
+        llm_mention_type
       } = req.body;
 
       // Determine which category data to use
@@ -361,6 +362,41 @@ const audienceController = {
 
     params.body.query.bool.must.push(categoryFilter);
   }
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+      // CASE 2: If no LLM Mention Type given → apply must_not filter
+      else if(Number(topicId) == 2641) {
+        params.body.query.bool.must.push({
+          bool: {
+            must_not: [
+              { match: { llm_mention_type: "Promotion" }},
+              { match: { llm_mention_type: "Booking" }},
+              { match: { llm_mention_type: "Others" }}
+            ]
+          }
+        });
+      }
       
       const results = await elasticClient.search(params);
 
@@ -400,7 +436,7 @@ const audienceController = {
       });
     }
   },
-getCommenterEngagementBreakdown: async (req, res) => {
+  getCommenterEngagementBreakdown: async (req, res) => {
     try {
       const {
         timeSlot,
@@ -411,7 +447,8 @@ getCommenterEngagementBreakdown: async (req, res) => {
         topicId,
         categoryItems,
         source = 'All',
-        category = 'all'
+        category = 'all',
+        llm_mention_type
       } = req.body;
 
       // Determine which category data to use
@@ -564,6 +601,41 @@ getCommenterEngagementBreakdown: async (req, res) => {
         },
       };
 
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+      // CASE 2: If no LLM Mention Type given → apply must_not filter
+      else if(Number(topicId) == 2641) {
+        params.body.query.bool.must.push({
+          bool: {
+            must_not: [
+              { match: { llm_mention_type: "Promotion" }},
+              { match: { llm_mention_type: "Booking" }},
+              { match: { llm_mention_type: "Others" }}
+            ]
+          }
+        });
+      }
+
       const results = await elasticClient.search(params);
       const seenIds = new Map();
       const uniqueCommenters = new Map();
@@ -651,7 +723,8 @@ getCommenterEngagementBreakdown: async (req, res) => {
         topicId,
         categoryItems,
         source = 'All',
-        category = 'all'
+        category = 'all',
+        llm_mention_type
       } = req.body;
 
       // Determine which category data to use
@@ -788,6 +861,41 @@ getCommenterEngagementBreakdown: async (req, res) => {
         },
       };
 
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+      // CASE 2: If no LLM Mention Type given → apply must_not filter
+      else if(Number(topicId) == 2641) {
+        params.body.query.bool.must.push({
+          bool: {
+            must_not: [
+              { match: { llm_mention_type: "Promotion" }},
+              { match: { llm_mention_type: "Booking" }},
+              { match: { llm_mention_type: "Others" }}
+            ]
+          }
+        });
+      }
+
       const results = await elasticClient.search(params);
       const posts = results.hits.hits.map((hit) => formatPostData(hit, allFilterTerms));
       const datewiseCommentCount = {};
@@ -875,7 +983,8 @@ getCommenterEngagementBreakdown: async (req, res) => {
         topicId,
         categoryItems,
         source = 'All',
-        category = 'all'
+        category = 'all',
+        llm_mention_type
       } = req.body;
 
       // Determine which category data to use
@@ -1010,6 +1119,41 @@ getCommenterEngagementBreakdown: async (req, res) => {
           },
         },
       };
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+      // CASE 2: If no LLM Mention Type given → apply must_not filter
+      else if(Number(topicId) == 2641) {
+        params.body.query.bool.must.push({
+          bool: {
+            must_not: [
+              { match: { llm_mention_type: "Promotion" }},
+              { match: { llm_mention_type: "Booking" }},
+              { match: { llm_mention_type: "Others" }}
+            ]
+          }
+        });
+      }
 
       const results = await elasticClient.search(params);
 
@@ -1638,7 +1782,8 @@ getCommenterEngagementBreakdown: async (req, res) => {
         category: inputCategory = "all",
         source = "All",
         topicId,
-        categoryItems
+        categoryItems,
+        llm_mention_type
       } = req.body;
 
       // Check if this is the special topicId
@@ -1764,6 +1909,41 @@ getCommenterEngagementBreakdown: async (req, res) => {
         },
       };
 
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+      // CASE 2: If no LLM Mention Type given → apply must_not filter
+      else if(Number(topicId) == 2641) {
+        query.bool.must.push({
+          bool: {
+            must_not: [
+              { match: { llm_mention_type: "Promotion" }},
+              { match: { llm_mention_type: "Booking" }},
+              { match: { llm_mention_type: "Others" }}
+            ]
+          }
+        });
+      }
+
       return res.send(params)
       const results = await elasticClient.search(params);
 
@@ -1834,7 +2014,8 @@ getCommenterEngagementBreakdown: async (req, res) => {
         category = "all",
         source = "All",
         topicId,
-        categoryItems
+        categoryItems,
+        llm_mention_type
       } = req.body;
 
       // Determine which category data to use
@@ -1951,7 +2132,7 @@ getCommenterEngagementBreakdown: async (req, res) => {
               minimum_should_match: 1,
             },
           };
-          elasticQuery,query.bool.must.push(sentimentFilter);
+          elasticQuery.query.bool.must.push(sentimentFilter);
         } else {
           // Handle single sentiment type
           elasticQuery.query.bool.must.push({
@@ -1960,6 +2141,41 @@ getCommenterEngagementBreakdown: async (req, res) => {
         }
       }
 
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        elasticQuery.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+      // CASE 2: If no LLM Mention Type given → apply must_not filter
+      else if(Number(topicId) == 2641) {
+        elasticQuery.query.bool.must.push({
+          bool: {
+            must_not: [
+              { match: { llm_mention_type: "Promotion" }},
+              { match: { llm_mention_type: "Booking" }},
+              { match: { llm_mention_type: "Others" }}
+            ]
+          }
+        });
+      }
 
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,

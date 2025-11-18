@@ -128,10 +128,25 @@ const sentimentAnalysisController = {
       });
 
       // Add specific filters based on click context
-      if (sentimentType) {
-        query.bool.must.push({
-          match: { "predicted_sentiment_value": sentimentType },
-        });
+      if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+        if (sentimentType.includes(',')) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(',');
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map(sentiment => ({
+                match: { predicted_sentiment_value: sentiment.trim() }
+              })),
+              minimum_should_match: 1
+            }
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() }
+          });
+        }
       }
 
       if (subtopic) {
@@ -290,6 +305,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        sentimentType,
         topicId
       } = req.body;
 
@@ -362,6 +378,29 @@ const sentimentAnalysisController = {
                                 };
                                 query.bool.must.push(categoryFilter);
                         }
+
+      // Apply sentiment filter if provided
+      if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+        if (sentimentType.includes(',')) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(',');
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map(sentiment => ({
+                match: { predicted_sentiment_value: sentiment.trim() }
+              })),
+              minimum_should_match: 1
+            }
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() }
+          });
+        }
+      }
+
       const aggQuery = {
         query: query,
         size: 0,
@@ -416,6 +455,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        sentimentType,
         topicId
       } = req.body;
 
@@ -483,6 +523,28 @@ const sentimentAnalysisController = {
                                 query.bool.must.push(categoryFilter);
                         }
 
+      // Apply sentiment filter if provided
+      if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+        if (sentimentType.includes(',')) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(',');
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map(sentiment => ({
+                match: { predicted_sentiment_value: sentiment.trim() }
+              })),
+              minimum_should_match: 1
+            }
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() }
+          });
+        }
+      }
+
       const aggQuery = {
         query: query,
         size: 0,
@@ -531,6 +593,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        sentimentType,
         topicId
       } = req.body;
 
@@ -598,6 +661,29 @@ const sentimentAnalysisController = {
                                 };
                                 query.bool.must.push(categoryFilter);
                         }
+
+      // Apply sentiment filter if provided
+      if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+        if (sentimentType.includes(',')) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(',');
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map(sentiment => ({
+                match: { predicted_sentiment_value: sentiment.trim() }
+              })),
+              minimum_should_match: 1
+            }
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() }
+          });
+        }
+      }
+
       const aggQuery = {
         query: query,
         size: 0,
@@ -668,6 +754,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        sentimentType,
         interval = "month", // day, week, month, year
         includePosts = true, // Flag to include posts or not
         postsPerBucket = 10, // Number of posts per time bucket
@@ -738,6 +825,29 @@ const sentimentAnalysisController = {
                                 };
                                 query.bool.must.push(categoryFilter);
                         }
+
+      // Apply sentiment filter if provided
+      if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+        if (sentimentType.includes(',')) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(',');
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map(sentiment => ({
+                match: { predicted_sentiment_value: sentiment.trim() }
+              })),
+              minimum_should_match: 1
+            }
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() }
+          });
+        }
+      }
+
       const aggQuery = {
         query: query,
         size: 0,
@@ -885,6 +995,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        sentimentType,
         topicId
       } = req.body;
 
@@ -945,6 +1056,28 @@ const sentimentAnalysisController = {
                                 };
                                 query.bool.must.push(categoryFilter);
                         }
+
+      // Apply sentiment filter if provided
+      if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+        if (sentimentType.includes(',')) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(',');
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map(sentiment => ({
+                match: { predicted_sentiment_value: sentiment.trim() }
+              })),
+              minimum_should_match: 1
+            }
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() }
+          });
+        }
+      }
 
       const aggQuery = {
         query: query,
@@ -1010,6 +1143,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        sentimentType,
         limit = 100,
         topicId
       } = req.body;
@@ -1078,6 +1212,28 @@ const sentimentAnalysisController = {
                                 };
                                 query.bool.must.push(categoryFilter);
                         }
+
+      // Apply sentiment filter if provided
+      if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
+        if (sentimentType.includes(',')) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(',');
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map(sentiment => ({
+                match: { predicted_sentiment_value: sentiment.trim() }
+              })),
+              minimum_should_match: 1
+            }
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() }
+          });
+        }
+      }
 
       // Fetch posts to extract keywords
       const response = await elasticClient.search({

@@ -241,7 +241,7 @@ const sentimentAnalysisController = {
                         }
         const sourceFields =
       type === "summary"
-        ? ["p_message_text"]
+        ? ["p_message_text","source","p_url"]
         : [
             "p_message_text",
             "p_message",
@@ -277,7 +277,15 @@ const sentimentAnalysisController = {
       let posts = response?.hits?.hits || [];
       if (type === "summary") {
       return res.json(
-        posts.map((hit) => hit._source?.p_message_text || "")
+        posts.map((hit) => {
+          const s = hit._source || {};
+
+          return {
+            p_message: s.p_message_text || "",
+            u_source: s.source || "",
+            source_url: s.p_url || ""
+          };
+        })
       );
     }
 

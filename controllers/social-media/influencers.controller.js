@@ -170,19 +170,11 @@ const createElasticQuery = (
     const categoryFilter = {
       bool: {
         should: [
-          {
-            multi_match: {
-              query: category,
-              fields: [
-                "p_message_text",
-                "p_message",
-                "hashtags",
-                "u_source",
-                "p_url",
-              ],
-              type: "phrase",
-            },
-          },
+          { match_phrase: { p_message_text: category } },
+          { match_phrase: { keywords: category } },
+          { match_phrase: { hashtags: category } },
+          { match_phrase: { u_source: category } },
+          { match_phrase: { p_url: category } }
         ],
         minimum_should_match: 1,
       },
@@ -227,19 +219,11 @@ const createElasticQueryPost = (
     const categoryFilter = {
       bool: {
         should: [
-          {
-            multi_match: {
-              query: category,
-              fields: [
-                "p_message_text",
-                "p_message",
-                "hashtags",
-                "u_source",
-                "p_url",
-              ],
-              type: "phrase",
-            },
-          },
+          { match_phrase: { p_message_text: category } },
+          { match_phrase: { keywords: category } },
+          { match_phrase: { hashtags: category } },
+          { match_phrase: { u_source: category } },
+          { match_phrase: { p_url: category } }
         ],
         minimum_should_match: 1,
       },

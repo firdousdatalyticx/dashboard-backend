@@ -450,9 +450,9 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
         query.bool.must.push({
             bool: {
                 should: [
-                    ...Object.values(categoryData).flatMap(data => (data.keywords || []).map(keyword => ({ multi_match: { query: keyword, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }))),
-                    ...Object.values(categoryData).flatMap(data => (data.hashtags || []).map(hashtag => ({ multi_match: { query: hashtag, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }))),
-                    ...Object.values(categoryData).flatMap(data => (data.urls || []).map(url => ({ multi_match: { query: url, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } })))
+                    ...Object.values(categoryData).flatMap(data => (data.keywords || []).flatMap(keyword => [{ match_phrase: { p_message_text: keyword } }, { match_phrase: { keywords: keyword } }])),
+                    ...Object.values(categoryData).flatMap(data => (data.hashtags || []).flatMap(hashtag => [{ match_phrase: { p_message_text: hashtag } }, { match_phrase: { hashtags: hashtag } }])),
+                    ...Object.values(categoryData).flatMap(data => (data.urls || []).flatMap(url => [{ match_phrase: { u_source: url } }, { match_phrase: { p_url: url } }]))
                 ],
                 minimum_should_match: 1
             }
@@ -466,9 +466,9 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             query.bool.must.push({
                 bool: {
                     should: [
-                        ...(data.keywords || []).map(keyword => ({ multi_match: { query: keyword, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } })),
-                        ...(data.hashtags || []).map(hashtag => ({ multi_match: { query: hashtag, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } })),
-                        ...(data.urls || []).map(url => ({ multi_match: { query: url, fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'], type: 'phrase' } }))
+                        ...(data.keywords || []).flatMap(keyword => [{ match_phrase: { p_message_text: keyword } }, { match_phrase: { keywords: keyword } }]),
+                        ...(data.hashtags || []).flatMap(hashtag => [{ match_phrase: { p_message_text: hashtag } }, { match_phrase: { hashtags: hashtag } }]),
+                        ...(data.urls || []).flatMap(url => [{ match_phrase: { u_source: url } }, { match_phrase: { p_url: url } }])
                     ],
                     minimum_should_match: 1
                 }

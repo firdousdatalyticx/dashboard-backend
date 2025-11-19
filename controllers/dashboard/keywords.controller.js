@@ -304,25 +304,27 @@ const keywordsController = {
                         bool: {
                             should: [
                             {
-                                multi_match: {
-                                query: category,
-                                fields: [
-                                    "p_message_text",
-                                    "p_message",
-                                    "hashtags",
-                                    "u_source",
-                                    "p_url",
-                                ],
-                                type: "phrase",
-                                },
+                                match_phrase: { p_message_text: category }
                             },
+                            {
+                                match_phrase: { keywords: category }
+                            },
+                            {
+                                match_phrase: { hashtags: category }
+                            },
+                            {
+                                match_phrase: { u_source: category }
+                            },
+                            {
+                                match_phrase: { p_url: category }
+                            }
                             ],
                             minimum_should_match: 1,
                         },
                         };
 
                         params.body.query.bool.must.push(categoryFilter);
-  
+
                     }
                     if (sentimentType) {
                         params.body.query.bool.must.push({
@@ -339,35 +341,26 @@ const keywordsController = {
                             Object.values(categoryData).forEach(data => {
                                 if (data.keywords && data.keywords.length > 0) {
                                     data.keywords.forEach(keyword => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: keyword,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { p_message_text: keyword } },
+                                            { match_phrase: { keywords: keyword } }
+                                        );
                                     });
                                 }
                                 if (data.hashtags && data.hashtags.length > 0) {
                                     data.hashtags.forEach(hashtag => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: hashtag,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { p_message_text: hashtag } },
+                                            { match_phrase: { hashtags: hashtag } }
+                                        );
                                     });
                                 }
                                 if (data.urls && data.urls.length > 0) {
                                     data.urls.forEach(url => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: url,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { u_source: url } },
+                                            { match_phrase: { p_url: url } }
+                                        );
                                     });
                                 }
                             });
@@ -584,35 +577,26 @@ const keywordsController = {
                             Object.values(categoryData).forEach(data => {
                                 if (data.keywords && data.keywords.length > 0) {
                                     data.keywords.forEach(keyword => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: keyword,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { p_message_text: keyword } },
+                                            { match_phrase: { keywords: keyword } }
+                                        );
                                     });
                                 }
                                 if (data.hashtags && data.hashtags.length > 0) {
                                     data.hashtags.forEach(hashtag => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: hashtag,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { p_message_text: hashtag } },
+                                            { match_phrase: { hashtags: hashtag } }
+                                        );
                                     });
                                 }
                                 if (data.urls && data.urls.length > 0) {
                                     data.urls.forEach(url => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: url,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { u_source: url } },
+                                            { match_phrase: { p_url: url } }
+                                        );
                                     });
                                 }
                             });
@@ -1078,31 +1062,22 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             bool: {
                 should: [
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.keywords || []).map(keyword => ({
-                            multi_match: {
-                                query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.keywords || []).flatMap(keyword => [
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        ])
                     ),
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.hashtags || []).map(hashtag => ({
-                            multi_match: {
-                                query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.hashtags || []).flatMap(hashtag => [
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        ])
                     ),
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.urls || []).map(url => ({
-                            multi_match: {
-                                query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.urls || []).flatMap(url => [
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        ])
                     )
                 ],
                 minimum_should_match: 1
@@ -1121,27 +1096,18 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             query.bool.must.push({
                 bool: {
                     should: [
-                        ...(data.keywords || []).map(keyword => ({
-                            multi_match: {
-                                query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        })),
-                        ...(data.hashtags || []).map(hashtag => ({
-                            multi_match: {
-                                query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        })),
-                        ...(data.urls || []).map(url => ({
-                            multi_match: {
-                                query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        ...(data.keywords || []).flatMap(keyword => [
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        ]),
+                        ...(data.hashtags || []).flatMap(hashtag => [
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        ]),
+                        ...(data.urls || []).flatMap(url => [
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        ])
                     ],
                     minimum_should_match: 1
                 }

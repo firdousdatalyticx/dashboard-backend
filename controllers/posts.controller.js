@@ -760,17 +760,42 @@ const postsController = {
       let greaterThanTime = inputGreaterThanTime;
       let lessThanTime = inputLessThanTime;
 
-      // Handle timeSlot parameter - this overrides explicit dates
-      if (timeSlot) {
-        // When timeSlot is provided, calculate last 90 days
+      // Handle timeSlot parameter - only use if explicit dates are not provided
+      if (timeSlot && !inputGreaterThanTime && !inputLessThanTime) {
+        // When timeSlot is provided and no explicit dates, calculate based on timeSlot
         const now = new Date();
-        const ninetyDaysAgo = new Date(now.getTime() - (90 * 24 * 60 * 60 * 1000));
-        greaterThanTime = ninetyDaysAgo.toISOString();
+        let daysAgo = 90; // default
+
+        switch (timeSlot) {
+          case 'last24hours':
+            daysAgo = 1;
+            break;
+          case 'last7days':
+            daysAgo = 7;
+            break;
+          case 'last30days':
+            daysAgo = 30;
+            break;
+          case 'last60days':
+            daysAgo = 60;
+            break;
+          case 'last90days':
+            daysAgo = 90;
+            break;
+          case 'last120days':
+            daysAgo = 120;
+            break;
+          default:
+            daysAgo = 90; // fallback
+        }
+
+        const pastDate = new Date(now.getTime() - (daysAgo * 24 * 60 * 60 * 1000));
+        greaterThanTime = pastDate.toISOString();
         lessThanTime = now.toISOString();
       } else {
-        // Original logic for regular topics
-        greaterThanTime = greaterThanTime || process.env.DATA_FETCH_FROM_TIME;
-        lessThanTime = lessThanTime || process.env.DATA_FETCH_TO_TIME;
+        // Use explicit dates or fall back to environment defaults
+        greaterThanTime = inputGreaterThanTime || process.env.DATA_FETCH_FROM_TIME;
+        lessThanTime = inputLessThanTime || process.env.DATA_FETCH_TO_TIME;
       }
       
 

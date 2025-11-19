@@ -598,12 +598,24 @@ const emotionPolarityController = {
 
             // Build sentiment filter
             let sentimentFilter = null;
-            if (sentiment && sentiment !== "" && sentiment !== "All") {
-                sentimentFilter = {
-                    match_phrase: {
-                        predicted_sentiment_value: sentiment
-                    }
-                };
+            if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
+                if (sentiment.includes(',')) {
+                    // Handle multiple sentiment types
+                    const sentimentArray = sentiment.split(',');
+                    sentimentFilter = {
+                        bool: {
+                            should: sentimentArray.map(sentiment => ({
+                                match: { predicted_sentiment_value: sentiment.trim() }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    };
+                } else {
+                    // Handle single sentiment type
+                    sentimentFilter = {
+                        match: { predicted_sentiment_value: sentiment.trim() }
+                    };
+                }
             }
 
             const normalizedSources = normalizeSourceInput(source);
@@ -670,17 +682,19 @@ const emotionPolarityController = {
                     bool: {
                         should:  [
                             {
-                                "multi_match": {
-                                    "query": category,
-                                    "fields": [
-                                        "p_message_text",
-                                        "p_message",
-                                        "hashtags",
-                                        "u_source",
-                                        "p_url"
-                                    ],
-                                    "type": "phrase"
-                                }
+                                match_phrase: { p_message_text: category }
+                            },
+                            {
+                                match_phrase: { keywords: category }
+                            },
+                            {
+                                match_phrase: { hashtags: category }
+                            },
+                            {
+                                match_phrase: { u_source: category }
+                            },
+                            {
+                                match_phrase: { p_url: category }
                             }
                         ],
                         minimum_should_match: 1

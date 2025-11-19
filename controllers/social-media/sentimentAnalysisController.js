@@ -1144,7 +1144,6 @@ const sentimentAnalysisController = {
         cities,
         dataSource,
         sentimentType,
-        limit = 100,
         topicId
       } = req.body;
 
@@ -1260,9 +1259,9 @@ const sentimentAnalysisController = {
 
       const result = Object.entries(keywordFrequency)
          .map(([text, value]) => ({ text, value }))
-        .filter(item => item.value >= 2) // only keep keywords with value >= 10
+        .filter(item => item.value >= 2) // only keep keywords with value >= 2
         .sort((a, b) => b.value - a.value)
-        .slice(0, limit);
+        .slice(0, 20); // return only top 15 keywords with highest frequency
 
       return res.json(result);
     } catch (error) {

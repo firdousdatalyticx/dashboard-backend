@@ -234,6 +234,13 @@ const mentionsTrendController = {
         query.bool.must.push(mentionTypeFilter);
       }
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
+      }
+
       // Execute combined aggregation query with posts
       const combinedQuery = {
         query: query,
@@ -546,6 +553,13 @@ const mentionsTrendController = {
         query.bool.must.push(mentionTypeFilter);
       }
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
+      }
+
       // Execute aggregation query to get counts per date
       const aggQuery = {
         query: query,
@@ -797,6 +811,13 @@ const mentionsTrendController = {
           },
         };
         query.bool.must.push(mentionTypeFilter);
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(req.body.topicId) === 2641) {
+        query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
       }
 
       // Build complete query

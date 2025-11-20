@@ -379,6 +379,13 @@ const poiSentimentDistributionController = {
                     });
                 }
             }
+                        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+                        if (parseInt(topicId) === 2641) {
+                            params.body.query.bool.must.push({
+                                term: { is_public_opinion: true }
+                            });
+                        }
+
                         // LLM Mention Type filtering logic
                         let mentionTypesArray = [];
 

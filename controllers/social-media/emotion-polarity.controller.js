@@ -713,6 +713,13 @@ const emotionPolarityController = {
                 queryFilters.push(sentimentFilter);
             }
 
+            // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+            if (parseInt(topicId) === 2641) {
+                queryFilters.push({
+                    term: { is_public_opinion: true }
+                });
+            }
+
             const elasticParams = {
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
                 body: {

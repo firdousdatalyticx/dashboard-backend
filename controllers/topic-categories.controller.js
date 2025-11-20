@@ -392,61 +392,72 @@ const topicCategoriesController = {
 
           
             // Query builder for social media data
-            const buildSocialMediaQuery = () => ({
-                bool: {
-                    must: must,
-                    filter: [
-                        {
-                            terms: {
-                                "source.keyword": socialSources,
+            const buildSocialMediaQuery = () => {
+                const query = {
+                    bool: {
+                        must: must,
+                        filter: [
+                            {
+                                terms: {
+                                    "source.keyword": socialSources,
+                                },
                             },
-                        },
-                        {
-                            bool: {
-                                must_not: [
-                                    {
-                                        term: {
-                                            source: "DM",
+                            {
+                                bool: {
+                                    must_not: [
+                                        {
+                                            term: {
+                                                source: "DM",
+                                            },
                                         },
-                                    },
-                                ],
+                                    ],
+                                },
                             },
-                        },
-                    ],
-                    should: [
-                        // Match all text fields with keywords/hashtags
-                        {
-                            bool: {
-                                should: socialMediaTerms.map((term) => ({
-                                    multi_match: {
-                                        query: term,
-                                        fields: [
-                                            "p_message_text",
-                                            "p_message",
-                                            "keywords",
-                                            "title",
-                                            "hashtags",
-                                            "u_source",
-                                        ],
-                                        type: "phrase",
-                                    },
-                                })),
-                                minimum_should_match: 1,
+                        ],
+                        should: [
+                            // Match all text fields with keywords/hashtags
+                            {
+                                bool: {
+                                    should: socialMediaTerms.map((term) => ({
+                                        multi_match: {
+                                            query: term,
+                                            fields: [
+                                                "p_message_text",
+                                                "p_message",
+                                                "keywords",
+                                                "title",
+                                                "hashtags",
+                                                "u_source",
+                                            ],
+                                            type: "phrase",
+                                        },
+                                    })),
+                                    minimum_should_match: 1,
+                                },
                             },
-                        },
-                        // Match URLs in p_url
-                        {
-                            bool: {
-                                should: socialMediaTerms.map((term) => ({
-                                    term: { p_url: term },
-                                })),
-                                minimum_should_match: 1,
+                            // Match URLs in p_url
+                            {
+                                bool: {
+                                    should: socialMediaTerms.map((term) => ({
+                                        term: { p_url: term },
+                                    })),
+                                    minimum_should_match: 1,
+                                },
                             },
-                        },
-                    ],
-                    minimum_should_match: 1, // Ensures at least one condition is met
-                },
-            });
+                        ],
+                        minimum_should_match: 1, // Ensures at least one condition is met
+                    },
+                };
+
+                // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+                if (parseInt(numericTopicId) === 2641) {
+                    query.bool.must.push({
+                        term: { is_public_opinion: true }
+                    });
+                }
+
+                return query;
+            };
 
             // Query builder for Google data
             const buildGoogleQuery = () => ({

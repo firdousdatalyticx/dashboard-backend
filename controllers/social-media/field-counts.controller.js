@@ -233,7 +233,14 @@ const fieldCountsController = {
     
             // Add category filters
             addCategoryFilters(query, category, categoryData);
-    
+
+            // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+            if (parseInt(topicId) === 2641) {
+              query.bool.must.push({
+                term: { is_public_opinion: true }
+              });
+            }
+
             // Add filter to exclude DM source
             query.bool.must_not = query.bool.must_not || [];
             query.bool.must_not.push({ term: { source: "DM" } });

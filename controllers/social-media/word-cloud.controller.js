@@ -49,6 +49,13 @@ const buildWordCloudParams = (options) => {
     },
   };
 
+  // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+  if (parseInt(topicId) === 2641) {
+    baseQuery.bool.must.push({
+      term: { is_public_opinion: true }
+    });
+  }
+
 
           // Apply LLM Mention Type filter if provided
 if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
@@ -151,6 +158,13 @@ const buildPostsByPhraseParams = (options) => {
       ],
     },
   };
+
+  // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+  if (parseInt(topicId) === 2641) {
+    baseQuery.bool.must.push({
+      term: { is_public_opinion: true }
+    });
+  }
   
     // Apply LLM Mention Type filter if provided
   if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {

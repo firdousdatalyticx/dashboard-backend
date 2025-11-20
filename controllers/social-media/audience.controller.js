@@ -279,6 +279,12 @@ const audienceController = {
         queryString: topicQueryString,
       });
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+      if (parseInt(topicId) === 2641) {
+        isPublicOpinionFilter = { term: { is_public_opinion: true } };
+      }
+
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
@@ -304,6 +310,7 @@ const audienceController = {
                     },
                   },
                 },
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
               ],
               must_not: [{ term: { "u_profile_photo.keyword": "" } }],
             },
@@ -534,6 +541,12 @@ const audienceController = {
         queryString: topicQueryString,
       });
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+      if (parseInt(topicId) === 2641) {
+        isPublicOpinionFilter = { term: { is_public_opinion: true } };
+      }
+
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
@@ -591,6 +604,7 @@ const audienceController = {
                     },
                   },
                 },
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
               ],
               must_not: [
                 { term: { "p_comments_data.keyword": "" } },
@@ -796,6 +810,12 @@ const audienceController = {
         });
       }
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+      if (parseInt(topicId) === 2641) {
+        isPublicOpinionFilter = { term: { is_public_opinion: true } };
+      }
+
       // Optimized query to only get the fields we need
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -851,6 +871,7 @@ const audienceController = {
                     },
                   },
                 },
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
               ],
               must_not: [
                 { term: { "p_comments_data.keyword": "" } },
@@ -1058,6 +1079,12 @@ const audienceController = {
         queryString: topicQueryString,
       });
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+      if (parseInt(topicId) === 2641) {
+        isPublicOpinionFilter = { term: { is_public_opinion: true } };
+      }
+
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
@@ -1082,6 +1109,7 @@ const audienceController = {
                     },
                   },
                 },
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
               ],
               must_not: [
                 { term: { "p_comments_data.keyword": "" } },
@@ -1890,6 +1918,13 @@ const audienceController = {
 
       query.bool.must.push({ exists: { field: "u_country" } });
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
+      }
+
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
@@ -2174,6 +2209,13 @@ const audienceController = {
               { match: { llm_mention_type: "Others" }}
             ]
           }
+        });
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        elasticQuery.query.bool.must.push({
+          term: { is_public_opinion: true }
         });
       }
 

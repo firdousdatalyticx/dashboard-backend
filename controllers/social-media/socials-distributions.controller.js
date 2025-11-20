@@ -212,6 +212,13 @@ const socialsDistributionsController = {
                             }
                         }
 
+                        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+                        if (parseInt(topicId) === 2641) {
+                            query.bool.must.push({
+                                term: { is_public_opinion: true }
+                            });
+                        }
+
                         // CASE 1: If mentionTypesArray has valid values → apply should-match filter
                         if (mentionTypesArray.length > 0) {
                             query.bool.must.push({
@@ -222,7 +229,7 @@ const socialsDistributionsController = {
                                     minimum_should_match: 1
                                 }
                             });
-                        } 
+                        }
                         // CASE 2: If no LLM Mention Type given → apply must_not filter
                         else if(Number(topicId) == 2641) {
                             query.bool.must.push({

@@ -141,7 +141,8 @@ const createElasticQuery = (
   greaterThanTime,
   lessThanTime,
   range,
-  category
+  category,
+  topicId
 ) => {
   const queryBody = {
     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -164,6 +165,13 @@ const createElasticQuery = (
       },
     },
   };
+
+  // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+  if (parseInt(topicId) === 2641) {
+    queryBody.body.query.bool.must.push({
+      term: { is_public_opinion: true }
+    });
+  }
 
   // ✅ Add category filter only if category is not "all"
   if (category && category !== "all") {
@@ -192,7 +200,8 @@ const createElasticQueryPost = (
   greaterThanTime,
   lessThanTime,
   range,
-  category
+  category,
+  topicId
 ) => {
   const queryBody = {
     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -212,7 +221,14 @@ const createElasticQueryPost = (
       },
       size: 30,
     },
-  };
+    };
+
+    // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+    if (parseInt(topicId) === 2641) {
+      queryBody.body.query.bool.must.push({
+        term: { is_public_opinion: true }
+      });
+    }
 
   // ✅ Apply category filter only if valid
   if (category && category !== "all") {
@@ -432,6 +448,14 @@ const influencersController = {
                                 };
                                 params.body.query.bool.must.push(categoryFilter);
                         }
+
+                        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+                        if (parseInt(topicId) === 2641) {
+                            params.body.query.bool.must.push({
+                                term: { is_public_opinion: true }
+                            });
+                        }
+
         const results = await elasticClient.search(params);
 
         if (!results?.aggregations?.group_by_user?.buckets) {
@@ -570,7 +594,8 @@ const influencersController = {
               filters.greaterThanTime,
               filters.lessThanTime,
               range,
-              inputCategory==="all"?category:"all"
+              inputCategory==="all"?category:"all",
+              topicId
             )
           )
         )
@@ -673,7 +698,8 @@ const influencersController = {
           filters.greaterThanTime,
           filters.lessThanTime,
           INFLUENCER_CATEGORY_QUERIES[index],
-          inputCategory==="all"?category:"all"
+          inputCategory==="all"?category:"all",
+          topicId
         )
       );
 

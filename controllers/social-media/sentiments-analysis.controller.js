@@ -218,6 +218,15 @@ const sentimentsController = {
                 lessThanTime
             }, source, isSpecialTopic, parseInt(topicId));
 
+            // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+            if (parseInt(topicId) === 2641) {
+                query.bool.must.push({
+                    term: {
+                        is_public_opinion: true
+                    }
+                });
+            }
+
             if(workingCategory=="all" && category!=="all"){
                 const categoryFilter = {
                     bool: {
@@ -618,6 +627,15 @@ const sentimentsController = {
             lessThanTime
         }, source, isSpecialTopic, parseInt(topicId));
 
+        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+        if (parseInt(topicId) === 2641) {
+            query.bool.must.push({
+                term: {
+                    is_public_opinion: true
+                }
+            });
+        }
+
         if(workingCategory=="all" && category!=="all"){
             const categoryFilter = {
                 bool: {
@@ -878,6 +896,15 @@ llmMotivationSentimentTrend: async (req, res) => {
     const formattedMaxDate = format(parseISO(lessThanTime), formatPattern);
 
     const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic, topicIdNum);
+
+    // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+    if (topicIdNum === 2641) {
+        query.bool.must.push({
+            term: {
+                is_public_opinion: true
+            }
+        });
+    }
 
     if(workingCategory=="all" && category!=="all"){
         const categoryFilter = {

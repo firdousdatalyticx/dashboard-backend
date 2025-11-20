@@ -103,6 +103,15 @@ const distributionbyCountryPostsController = {
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
                         }, source, isSpecialTopic,parseInt(topicId));
+
+                        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+                        if (parseInt(topicId) === 2641) {
+                            query.bool.must.push({
+                                term: {
+                                    is_public_opinion: true
+                                }
+                            });
+                        }
             
                         // Add category filters
                         addCategoryFilters(query, "all", categoryData);

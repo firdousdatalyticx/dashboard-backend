@@ -462,6 +462,13 @@ const getActionRequired = async (
     }
   }
 
+  // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+  if (parseInt(topicId) === 2641) {
+    query.query.bool.must.push({
+      term: { is_public_opinion: true }
+    });
+  }
+
   // LLM Mention Type filtering logic
   let mentionTypesArray = [];
 
@@ -716,6 +723,14 @@ const getPosts = async (
       match: {
         predicted_sentiment_value: sentimentType.trim(),
       },
+    });
+  }
+
+  // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+  const topicId = req.query.topicId;
+  if (parseInt(topicId) === 2641) {
+    query.query.bool.must.push({
+      term: { is_public_opinion: true }
     });
   }
 
@@ -1363,6 +1378,20 @@ const mentionsChartController = {
         }
       }
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
+      }
+
       // LLM Mention Type filtering logic
       let mentionTypesArray = [];
 
@@ -1626,6 +1655,13 @@ const mentionsChartController = {
         }
       }
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        params.query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
+      }
+
       // LLM Mention Type filtering logic
       let mentionTypesArray = [];
 
@@ -1820,6 +1856,13 @@ const mentionsChartController = {
           match: {
             predicted_sentiment_value: sentimentType.trim(),
           },
+        });
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.query.bool.must.push({
+          term: { is_public_opinion: true }
         });
       }
 
@@ -2023,6 +2066,13 @@ const mentionsChartController = {
           match: {
             predicted_sentiment_value: sentimentType.trim(),
           },
+        });
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.query.bool.must.push({
+          term: { is_public_opinion: true }
         });
       }
 
@@ -2230,6 +2280,13 @@ const mentionsChartController = {
           match: {
             predicted_sentiment_value: sentimentType.trim(),
           },
+        });
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.query.bool.must.push({
+          term: { is_public_opinion: true }
         });
       }
 

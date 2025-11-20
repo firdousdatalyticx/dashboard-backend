@@ -196,7 +196,7 @@ const calculateDifference = (currentValue, previousValue) => {
  * @param {boolean} isUnTopic Whether this is for UN topic
  * @returns {Promise<Array>} Daily data
  */
-const getDailyData = async (queryString, metric, isEngagement = false, isUnTopic = false) => {
+  const getDailyData = async (queryString, metric, isEngagement = false, isUnTopic = false, topicId = null) => {
     const datesArray = [];
     const startDate = isUnTopic 
         ? new Date('2023-02-21T00:00:00.000Z')
@@ -230,17 +230,26 @@ const getDailyData = async (queryString, metric, isEngagement = false, isUnTopic
             };
         }
 
+        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+        const mustFilters = [
+            {
+                query_string: {
+                    query: `${queryString} AND p_created_time:("${formattedDate}")`
+                }
+            }
+        ];
+
+        if (parseInt(topicId) === 2641) {
+            mustFilters.push({
+                term: { is_public_opinion: true }
+            });
+        }
+
         const params = {
             size: 0, // Explicitly set size to 0 for better performance
             query: {
                 bool: {
-                    must: [
-                        { 
-                            query_string: { 
-                                query: `${queryString} AND p_created_time:("${formattedDate}")` 
-                            } 
-                        }
-                    ]
+                    must: mustFilters
                 }
             },
             aggs: aggs
@@ -385,7 +394,7 @@ const engagementController = {
                 const difference = calculateDifference(totalShares, totalSharesCompare);
                 
                 // Get daily data for graph
-                graphData = await getDailyData(query, 'shares', false, unTopic === 'true');
+                graphData = await getDailyData(query, 'shares', false, unTopic === 'true', topicId);
                 
                 totalCount = totalShares;
                 response = difference.formatted;
@@ -411,7 +420,7 @@ const engagementController = {
                 const difference = calculateDifference(totalComments, totalCommentsCompare);
                 
                 // Get daily data for graph
-                graphData = await getDailyData(filters.queryString, 'comments', false, unTopic === 'true');
+                graphData = await getDailyData(filters.queryString, 'comments', false, unTopic === 'true', topicId);
                 
                 totalCount = totalComments;
                 response = difference.formatted;
@@ -437,7 +446,7 @@ const engagementController = {
                 const difference = calculateDifference(totalLikes, totalLikesCompare);
                 
                 // Get daily data for graph
-                graphData = await getDailyData(query, 'likes', false, unTopic === 'true');
+                graphData = await getDailyData(query, 'likes', false, unTopic === 'true', topicId);
                 
                 totalCount = totalLikes;
                 response = difference.formatted;
@@ -475,7 +484,7 @@ const engagementController = {
                 const difference = calculateDifference(totalEngagement, totalEngagementCompare);
                 
                 // Get daily data for graph
-                graphData = await getDailyData(query, 'engagement', true, unTopic === 'true');
+                graphData = await getDailyData(query, 'engagement', true, unTopic === 'true', topicId);
                 
                 totalCount = totalEngagement;
                 response = difference.formatted;

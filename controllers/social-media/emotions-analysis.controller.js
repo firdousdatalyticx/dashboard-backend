@@ -175,6 +175,15 @@ const emotionsController = {
         parseInt(topicId)
       );
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2641) {
+        query.bool.must.push({
+          term: {
+            is_public_opinion: true
+          }
+        });
+      }
+
       if(category=="all" && inputCategory!=="all"){
         const categoryFilter = {
             bool: {
@@ -611,6 +620,15 @@ const emotionsController = {
       isSpecialTopic,
       parseInt(topicId)
     );
+
+    // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+    if (parseInt(topicId) === 2641) {
+      query.bool.must.push({
+        term: {
+          is_public_opinion: true
+        }
+      });
+    }
 
     if(category=="all" && inputCategory!=="all"){
       const categoryFilter = {

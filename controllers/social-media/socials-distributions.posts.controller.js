@@ -144,6 +144,13 @@ const getDistributionPosts = async (req, res) => {
             ? llm_mention_type.split(",").map(s => s.trim())
             : llm_mention_type;
 
+        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+        if (parseInt(topicId) === 2641) {
+          query.bool.must.push({
+            term: { is_public_opinion: true }
+          });
+        }
+
         // CASE 1: If llm_mention_type has values → apply SHOULD filter
         if (
           llm_mention_type &&

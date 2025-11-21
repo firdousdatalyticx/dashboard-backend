@@ -383,6 +383,7 @@ const formatPostData = (hit) => {
     posts,
     likes,
     llm_emotion,
+    llm_language: s.llm_language,
     commentsUrl,
     comments,
     shares,

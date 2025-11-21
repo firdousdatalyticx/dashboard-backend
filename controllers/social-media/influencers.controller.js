@@ -845,6 +845,7 @@ const influencersController = {
           posts: posts,
           likes: likes,
           llm_emotion: llm_emotion,
+          llm_language: esData._source.llm_language,
           commentsUrl: commentsUrl,
           comments: comments,
           shares: shares,

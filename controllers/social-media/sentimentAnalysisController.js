@@ -239,7 +239,7 @@ const sentimentAnalysisController = {
                                 };
                                 query.bool.must.push(categoryFilter);
                         }
-        const sourceFields =
+      const sourceFields =
       type === "summary"
         ? ["p_message_text","source","p_url"]
         : [
@@ -253,6 +253,7 @@ const sentimentAnalysisController = {
             "predicted_sentiment_value",
             "llm_subtopic",
             "llm_emotion",
+            "llm_language",
             "llm_keywords",
             "p_url",
             "p_image_url",
@@ -891,6 +892,7 @@ const sentimentAnalysisController = {
                           "predicted_sentiment_value",
                           "llm_subtopic",
                           "llm_emotion",
+                          "llm_language",
                           "llm_keywords",
                           "p_url",
                           "p_image_url",
@@ -1804,6 +1806,7 @@ const formatPostData = (hit) => {
     posts,
     likes,
     llm_emotion,
+    llm_language: source.llm_language,
     commentsUrl,
     comments,
     shares,

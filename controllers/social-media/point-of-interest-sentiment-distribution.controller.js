@@ -313,12 +313,12 @@ const poiSentimentDistributionController = {
                                         docs: {
                                             top_hits: {
                                                 _source: [
-                                                    'id', 
-                                                    'title', 
-                                                    'content', 
+                                                    'id',
+                                                    'title',
+                                                    'content',
                                                     'created_at',
                                                     'p_created_time',
-                                                    'predicted_sentiment_value', 
+                                                    'predicted_sentiment_value',
                                                     'predicted_category',
                                                     'p_message',
                                                     'p_message_text',
@@ -338,6 +338,7 @@ const poiSentimentDistributionController = {
                                                     'p_picture_url',
                                                     'source',
                                                     'llm_emotion',
+                                                    'llm_language',
                                                     'video_embed_url',
                                                     'p_id',
                                                     'rating',
@@ -590,6 +591,7 @@ const formatPostData = (hit) => {
         posts,
         likes,
         llm_emotion,
+        llm_language: source.llm_language,
         commentsUrl,
         comments,
         shares,

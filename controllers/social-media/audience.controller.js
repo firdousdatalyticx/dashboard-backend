@@ -525,7 +525,7 @@ const audienceController = {
         sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
         // Default logic based on topic
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642 ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
@@ -784,7 +784,7 @@ const audienceController = {
         sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
         // Default logic based on topic
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
@@ -1064,7 +1064,7 @@ const audienceController = {
         sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
         // Default logic based on topic
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642 ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;

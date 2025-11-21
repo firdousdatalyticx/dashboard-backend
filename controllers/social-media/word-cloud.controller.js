@@ -36,7 +36,7 @@ const buildWordCloudParams = (options) => {
       must: [
         {
           query_string: {
-            query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
+            query: `(p_message:(${queryString}) OR p_url:(${queryString}) OR u_source:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
               sourceData})`,
           },
         },
@@ -145,7 +145,7 @@ const buildPostsByPhraseParams = (options) => {
       must: [
         {
           query_string: {
-            query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
+            query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString}) OR u_source:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${
               sourceData
             })`,
           },

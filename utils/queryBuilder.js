@@ -34,6 +34,9 @@ const buildTopicQueryString = (categoryData) => {
     if (allTerms.urls.length > 0) {
         parts.push(`p_url:(${allTerms.urls.map(url => `"${url}"`).join(' OR ')})`);
     }
+     if (allTerms.urls.length > 0) {
+        parts.push(`u_source:(${allTerms.urls.map(url => `"${url}"`).join(' OR ')})`);
+    }
 
     // Combine all parts with OR and add exclusions
     const mainQuery = parts.length > 0 ? `(${parts.join(' OR ')})` : '';

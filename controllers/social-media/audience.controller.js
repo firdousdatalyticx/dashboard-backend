@@ -918,71 +918,74 @@ const audienceController = {
       }
 
       const results = await elasticClient.search(params);
+      console.log( results.hits.hits.length)
       const posts = results.hits.hits.map((hit) => formatPostData(hit, allFilterTerms));
       const datewiseCommentCount = {};
       const datewisePostCount = {};
 
-      for (const post of results.hits.hits) {
-        if (!post._source.p_comments_data) continue;
+      // for (const post of results.hits.hits) {
+      //   if (!post._source.p_comments_data) continue;
 
-        let commentsData;
-        try {
-          commentsData =
-            typeof post._source.p_comments_data === "string"
-              ? JSON.parse(post._source.p_comments_data)
-              : post._source.p_comments_data;
-        } catch (e) {
-          console.error("Error parsing comments data:", e);
-          continue;
-        }
+      //   let commentsData;
+      //   try {
+      //     commentsData =
+      //       typeof post._source.p_comments_data === "string"
+      //         ? JSON.parse(post._source.p_comments_data)
+      //         : post._source.p_comments_data;
+      //   } catch (e) {
+      //     console.error("Error parsing comments data:", e);
+      //     continue;
+      //   }
 
-        if (!Array.isArray(commentsData)) continue;
+      //   if (!Array.isArray(commentsData)) continue;
 
-        // To avoid counting the same post multiple times for the same date
-        const datesWithCommentsInThisPost = new Set();
+      //   // To avoid counting the same post multiple times for the same date
+      //   const datesWithCommentsInThisPost = new Set();
 
-        for (const comment of commentsData) {
-          if (!comment.createdAtString) continue;
+      //   for (const comment of commentsData) {
+      //     if (!comment.createdAtString) continue;
 
-          const commentDate = comment.createdAtString.split(" ")[0];
+      //     const commentDate = comment.createdAtString.split(" ")[0];
 
-          // Count total comments per date
-          datewiseCommentCount[commentDate] =
-            (datewiseCommentCount[commentDate] || 0) + 1;
+      //     // Count total comments per date
+      //     datewiseCommentCount[commentDate] =
+      //       (datewiseCommentCount[commentDate] || 0) + 1;
 
-          // Track if this post has comments on this date
-          datesWithCommentsInThisPost.add(commentDate);
-        }
+      //     // Track if this post has comments on this date
+      //     datesWithCommentsInThisPost.add(commentDate);
+      //   }
 
-        // Increment post count only once per date per post
-        for (const date of datesWithCommentsInThisPost) {
-          datewisePostCount[date] = (datewisePostCount[date] || 0) + 1;
-        }
-      }
+      //   // Increment post count only once per date per post
+      //   for (const date of datesWithCommentsInThisPost) {
+      //     datewisePostCount[date] = (datewisePostCount[date] || 0) + 1;
+      //   }
+      // }
 
-      // Combine comment and post counts
-      const datewiseCountArray = Object.entries(datewiseCommentCount)
-        .map(([date, count]) => ({
-          date,
-          count, // total comments
-          postCount: datewisePostCount[date] || 0, // total posts that had comments that day
-        }))
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      // // Combine comment and post counts
+      // const datewiseCountArray = Object.entries(datewiseCommentCount)
+      //   .map(([date, count]) => ({
+      //     date,
+      //     count, // total comments
+      //     postCount: datewisePostCount[date] || 0, // total posts that had comments that day
+      //   }))
+      //   .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      // Find the date with maximum comments
-      let maxDate = "";
-      let maxCount = 0;
-      for (const [date, count] of Object.entries(datewiseCommentCount)) {
-        if (count > maxCount) {
-          maxDate = date;
-          maxCount = count;
-        }
-      }
+      // // Find the date with maximum comments
+      // let maxDate = "";
+      // let maxCount = 0;
+      // for (const [date, count] of Object.entries(datewiseCommentCount)) {
+      //   if (count > maxCount) {
+      //     maxDate = date;
+      //     maxCount = count;
+      //   }
+      // }
 
       return res.json({
-        dates: datewiseCountArray,
-        maxTrendData: maxDate ? `${maxDate},${maxCount}` : "0,0",
-        posts,
+        // dates: datewiseCountArray,
+        // maxTrendData: maxDate ? `${maxDate},${maxCount}` : "0,0",
+         dates: [],
+         maxTrendData: "0,0",
+         posts,
       });
     } catch (error) {
       console.error("Error fetching comment audience trend:", error);

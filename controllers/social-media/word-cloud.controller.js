@@ -28,7 +28,7 @@ const buildWordCloudParams = (options) => {
 
   const [sortField, sortOrder] = sort.split(":");
 
-  const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"': parseInt(topicId)===2641 ? '"Twitter" OR "Facebook" OR "Instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
+  const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ? '"Twitter" OR "Facebook" OR "Instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
 
   // Base query structure
   const baseQuery = {
@@ -50,7 +50,7 @@ const buildWordCloudParams = (options) => {
   };
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-  if (parseInt(topicId) === 2641) {
+  if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     baseQuery.bool.must.push({
       term: { is_public_opinion: true }
     });
@@ -137,7 +137,7 @@ const buildPostsByPhraseParams = (options) => {
       ? "llm_positive_points.keyword"
       : "llm_negative_points.keyword";
 
-    const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"': parseInt(topicId)===2641 ? '"Twitter" OR "Facebook" OR "Instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
+    const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644  ? '"Twitter" OR "Facebook" OR "Instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
 
   // Base query structure
   const baseQuery = {
@@ -160,7 +160,7 @@ const buildPostsByPhraseParams = (options) => {
   };
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-  if (parseInt(topicId) === 2641) {
+  if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     baseQuery.bool.must.push({
       term: { is_public_opinion: true }
     });

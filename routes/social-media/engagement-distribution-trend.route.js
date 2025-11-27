@@ -24,4 +24,6 @@ router.post('/', express.json(), authMiddleware, transformCategoryData, engageme
 
 router.get('/posts', express.json(), authMiddleware, transformCategoryData, engagementDistributionTrendController.getEngagementDistributionTrendPost);
 
+router.post('/data', express.json(), authMiddleware, transformCategoryData, engagementDistributionTrendController.getData);
+
 module.exports = router; 

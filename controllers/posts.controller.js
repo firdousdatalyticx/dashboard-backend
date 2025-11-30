@@ -162,12 +162,7 @@ const buildElasticsearchQuery = (params) => {
   // Build the structured "must" filters.
   const must = [];
 
-  // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-  if (parseInt(topicId) === 2641) {
-    must.push({
-      term: { is_public_opinion: true }
-    });
-  }
+
 
   // Keyword multi_match search
   if (keyword && keyword.trim() !== "") {

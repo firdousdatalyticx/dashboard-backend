@@ -449,12 +449,7 @@ const topicCategoriesController = {
                     },
                 };
 
-                // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-                if (parseInt(numericTopicId) === 2641 || parseInt(numericTopicId) === 2643 || parseInt(numericTopicId) === 2644) {
-                    query.bool.must.push({
-                        term: { is_public_opinion: true }
-                    });
-                }
+          
 
                 return query;
             };

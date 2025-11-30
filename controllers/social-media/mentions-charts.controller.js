@@ -463,7 +463,7 @@ const getActionRequired = async (
   }
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-  if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+  if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     query.query.bool.must.push({
       term: { is_public_opinion: true }
     });
@@ -728,7 +728,7 @@ const getPosts = async (
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
   const topicId = req.query.topicId;
-  if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+  if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     query.query.bool.must.push({
       term: { is_public_opinion: true }
     });
@@ -1380,14 +1380,14 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           term: { is_public_opinion: true }
         });
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      // if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      // if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
       //   query.query.bool.must.push({
       //     term: { is_public_opinion: true }
       //   });
@@ -1657,7 +1657,7 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         params.query.bool.must.push({
           term: { is_public_opinion: true }
         });
@@ -1861,7 +1861,7 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           term: { is_public_opinion: true }
         });
@@ -2071,7 +2071,7 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           term: { is_public_opinion: true }
         });
@@ -2285,7 +2285,7 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           term: { is_public_opinion: true }
         });
@@ -2393,7 +2393,7 @@ const mentionsChartController = {
       // Apply special topic source filtering
       else if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
-      } else if(topicId && parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ){        
+      } else if(topicId &&  parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ){        
         return  'AND source:("Twitter" OR "Facebook" OR "Instagram")';
       } else {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;

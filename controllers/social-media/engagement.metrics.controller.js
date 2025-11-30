@@ -239,7 +239,7 @@ const calculateDifference = (currentValue, previousValue) => {
             }
         ];
 
-        if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+        if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
             mustFilters.push({
                 term: { is_public_opinion: true }
             });

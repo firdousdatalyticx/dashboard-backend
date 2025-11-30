@@ -1371,7 +1371,7 @@ function buildAnalysisQuery(params) {
   }
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-  if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+  if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     query.bool.must.push({
       term: { is_public_opinion: true }
     });

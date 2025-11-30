@@ -219,7 +219,7 @@ const sentimentsController = {
             }, source, isSpecialTopic, parseInt(topicId));
 
             // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-            if (parseInt(topicId) === 2641) {
+            if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
                 query.bool.must.push({
                     term: {
                         is_public_opinion: true
@@ -298,7 +298,7 @@ const sentimentsController = {
                 });
             }
             // CASE 2: If no LLM Mention Type given → apply must_not filter
-            else if(Number(topicId) == 2641) {
+            else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
                 query.bool.must.push({
                     bool: {
                         must_not: [
@@ -628,7 +628,7 @@ const sentimentsController = {
         }, source, isSpecialTopic, parseInt(topicId));
 
         // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-        if (parseInt(topicId) === 2641) {
+        if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
             query.bool.must.push({
                 term: {
                     is_public_opinion: true
@@ -708,7 +708,7 @@ const sentimentsController = {
             });
         }
         // CASE 2: If no LLM Mention Type given → apply must_not filter
-        else if(Number(topicId) == 2641) {
+        else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
             query.bool.must.push({
                 bool: {
                     must_not: [
@@ -898,7 +898,7 @@ llmMotivationSentimentTrend: async (req, res) => {
     const query = buildBaseQuery({ greaterThanTime, lessThanTime }, source, isSpecialTopic, topicIdNum);
 
     // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-    if (topicIdNum === 2641) {
+    if (topicIdNum === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.bool.must.push({
             term: {
                 is_public_opinion: true
@@ -988,7 +988,7 @@ llmMotivationSentimentTrend: async (req, res) => {
       });
     }
     // CASE 2: If no LLM Mention Type given → apply must_not filter
-    else if(Number(topicId) == 2641) {
+    else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
       query.bool.must.push({
         bool: {
           must_not: [

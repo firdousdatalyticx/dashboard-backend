@@ -202,58 +202,65 @@ const reportsController = {
                 topicQueryString += ` AND predicted_sentiment_value:(${sentiStr})`;
             }
 
-            // Build Elasticsearch query
-            const params = {
-                from: 0,
-                size: 1000,
-                _source: [
-                    "source",
-                    "predicted_sentiment_value",
-                    "llm_mention_action",
-                    "llm_mention_type",
-                    "llm_mention_tone",
-                    "llm_mention_recurrence",
-                    "p_engagement",
-                    "p_likes",
-                    "p_comments",
-                    "p_shares",
-                    "day_of_week",
-                    "u_followers",
-                    "p_created_time",
-                    "llm_mention_urgency",
-                    "llm_mention_touchpoint",
-                    "p_message",
-                    "u_country",
-                    "query_hashtag",
-                    "llm_emotion",
-                    "rating",
-                    "created_at",
-                    "llm_mention_audience",
-                    "llm_language",
-                    "llm_positive_points",
-                    "llm_negative_points"
-                ],
-                query: {
-                    bool: {
-                        must: [
-                            {
-                                query_string: {
-                                    query: topicQueryString
-                                }
-                            },
-                            {
-                                range: {
-                                    p_created_time: {
-                                        gte: greaterThanTime,
-                                        lte: lessThanTime
-                                    }
-                                }
-                            }
-                        ]
-                    }
+                 if(parseInt(req.body.topicId)==2619 || parseInt(req.body.topicId)==2639 || parseInt(req.body.topicId)==2640 || parseInt(req.body.topicId)==2642){
+            topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin)`;
+        }
+
+      // Build Elasticsearch query
+      const params = {
+        from: 0,
+        size: 10000,
+        _source: [
+          "source",
+          "predicted_sentiment_value",
+          "llm_mention_action",
+          "llm_mention_type",
+          "llm_mention_tone",
+          "llm_mention_recurrence",
+          "p_engagement",
+          "p_likes",
+          "p_comments",
+          "p_shares",
+          "day_of_week",
+          "u_followers",
+          "p_created_time",
+          "llm_mention_urgency",
+          "llm_mention_touchpoint",
+          "p_message",
+          "u_country",
+          "query_hashtag",
+          "llm_emotion",
+          "rating",
+          "created_at",
+          "llm_mention_audience",
+          "llm_language",
+          "llm_positive_points",
+          "llm_negative_points",
+          "p_comments_data"
+        ],
+        query: {
+          bool: {
+            must: [
+              {
+                query_string: {
+                  query: topicQueryString,
                 },
-                sort: [{ p_created_time: { order: 'desc' } }]
-            };
+              },
+              {
+                range: {
+                  p_created_time: {
+                    gte: greaterThanTime,
+                    lte: lessThanTime,
+                  },
+                },
+              },
+            ],
+          },
+        },
+        sort: [{ p_created_time: { order: "desc" } }],
+      };
+
+        
 
             // Execute Elasticsearch query
             const esData = await elasticClient.search({

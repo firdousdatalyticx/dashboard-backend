@@ -163,7 +163,6 @@ const buildElasticsearchQuery = (params) => {
   const must = [];
 
 
-
   // Keyword multi_match search
   if (keyword && keyword.trim() !== "") {
     must.push({
@@ -374,7 +373,7 @@ const buildElasticsearchQuery = (params) => {
             minimum_should_match: 1,
           },
         });
-      } else if (topicId==2641) {
+      } else if (topicId==2641 || topicId === 2643 || topicId === 2644) {
         must.push({
           bool: {
             should: [

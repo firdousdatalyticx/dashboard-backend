@@ -144,7 +144,7 @@ const leaderboardAnalysisController = {
              [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },
-            ]:parseInt(topicId)==2641?
+            ]:parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ?
             [   { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } },
                 { match_phrase: { source: 'Instagram' } }]
@@ -397,7 +397,7 @@ const leaderboardAnalysisController = {
             }
 
             // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-            if (parseInt(topicId) === 2641) {
+            if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
               params.body.query.bool.must.push({
                 term: { is_public_opinion: true }
               });
@@ -426,7 +426,7 @@ const leaderboardAnalysisController = {
               });
             }
             // CASE 2: If no LLM Mention Type given → apply must_not filter
-            else if(Number(topicId) == 2641) {
+            else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
               params.body.query.bool.must.push({
                 bool: {
                   must_not: [

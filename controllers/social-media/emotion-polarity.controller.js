@@ -645,7 +645,7 @@ const emotionPolarityController = {
                         ],
                         minimum_should_match: 1
                     }
-                } : parseInt(topicId)==2641 ? {
+                } : parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ? {
 
                       bool: {
                         should: [
@@ -714,7 +714,7 @@ const emotionPolarityController = {
             }
 
             // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-            if (parseInt(topicId) === 2641) {
+            if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
                 queryFilters.push({
                     term: { is_public_opinion: true }
                 });
@@ -800,7 +800,7 @@ const emotionPolarityController = {
               });
             }
             // CASE 2: If no LLM Mention Type given → apply must_not filter
-            else if(Number(topicId) == 2641) {
+            else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
               elasticParams.body.query.bool.must.push({
                 bool: {
                   must_not: [

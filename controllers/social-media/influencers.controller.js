@@ -128,7 +128,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
     return `source:("LinkedIn" OR "Linkedin")`;
   } else if (isSpecialTopic) {
     return `source:("Facebook" OR "Twitter")`;
-  }else if (parseInt(topicId) === 2641) {
+  }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     return `source:("Facebook" OR "Twitter" OR "Instagram")`;
   } else {
     return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
@@ -167,7 +167,7 @@ const createElasticQuery = (
   };
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-  if (parseInt(topicId) === 2641) {
+  if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     queryBody.body.query.bool.must.push({
       term: { is_public_opinion: true }
     });
@@ -224,7 +224,7 @@ const createElasticQueryPost = (
     };
 
     // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-    if (parseInt(topicId) === 2641) {
+    if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
       queryBody.body.query.bool.must.push({
         term: { is_public_opinion: true }
       });
@@ -341,7 +341,7 @@ const influencersController = {
               minimum_should_match: 1,
             },
           };
-        } else if ( parseInt(topicId) === 2641) {
+        } else if ( parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
           sourceFilterBool = {
             bool: {
               should: [
@@ -450,7 +450,7 @@ const influencersController = {
                         }
 
                         // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-                        if (parseInt(topicId) === 2641) {
+                        if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
                             params.body.query.bool.must.push({
                                 term: { is_public_opinion: true }
                             });

@@ -302,7 +302,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
     return 'source:("LinkedIn" OR "Linkedin")';
   } else if (isSpecialTopic) {
     return 'source:("Twitter" OR "Facebook")';
-  } else if(topicId && topicId === 2641){        
+  } else if(topicId && topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ){        
     return  'source:("Twitter" OR "Facebook" OR "Instagram")';
     } else {
     return 'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")';
@@ -463,7 +463,7 @@ const getActionRequired = async (
   }
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-  if (parseInt(topicId) === 2641) {
+  if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     query.query.bool.must.push({
       term: { is_public_opinion: true }
     });
@@ -492,7 +492,7 @@ const getActionRequired = async (
     });
   }
   // CASE 2: If no LLM Mention Type given → apply must_not filter
-  else if(Number(topicId) == 2641) {
+  else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     query.query.bool.must.push({
       bool: {
         must_not: [
@@ -728,7 +728,7 @@ const getPosts = async (
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
   const topicId = req.query.topicId;
-  if (parseInt(topicId) === 2641) {
+  if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     query.query.bool.must.push({
       term: { is_public_opinion: true }
     });
@@ -1380,18 +1380,18 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641) {
+      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           term: { is_public_opinion: true }
         });
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641) {
-        query.query.bool.must.push({
-          term: { is_public_opinion: true }
-        });
-      }
+      // if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      //   query.query.bool.must.push({
+      //     term: { is_public_opinion: true }
+      //   });
+      // }
 
       // LLM Mention Type filtering logic
       let mentionTypesArray = [];
@@ -1416,7 +1416,7 @@ const mentionsChartController = {
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
+      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           bool: {
             must_not: [
@@ -1657,7 +1657,7 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641) {
+      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         params.query.bool.must.push({
           term: { is_public_opinion: true }
         });
@@ -1686,7 +1686,7 @@ const mentionsChartController = {
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
+      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         params.query.bool.must.push({
           bool: {
             must_not: [
@@ -1861,7 +1861,7 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641) {
+      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           term: { is_public_opinion: true }
         });
@@ -1890,7 +1890,7 @@ const mentionsChartController = {
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
+      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           bool: {
             must_not: [
@@ -2071,7 +2071,7 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641) {
+      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           term: { is_public_opinion: true }
         });
@@ -2100,7 +2100,7 @@ const mentionsChartController = {
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
+      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           bool: {
             must_not: [
@@ -2285,7 +2285,7 @@ const mentionsChartController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if (parseInt(topicId) === 2641) {
+      if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           term: { is_public_opinion: true }
         });
@@ -2314,7 +2314,7 @@ const mentionsChartController = {
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
+      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           bool: {
             must_not: [
@@ -2393,7 +2393,7 @@ const mentionsChartController = {
       // Apply special topic source filtering
       else if (isSpecialTopic) {
         topicQueryString += ` AND source:("Twitter" OR "Facebook")`;
-      } else if(topicId && parseInt(topicId) === 2641){        
+      } else if(topicId && parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ){        
         return  'AND source:("Twitter" OR "Facebook" OR "Instagram")';
       } else {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;
@@ -2548,7 +2548,7 @@ const mentionsChartController = {
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
+      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.query.bool.must.push({
           bool: {
             must_not: [

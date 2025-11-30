@@ -3,7 +3,8 @@ const { format } = require("date-fns");
 const { processFilters } = require("./filter.utils");
 const prisma = require("../../config/database");
 const processCategoryItems = require("../../helpers/processedCategoryItems");
-
+const fs = require('fs');
+const path = require('path');
 const normalizeSourceInput = (sourceParam) => {
   if (!sourceParam || sourceParam === "All") {
     return [];
@@ -661,7 +662,374 @@ const engagementDistributionTrendController = {
       });
     }
   },
+  getData:async (req,res)=>{
+ try {
+    const {
+      timeSlot,
+      fromDate,
+      toDate,
+      sentimentType,
+      source = "All",
+      unTopic = "false",
+      topicId,
+      llm_mention_type,
+      categoryItems = [],
+    } = req.body;
+
+    let category = req.body.category || "all";
+
+    // Determine which category data to use
+    let categoryData = {};
+
+    if (
+      categoryItems &&
+      Array.isArray(categoryItems) &&
+      categoryItems.length > 0
+    ) {
+      categoryData = processCategoryItems(categoryItems);
+      category = "custom";
+    } else {
+      categoryData = req.processedCategories || {};
+    }
+
+    if (Object.keys(categoryData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No category data available",
+      });
+    }
+
+    if (category !== "all" && category !== "" && category !== "custom") {
+      const matchedKey = findMatchingCategoryKey(category, categoryData);
+      if (!matchedKey) {
+        return res.status(400).json({
+          success: false,
+          error: "Category not found",
+        });
+      }
+      category = matchedKey;
+    }
+
+    // Check if this is the special topicId
+    const isSpecialTopic =
+      (req.body.topicId && parseInt(req.body.topicId) === 2627) ||
+      parseInt(req.body.topicId) === 2600;
+
+    // Build base query for filters processing
+    const baseQueryString = buildBaseQueryString(category, categoryData);
+
+    // Process filters
+    const filters = processFilters({
+      sentimentType,
+      timeSlot,
+      fromDate,
+      toDate,
+      queryString: baseQueryString,
+    });
+
+    // Handle special case for unTopic
+    let queryTimeRange = {
+      gte: filters.greaterThanTime,
+      lte: filters.lessThanTime,
+    };
+
+    if (Number(req.body.topicId) == 2473) {
+      queryTimeRange = {
+        gte: fromDate,
+        lte: toDate,
+      };
+    }
+
+    // Build base query
+    const query = buildBaseQuery(
+      {
+        greaterThanTime: queryTimeRange.gte,
+        lessThanTime: queryTimeRange.lte,
+      },
+      source,
+      isSpecialTopic,
+      Number(req.body.topicId)
+    );
+
+    // Add category filters
+    addCategoryFilters(query, category, categoryData);
+
+    // Apply sentiment filter if provided
+    if (
+      sentimentType &&
+      sentimentType !== "undefined" &&
+      sentimentType !== "null"
+    ) {
+      if (sentimentType.includes(",")) {
+        const sentimentArray = sentimentType.split(",");
+        const sentimentFilter = {
+          bool: {
+            should: sentimentArray.map((sentiment) => ({
+              match: { predicted_sentiment_value: sentiment.trim() },
+            })),
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(sentimentFilter);
+      } else {
+        query.bool.must.push({
+          match: { predicted_sentiment_value: sentimentType.trim() },
+        });
+      }
+      console.log("Applied sentiment filter for:", sentimentType);
+    }
+
+    // Normalize the mention type input
+    const mentionTypesArray =
+      typeof llm_mention_type === "string"
+        ? llm_mention_type.split(",").map((s) => s.trim())
+        : llm_mention_type;
+
+    // Apply LLM Mention Type filter if provided
+    if (
+      llm_mention_type != "" &&
+      mentionTypesArray &&
+      Array.isArray(mentionTypesArray) &&
+      mentionTypesArray.length > 0
+    ) {
+      const mentionTypeFilter = {
+        bool: {
+          should: mentionTypesArray.map((type) => ({
+            match: { llm_mention_type: type },
+          })),
+          minimum_should_match: 1,
+        },
+      };
+      query.bool.must.push(mentionTypeFilter);
+    }
+
+    // Define fields to export
+    const exportFields = [
+      "p_created_time",
+      "p_message_text",
+      "predicted_sentiment_value",
+      "llm_emotion",
+      "is_public_opinion",
+      "llm_keywords",
+      "llm_subtopic",
+      "u_source",
+      "query_hashtag",
+      "u_followers",
+      "u_likes",
+      "p_comments",
+      "p_shares",
+      "source",
+      "llm_language",
+      "llm_mention_audience",
+      "llm_mention_recurrence",
+      "llm_mention_urgency",
+      "p_phrase_text"
+    ];
+
+    console.log('Starting data export with filters...');
+    // console.log('Query:', JSON.stringify(query, null, 2));
+
+    // query.bool.must.push(
+    //     {
+    //       "exists": {
+    //         "field": "p_phrase_text"
+    //       }
+    //     }
+    //   );
+
+//      query  =  {"query":{
+//     "bool": {
+//       "must": [
+//         { "exists": { "field": "p_phrase_text" } },
+//          { "exists": { "field": "is_public_opinion" } }
+//       ]
+//     }
+// }}
+
+   
+  // return res.status(200).json(query);
+
+
+    // Fetch all data using scroll API
+    const allResults = await fetchAllDataWithScroll(elasticClient, query, exportFields);
+
+    if (allResults.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No data found to export',
+      });
+    }
+
+    // Generate CSV file
+    const timestamp = Date.now();
+    const outputPath = path.join(__dirname, `../exports/export_${timestamp}.csv`);
+    
+    // Ensure exports directory exists
+    const exportsDir = path.join(__dirname, '../exports');
+    if (!fs.existsSync(exportsDir)) {
+      fs.mkdirSync(exportsDir, { recursive: true });
+    }
+
+    generateCSV(allResults, outputPath);
+
+    // Send file as download
+    res.download(outputPath, `elasticsearch_export_${timestamp}.csv`, (err) => {
+      if (err) {
+        console.error('Error sending file:', err);
+        if (!res.headersSent) {
+          res.status(500).json({
+            success: false,
+            error: 'Failed to send file',
+          });
+        }
+      }
+      
+      // Clean up file after download
+      // try {
+      //   fs.unlinkSync(outputPath);
+      //   console.log('Temporary file cleaned up');
+      // } catch (cleanupError) {
+      //   console.error('Error cleaning up file:', cleanupError);
+      // }
+    });
+
+  } catch (error) {
+    console.error('Error in export:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to export data',
+      message: error.message,
+    });
+  }
+  }
 };
+
+
+
+// Method 1: Using Scroll API (recommended for large datasets)
+async function fetchAllDataWithScroll(elasticClient, query, fields) {
+  const allResults = [];
+  const scrollTimeout = '2m';
+  
+  try {
+    // Initial search with scroll
+    let response = await elasticClient.search({
+      index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+      scroll: scrollTimeout,
+      body: {
+        query: query,
+        size: 1000,
+        _source: fields,
+      },
+    });
+
+    let scrollId = response._scroll_id;
+    let hits = response.hits.hits;
+
+    allResults.push(...hits);
+
+    while (hits.length > 0) {
+      response = await elasticClient.scroll({
+        scroll_id: scrollId,
+        scroll: scrollTimeout,
+      });
+
+      scrollId = response._scroll_id;
+      hits = response.hits.hits;
+      allResults.push(...hits);
+
+      console.log(`Fetched ${allResults.length} documents so far...`);
+    }
+
+    await elasticClient.clearScroll({ scroll_id: scrollId });
+
+    console.log(`Total documents fetched: ${allResults.length}`);
+    return allResults;
+
+  } catch (error) {
+    console.error('Error fetching data with scroll:', error);
+    throw error;
+  }
+}
+
+// Helper function to escape CSV values
+function escapeCSVValue(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  
+  const stringValue = String(value);
+  
+  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  
+  return stringValue;
+}
+
+// Generate CSV from results
+function generateCSV(results, outputPath) {
+  const headers = [
+    'ID',
+    'Created Time',
+    'Message Text',
+    'Sentiment Value',
+    'Emotion',
+    'Is Public Opinion',
+    'Keywords',
+    'Subtopic',
+    'Source',
+    'Hashtag',
+    'Followers',
+    'Likes',
+    'Comments',
+    'Shares',
+    'Platform',
+    'Language',
+    'Mention Audience',
+    'Mention Recurrence',
+    'Mention Urgency',
+    "p phrase text"
+  ];
+
+  let csvContent = headers.join(',') + '\n';
+
+  results.forEach(hit => {
+    const row = [
+      escapeCSVValue(hit._id),
+      escapeCSVValue(hit._source.p_created_time),
+      escapeCSVValue(hit._source.p_message_text),
+      escapeCSVValue(hit._source.predicted_sentiment_value),
+      escapeCSVValue(hit._source.llm_emotion),
+      escapeCSVValue(hit._source.is_public_opinion),
+      escapeCSVValue(
+        Array.isArray(hit._source.llm_keywords) 
+          ? hit._source.llm_keywords.join('; ') 
+          : hit._source.llm_keywords
+      ),
+      escapeCSVValue(hit._source.llm_subtopic),
+      escapeCSVValue(hit._source.u_source),
+      escapeCSVValue(hit._source.query_hashtag),
+      escapeCSVValue(hit._source.u_followers),
+      escapeCSVValue(hit._source.u_likes),
+      escapeCSVValue(hit._source.p_comments),
+      escapeCSVValue(hit._source.p_shares),
+      escapeCSVValue(hit._source.source),
+      escapeCSVValue(hit._source.llm_language),
+      escapeCSVValue(hit._source.llm_mention_audience),
+      escapeCSVValue(hit._source.llm_mention_recurrence),
+      escapeCSVValue(hit._source.llm_mention_urgency),
+      escapeCSVValue(hit._source.p_phrase_text)
+    ];
+
+    csvContent += row.join(',') + '\n';
+  });
+
+  fs.writeFileSync(outputPath, csvContent, 'utf8');
+  console.log(`CSV file generated: ${outputPath} (${results.length} records)`);
+  
+  return outputPath;
+}
 
 /**
  * Format post data for the frontend
@@ -798,6 +1166,9 @@ const formatPostData = (hit) => {
   };
 };
 
+
+
+
 /**
  * Build a base query string from category data for filters processing
  * @param {string} selectedCategory - Category to filter by
@@ -853,6 +1224,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
   const query = {
     bool: {
       must: [
+        topicId !== 2641 && topicId !== 2643 && topicId !== 2644 &&
         {
           range: {
             p_created_time: {
@@ -906,7 +1278,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
         minimum_should_match: 1,
       },
     });
-  } else if (topicId === 2641) {
+  } else if (topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     query.bool.must.push({
       bool: {
         should: [

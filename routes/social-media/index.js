@@ -51,6 +51,7 @@ const mentionsOverTimeRoute = require("./mentions-over-time.route")
 const businessLocationRoutes = require("./business-locations.routes")
 const engagementDistributionTrendRoutes = require("./engagement-distribution-trend.route")
 const sentimentAnalysisEduRoute = require("./sentiment-analysis-edu.route")
+const subsidiaryDistributions = require("./subsidiary-distributions.route")
 
 /// migration-topics.routes.js
 /**
@@ -111,4 +112,5 @@ router.use("/llm-motivation-sentiment",llm_motivation_sentiment_route)
 router.use("/business-location",businessLocationRoutes)
 router.use('/sentiments',sentimentAnalysisEduRoute);
 router.use("/engagement-distribution-trend",engagementDistributionTrendRoutes)
+router.use("/subsidiary-distributions",subsidiaryDistributions)
 module.exports = router; 

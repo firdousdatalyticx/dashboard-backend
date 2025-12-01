@@ -139,10 +139,15 @@ const getDistributionPosts = async (req, res) => {
     }
 
         // Normalize input into array
-        const mentionTypesArray =
-          typeof llm_mention_type === "string"
-            ? llm_mention_type.split(",").map(s => s.trim())
-            : llm_mention_type;
+        let mentionTypesArray = [];
+
+        if (llm_mention_type) {
+            if (Array.isArray(llm_mention_type)) {
+                mentionTypesArray = llm_mention_type;
+            } else if (typeof llm_mention_type === "string") {
+                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+            }
+        }
 
         // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
         if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
@@ -151,34 +156,28 @@ const getDistributionPosts = async (req, res) => {
           });
         }
 
-        // CASE 1: If llm_mention_type has values → apply SHOULD filter
-        if (
-          llm_mention_type &&
-          llm_mention_type !== "" &&
-          Array.isArray(mentionTypesArray) &&
-          mentionTypesArray.length > 0
-        ) {
-          query.bool.must.push({
-            bool: {
-              should: mentionTypesArray.map(type => ({
-                match: { llm_mention_type: type }
-              })),
-              minimum_should_match: 1
-            }
-          });
+        // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+        if (mentionTypesArray.length > 0) {
+            query.bool.must.push({
+                bool: {
+                    should: mentionTypesArray.map(type => ({
+                        match: { llm_mention_type: type }
+                    })),
+                    minimum_should_match: 1
+                }
+            });
         }
-
-        // CASE 2: If llm_mention_type is NOT provided AND topicId == 2641 → apply MUST_NOT filter
-        else if (Number(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-          query.bool.must.push({
-            bool: {
-              must_not: [
-                { match: { llm_mention_type: "Promotion" } },
-                { match: { llm_mention_type: "Booking" } },
-                { match: { llm_mention_type: "Others" } }
-              ]
-            }
-          });
+        // CASE 2: If no LLM Mention Type given → apply must_not filter
+        else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+            query.bool.must.push({
+                bool: {
+                    must_not: [
+                        { match: { llm_mention_type: "Promotion" }},
+                        { match: { llm_mention_type: "Booking" }},
+                        { match: { llm_mention_type: "Others" }}
+                    ]
+                }
+            });
         }
 
 
@@ -186,7 +185,7 @@ const getDistributionPosts = async (req, res) => {
     if (sourceName === 'LinkedIn') {
       query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
     } else {
-      query.bool.must.push({ match_phrase: { 'source.keyword': sourceName } });
+      query.bool.must.push({ match_phrase: { source: sourceName } });
     }
 
     const postsResponse = await elasticClient.search({
@@ -265,6 +264,17 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
     });
   } else if (topicId===2619 || topicId===2639 || topicId===2640) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
+  } else if (topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
+    query.bool.must.push({
+      bool: {
+        should: [
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } },
+          { match_phrase: { source: "Instagram" } },
+        ],
+        minimum_should_match: 1
+      }
+    });
   } else if (isSpecialTopic) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'Facebook' } }, { match_phrase: { source: 'Twitter' } } ], minimum_should_match: 1 } });
   } else {

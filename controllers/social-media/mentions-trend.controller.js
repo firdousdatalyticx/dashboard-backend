@@ -87,6 +87,18 @@ const mentionsTrendController = {
         categoryItems = [],
       } = req.body;
 
+      // If both toDate and fromDate are null, set to last 365 days
+      let effectiveFromDate = fromDate;
+      let effectiveToDate = toDate;
+
+      if (!fromDate && !toDate) {
+        const today = new Date();
+        const lastYear = new Date();
+        lastYear.setFullYear(today.getFullYear() - 1);
+        effectiveFromDate = lastYear.toISOString().split('T')[0];
+        effectiveToDate = today.toISOString().split('T')[0];
+      }
+
       let category = req.body.category || "all";
 
       // Check if this is the special topicId
@@ -136,8 +148,8 @@ const mentionsTrendController = {
       const filters = processFilters({
         sentimentType,
         timeSlot,
-        fromDate,
-        toDate,
+        fromDate: effectiveFromDate,
+        toDate: effectiveToDate,
         queryString: baseQueryString,
       });
 

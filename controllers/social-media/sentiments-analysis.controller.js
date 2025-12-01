@@ -169,7 +169,7 @@ const sentimentsController = {
 
             // Set default date range - last 90 days
             const now = new Date();
-            const ninetyDaysAgo = subDays(now, 90);
+            const ninetyDaysAgo = subDays(now, 365);
             
             let startDate;
             let endDate = now;
@@ -469,19 +469,18 @@ const sentimentsController = {
                     
                     
                         // Execute the query
-                        // const sentimentPostsResponse = await elasticClient.search({
-                        //     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                        //     body: sentimentPostsQuery
-                        // });
-                        
+                        const sentimentPostsResponse = await elasticClient.search({
+                            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                            body: sentimentPostsQuery
+                        });
+
                         // Format posts for this sentiment
-                        const posts =[]
-                        // sentimentPostsResponse.hits.hits.map(hit => formatPostData(hit));
-                        
-                        // Add to interval results with the actual count from aggregation
+                        const posts = sentimentPostsResponse.hits.hits.map(hit => formatPostData(hit));
+
+                        // Add to interval results with the actual count from posts
                         sentimentsInInterval.push({
                             name: sentimentName,
-                            count: sentimentCount,  // Use the total count from aggregation
+                            count: posts.length,  // Use actual posts count
                             posts: posts  // Limited to MAX_POSTS_PER_SENTIMENT
                         });
                

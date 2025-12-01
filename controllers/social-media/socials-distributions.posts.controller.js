@@ -83,11 +83,13 @@ const getDistributionPosts = async (req, res) => {
     const baseQueryString = buildBaseQueryString(workingCategory, categoryData);
     const filters = processFilters({ sentimentType, timeSlot, fromDate, toDate, queryString: baseQueryString, isSpecialTopic });
 
-    const noDateProvided = (
-      (timeSlot === null || timeSlot === undefined || timeSlot === '') &&
-      (fromDate === null || fromDate === undefined || fromDate === '') &&
-      (toDate === null || toDate === undefined || toDate === '')
-    );
+    // For topicId 2641, only check fromDate and toDate (not timeSlot)
+    const noDateProvided = parseInt(topicId) === 2641 ?
+      ((fromDate === null || fromDate === undefined || fromDate === '') &&
+       (toDate === null || toDate === undefined || toDate === '')) :
+      ((timeSlot === null || timeSlot === undefined || timeSlot === '') &&
+       (fromDate === null || fromDate === undefined || fromDate === '') &&
+       (toDate === null || toDate === undefined || toDate === ''));
     let queryTimeRange = null;
     if (!noDateProvided) {
       queryTimeRange = { gte: filters.greaterThanTime, lte: filters.lessThanTime };
@@ -394,6 +396,7 @@ const formatPostData = (hit) => {
     likes,
     llm_emotion,
     llm_language: s.llm_language,
+    u_city: s.u_city,
     commentsUrl,
     comments,
     shares,

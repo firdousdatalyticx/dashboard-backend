@@ -254,6 +254,7 @@ const sentimentAnalysisController = {
             "llm_subtopic",
             "llm_emotion",
             "llm_language",
+            "u_city",
             "llm_keywords",
             "p_url",
             "p_image_url",
@@ -795,12 +796,25 @@ const sentimentAnalysisController = {
        
       }
 
+      // For getTrendOverTime, default to one year if no dates provided
+      let effectiveTimeSlot = timeSlot;
+      let effectiveFromDate = fromDate;
+      let effectiveToDate = toDate;
+
+      if (!timeSlot && !fromDate && !toDate) {
+        // Default to exactly one year ago from today
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        effectiveFromDate = oneYearAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
+        effectiveToDate = new Date().toISOString().split('T')[0]; // Today in YYYY-MM-DD format
+      }
+
       const query = buildAnalysisQuery({
         categoryData,
         category: selectedCategory,
-        timeSlot,
-        fromDate,
-        toDate,
+        timeSlot: effectiveTimeSlot,
+        fromDate: effectiveFromDate,
+        toDate: effectiveToDate,
         sources,
         llm_mention_type,
         countries,
@@ -808,7 +822,8 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
-        topicId
+        topicId,
+        excludeTopic2641Logic: true // Exclude topicId 2641 special logic for getTrendOverTime
       });
 
        if(selectedCategory=="all" && category!=="all"){
@@ -867,6 +882,10 @@ const sentimentAnalysisController = {
               calendar_interval: interval,
               format: "yyyy-MM-dd",
               min_doc_count: 0,
+              extended_bounds: {
+                min: effectiveFromDate || "now-1y",
+                max: effectiveToDate || "now",
+              },
             },
             aggs: {
               sentiments: {
@@ -893,6 +912,7 @@ const sentimentAnalysisController = {
                           "llm_subtopic",
                           "llm_emotion",
                           "llm_language",
+                          "u_city",
                           "llm_keywords",
                           "p_url",
                           "p_image_url",
@@ -1296,33 +1316,44 @@ function buildAnalysisQuery(params) {
     organizations,
     cities,
     dataSource,
-    topicId
+    topicId,
+    excludeTopic2641Logic = false // New parameter to exclude topicId 2641 logic for getTrendOverTime
   } = params;
 
-  // Build base query with time range
-  const filters = processFilters({
-    timeSlot,
-    fromDate,
-    toDate,
-    queryString: "",
-  });
+  // Build base query with time range (conditionally for topicId 2641, but not for getTrendOverTime)
+  const noDateProvided = !excludeTopic2641Logic && parseInt(topicId) === 2641 ?
+    ((fromDate === null || fromDate === undefined || fromDate === '') &&
+     (toDate === null || toDate === undefined || toDate === '')) :
+    ((timeSlot === null || timeSlot === undefined || timeSlot === '') &&
+     (fromDate === null || fromDate === undefined || fromDate === '') &&
+     (toDate === null || toDate === undefined || toDate === ''));
 
   const query = {
     bool: {
-      must: [
-        {
-          range: {
-            p_created_time: {
-              gte: filters.greaterThanTime,
-              lte: filters.lessThanTime,
-            },
-          },
-        },
-      ],
+      must: [],
       must_not: [],
       should: [],
     },
   };
+
+  // Only add date range filter if dates are provided (or not topicId 2641 with null dates)
+  if (!noDateProvided) {
+    const filters = processFilters({
+      timeSlot,
+      fromDate,
+      toDate,
+      queryString: "",
+    });
+
+    query.bool.must.push({
+      range: {
+        p_created_time: {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        },
+      },
+    });
+  }
 
   // Add category filters
   addCategoryFilters(query, category, categoryData);
@@ -1807,6 +1838,7 @@ const formatPostData = (hit) => {
     likes,
     llm_emotion,
     llm_language: source.llm_language,
+    u_city: source.u_city,
     commentsUrl,
     comments,
     shares,

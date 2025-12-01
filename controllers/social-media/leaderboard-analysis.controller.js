@@ -125,17 +125,16 @@ const leaderboardAnalysisController = {
             
 
 
-                        let dateRange;
-      if (fromDate == null && toDate == null) {
-        dateRange = {
-          gte: dateFilter,
-        };
-      } else {
-        dateRange = {
-          gte: fromDate,
-          lte: toDate,
-        };
-      }
+            // Calculate date range - if no dates provided, don't apply any date filter (fetch all data)
+            let dateRange;
+            if (fromDate == null && toDate == null) {
+                dateRange = null; // No date filter - fetch all data
+            } else {
+                dateRange = {
+                    gte: fromDate,
+                    lte: toDate,
+                };
+            }
             const normalizedSources = normalizeSourceInput(source);
             // Define source filter based on special topic
             const sourceFilter = normalizedSources.length > 0
@@ -257,11 +256,12 @@ const leaderboardAnalysisController = {
                             filter: {
                                 bool: {
                                     must: [
-                                        {
+                                        // Only add date range filter if dateRange is not null
+                                        ...(dateRange ? [{
                                             range: {
                                                 p_created_time: dateRange
                                             }
-                                        },
+                                        }] : []),
                                         {
                                             bool: {
                                                 should: sourceFilter,

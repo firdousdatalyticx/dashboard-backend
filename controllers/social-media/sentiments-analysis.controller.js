@@ -1611,6 +1611,7 @@ const formatPostData = (hit) => {
         likes,
         llm_emotion,
         llm_language: source.llm_language,
+        u_city: source.u_city,
         commentsUrl,
         comments,
         shares,

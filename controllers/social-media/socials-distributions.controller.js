@@ -116,11 +116,13 @@ const socialsDistributionsController = {
                         });
             
                         // Build time range: if no dates are provided, DO NOT apply default last90days
-                        const noDateProvided = (
-                            (timeSlot === null || timeSlot === undefined || timeSlot === '') &&
-                            (fromDate === null || fromDate === undefined || fromDate === '') &&
-                            (toDate === null || toDate === undefined || toDate === '')
-                        );
+                        // For topicId 2641, only check fromDate and toDate (not timeSlot)
+                        const noDateProvided = parseInt(topicId) === 2641 ?
+                            ((fromDate === null || fromDate === undefined || fromDate === '') &&
+                             (toDate === null || toDate === undefined || toDate === '')) :
+                            ((timeSlot === null || timeSlot === undefined || timeSlot === '') &&
+                             (fromDate === null || fromDate === undefined || fromDate === '') &&
+                             (toDate === null || toDate === undefined || toDate === ''));
 
                         let queryTimeRange = null;
                         if (!noDateProvided) {

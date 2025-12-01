@@ -563,22 +563,11 @@ const emotionPolarityController = {
             
             const topicQueryString = buildTopicQueryString(categoryData);
 
-            // Build date range filter
+            // Build date range filter - if no dates provided, don't apply any date filter (fetch all data)
             let dateRangeFilter = null;
             if (!fromDate && !toDate) {
-                // If no dates provided, get last 90 days
-                const endDate = new Date();
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 90);
-                
-                dateRangeFilter = {
-                    range: {
-                        p_created_time: {
-                            gte: startDate.toISOString(),
-                            lte: endDate.toISOString()
-                        }
-                    }
-                };
+                // If no dates provided, don't apply any date filter - fetch all data
+                dateRangeFilter = null;
             } else if (fromDate || toDate) {
                 // Use provided date range
                 const rangeFilter = {};
@@ -588,7 +577,7 @@ const emotionPolarityController = {
                 if (toDate) {
                     rangeFilter.lte = new Date(toDate).toISOString();
                 }
-                
+
                 dateRangeFilter = {
                     range: {
                         p_created_time: rangeFilter
@@ -1136,6 +1125,7 @@ const formatPostData = async (hit) => {
         likes,
         llm_emotion,
         llm_language: source.llm_language,
+        u_city: source.u_city,
         commentsUrl,
         comments,
         shares,

@@ -97,14 +97,6 @@ const poiSentimentDistributionController = {
                 }
             }
 
-            // Calculate date filter based on special topic
-           
-                // Calculate date 90 days ago
-                const ninetyDaysAgo = new Date();
-                ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-              let  dateFilter = ninetyDaysAgo.toISOString();
-            
-
             // Filter out categories with empty criteria
             const validCategories = Object.entries(categoryData).filter(([_, data]) => {
                 const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
@@ -113,17 +105,16 @@ const poiSentimentDistributionController = {
                 return hasKeywords || hasHashtags || hasUrls;
             });
 
-               let dateRange;
-      if (fromDate == null && toDate == null) {
-        dateRange = {
-          gte: dateFilter,
-        };
-      } else {
-        dateRange = {
-          gte: fromDate,
-          lte: toDate,
-        };
-      }
+            // Calculate date range - if no dates provided, don't apply any date filter (fetch all data)
+            let dateRange;
+            if (fromDate == null && toDate == null) {
+                dateRange = null; // No date filter - fetch all data
+            } else {
+                dateRange = {
+                    gte: fromDate,
+                    lte: toDate,
+                };
+            }
 
             // If no valid categories with search criteria, return empty results
             if (validCategories.length === 0) {
@@ -232,11 +223,12 @@ const poiSentimentDistributionController = {
                             filter: {
                                 bool: {
                                     must: [
-                                        {
+                                        // Only add date range filter if dateRange is not null
+                                        ...(dateRange ? [{
                                             range: {
                                                 p_created_time: dateRange
                                             }
-                                        },
+                                        }] : []),
                                         {
                                             bool: {
                                                 should: sourceFilter,
@@ -339,6 +331,7 @@ const poiSentimentDistributionController = {
                                                     'source',
                                                     'llm_emotion',
                                                     'llm_language',
+                                                    'u_city',
                                                     'video_embed_url',
                                                     'p_id',
                                                     'rating',
@@ -592,6 +585,7 @@ const formatPostData = (hit) => {
         likes,
         llm_emotion,
         llm_language: source.llm_language,
+        u_city: source.u_city,
         commentsUrl,
         comments,
         shares,

@@ -126,7 +126,16 @@ const buildElasticsearchQuery = (params) => {
     qsParts.push(`source:(${sourcesStr})`);
   }
   // No fallback logic - if no sources specified, don't filter by source
-
+else {
+        // Default logic based on topic
+        if (topicId=== 2619 || topicId=== 2639 || topicId=== 2640 || topicId===2642) {
+          qsParts.push(` source:("LinkedIn" OR "Linkedin")`);
+        } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 ) {
+          qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);
+        }else {
+          qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`);
+        }
+      }
   // Post type filtering – use a mapping for common cases.
   const typeMapping = {
     // Remove sentiment filters from here to avoid duplication

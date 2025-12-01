@@ -377,16 +377,7 @@ const topicCategoriesController = {
                 ];
 
 
-            const must = [
-                {
-                    range: {
-                        p_created_time: {
-                            gte: "2018-11-01",
-                            lte: "2025-12-01"
-                        }
-                    }
-                }
-            ]
+            const must = []
 
             if (numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644) {
                 must.push({

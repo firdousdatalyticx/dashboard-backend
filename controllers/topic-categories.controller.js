@@ -360,9 +360,10 @@ const topicCategoriesController = {
 
 
             // Determine social media sources based on special topic
-            const socialSources = numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 ? ["LinkedIn", "Linkedin"] : isSpecialTopic
-                ? ["Facebook", "Twitter"]
-                : [
+            const socialSources = numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 ? ["LinkedIn", "Linkedin"] :
+                numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644 ? ["Facebook", "facebook", "Twitter", "twitter", "Instagram", "instagram"] :
+                isSpecialTopic ? ["Facebook", "Twitter"] :
+                [
                     "Facebook",
                     "Twitter",
                     "Instagram",
@@ -377,8 +378,27 @@ const topicCategoriesController = {
 
 
             const must = [
-
+                {
+                    range: {
+                        p_created_time: {
+                            gte: "2018-11-01",
+                            lte: "2025-12-01"
+                        }
+                    }
+                }
             ]
+
+            if (numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644) {
+                must.push({
+                    bool: {
+                        must_not: [
+                            { match: { llm_mention_type: "Promotion" } },
+                            { match: { llm_mention_type: "Booking" } },
+                            { match: { llm_mention_type: "Others" } }
+                        ]
+                    }
+                });
+            }
             const googleMust =
                 [
                     {

@@ -91,7 +91,7 @@ const mentionsTrendController = {
       let effectiveFromDate = fromDate;
       let effectiveToDate = toDate;
 
-      if (!fromDate && !toDate && (topicId && (parseInt(topicId) === 2641) ||  parseInt(topicId) === 2643 || parseInt(topicId) === 2644)) {
+      if (!fromDate && !toDate) {
         const today = new Date();
         const lastYear = new Date();
         lastYear.setFullYear(today.getFullYear() - 1);
@@ -247,7 +247,7 @@ const mentionsTrendController = {
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      if ( parseInt(topicId) === 2641||parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.bool.must.push({
           term: { is_public_opinion: true }
         });

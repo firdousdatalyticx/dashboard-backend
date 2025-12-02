@@ -91,13 +91,13 @@ const mentionsTrendController = {
       let effectiveFromDate = fromDate;
       let effectiveToDate = toDate;
 
-      if (!fromDate && !toDate && (topicId && (parseInt(topicId) === 2641) ||  parseInt(topicId) === 2643 || parseInt(topicId) === 2644)) {
+      // if (!fromDate && !toDate && (topicId && (parseInt(topicId) === 2641) ||  parseInt(topicId) === 2643 || parseInt(topicId) === 2644)) {
         const today = new Date();
         const lastYear = new Date();
         lastYear.setFullYear(today.getFullYear() - 1);
         effectiveFromDate = lastYear.toISOString().split('T')[0];
         effectiveToDate = today.toISOString().split('T')[0];
-      }
+      // }
 
       let category = req.body.category || "all";
 

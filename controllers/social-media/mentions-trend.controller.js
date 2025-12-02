@@ -91,13 +91,45 @@ const mentionsTrendController = {
       let effectiveFromDate = fromDate;
       let effectiveToDate = toDate;
 
+      // if (!fromDate && !toDate && (topicId && (parseInt(topicId) === 2641) ||  parseInt(topicId) === 2643 || parseInt(topicId) === 2644)) {
+      //   const today = new Date();
+      //   const lastYear = new Date();
+      //   lastYear.setFullYear(today.getFullYear() - 1);
+      //   effectiveFromDate = lastYear.toISOString().split('T')[0];
+      //   effectiveToDate = today.toISOString().split('T')[0];
+      // }
+
       if (!fromDate && !toDate) {
-        const today = new Date();
-        const lastYear = new Date();
-        lastYear.setFullYear(today.getFullYear() - 1);
-        effectiveFromDate = lastYear.toISOString().split('T')[0];
-        effectiveToDate = today.toISOString().split('T')[0];
-      }
+  
+  const topic = parseInt(topicId);
+
+  // Topics requiring last 1 year
+  const lastYearTopics = [2641, 2643, 2644];
+
+  // Topics requiring last 90 days
+  const last90DayTopics = [2619, 2639, 2640];
+
+  const today = new Date();
+
+  // If topic requires 1-year range
+  if (lastYearTopics.includes(topic)) {
+    const lastYear = new Date();
+    lastYear.setFullYear(today.getFullYear() - 1);
+
+    effectiveFromDate = lastYear.toISOString().split('T')[0];
+    effectiveToDate = today.toISOString().split('T')[0];
+  }
+
+  // If topic requires 90-day range
+  else  {
+    const last90 = new Date();
+    last90.setDate(today.getDate() - 90);
+
+    effectiveFromDate = last90.toISOString().split('T')[0];
+    effectiveToDate = today.toISOString().split('T')[0];
+  }
+}
+
 
       let category = req.body.category || "all";
 

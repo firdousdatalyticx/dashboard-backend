@@ -796,16 +796,16 @@ const sentimentAnalysisController = {
        
       }
 
-      // For getTrendOverTime, default to one year if no dates provided
+      // For getTrendOverTime, default to 90 days if no dates provided
       let effectiveTimeSlot = timeSlot;
       let effectiveFromDate = fromDate;
       let effectiveToDate = toDate;
 
       if (!timeSlot && !fromDate && !toDate) {
-        // Default to exactly one year ago from today
-        const oneYearAgo = new Date();
-        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-        effectiveFromDate = oneYearAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
+        // Default to exactly 90 days ago from today
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        effectiveFromDate = ninetyDaysAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
         effectiveToDate = new Date().toISOString().split('T')[0]; // Today in YYYY-MM-DD format
       }
 
@@ -883,7 +883,7 @@ const sentimentAnalysisController = {
               format: "yyyy-MM-dd",
               min_doc_count: 0,
               extended_bounds: {
-                min: effectiveFromDate || "now-1y",
+                min: effectiveFromDate || "now-90d",
                 max: effectiveToDate || "now",
               },
             },

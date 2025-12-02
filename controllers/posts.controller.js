@@ -546,7 +546,7 @@ const formatPostData = async (hit) => {
     likes,
     llm_emotion,
     llm_language: source.llm_language,
-    u_city: source.u_city,
+    u_country: source.u_country,
     commentsUrl,
     comments,
     shares,

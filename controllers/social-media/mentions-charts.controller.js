@@ -491,18 +491,7 @@ const getActionRequired = async (
       }
     });
   }
-  // CASE 2: If no LLM Mention Type given → apply must_not filter
-  else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-    query.query.bool.must.push({
-      bool: {
-        must_not: [
-          { match: { llm_mention_type: "Promotion" }},
-          { match: { llm_mention_type: "Booking" }},
-          { match: { llm_mention_type: "Others" }}
-        ]
-      }
-    });
-  }
+
 
   const result = await elasticClient.search({
     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1416,18 +1405,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+    
 
       // Execute query
       const result = await elasticClient.search({
@@ -1686,18 +1664,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        params.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+  
 
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1890,19 +1857,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
-
+    
       // Execute query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -2100,18 +2055,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+    
 
       // Execute query
       const result = await elasticClient.search({
@@ -2314,18 +2258,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+   
 
       // Execute query
       const result = await elasticClient.search({
@@ -2548,18 +2481,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+   
 
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,

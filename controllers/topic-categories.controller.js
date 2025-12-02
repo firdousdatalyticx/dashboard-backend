@@ -379,17 +379,7 @@ const topicCategoriesController = {
 
             const must = []
 
-            if (numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644) {
-                must.push({
-                    bool: {
-                        must_not: [
-                            { match: { llm_mention_type: "Promotion" } },
-                            { match: { llm_mention_type: "Booking" } },
-                            { match: { llm_mention_type: "Others" } }
-                        ]
-                    }
-                });
-            }
+           
             const googleMust =
                 [
                     {

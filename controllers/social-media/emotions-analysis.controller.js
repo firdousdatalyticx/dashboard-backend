@@ -255,18 +255,7 @@ const emotionsController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+   
 
       // Create aggregations for both simple counts and interval-based data
       const params = {
@@ -709,18 +698,7 @@ const emotionsController = {
         }
       });
     }
-    // CASE 2: If no LLM Mention Type given → apply must_not filter
-    else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-      query.bool.must.push({
-        bool: {
-          must_not: [
-            { match: { llm_mention_type: "Promotion" }},
-            { match: { llm_mention_type: "Booking" }},
-            { match: { llm_mention_type: "Others" }}
-          ]
-        }
-      });
-    }
+  
 
     // Calculate pagination
     const offset = (page - 1) * limit;
@@ -908,7 +886,7 @@ const formatPostData = (hit) => {
     likes,
     llm_emotion,
     llm_language: source.llm_language,
-    u_city: source.u_city,
+    u_country: source.u_country,
     commentsUrl,
     comments,
     shares,

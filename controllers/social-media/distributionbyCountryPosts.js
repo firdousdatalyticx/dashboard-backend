@@ -178,18 +178,7 @@ const distributionbyCountryPostsController = {
                 }
               });
             }
-            // CASE 2: If no LLM Mention Type given → apply must_not filter
-            else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-              query.bool.must.push({
-                bool: {
-                  must_not: [
-                    { match: { llm_mention_type: "Promotion" }},
-                    { match: { llm_mention_type: "Booking" }},
-                    { match: { llm_mention_type: "Others" }}
-                  ]
-                }
-              });
-            }
+           
 
 
         // Execute the Elasticsearch query.

@@ -331,7 +331,7 @@ const poiSentimentDistributionController = {
                                                     'source',
                                                     'llm_emotion',
                                                     'llm_language',
-                                                    'u_city',
+                                                    'u_country',
                                                     'video_embed_url',
                                                     'p_id',
                                                     'rating',
@@ -402,18 +402,7 @@ const poiSentimentDistributionController = {
                                 }
                             });
                         }
-                        // CASE 2: If no LLM Mention Type given → apply must_not filter
-                        else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-                            params.body.query.bool.must.push({
-                                bool: {
-                                    must_not: [
-                                        { match: { llm_mention_type: "Promotion" }},
-                                        { match: { llm_mention_type: "Booking" }},
-                                        { match: { llm_mention_type: "Others" }}
-                                    ]
-                                }
-                            });
-                        }
+                     
             const result = await elasticClient.search(params);
             const distribution = Object.entries(result.aggregations?.categories?.buckets || {}).map(
                 ([category, data]) => ({
@@ -585,7 +574,7 @@ const formatPostData = (hit) => {
         likes,
         llm_emotion,
         llm_language: source.llm_language,
-        u_city: source.u_city,
+        u_country: source.u_country,
         commentsUrl,
         comments,
         shares,

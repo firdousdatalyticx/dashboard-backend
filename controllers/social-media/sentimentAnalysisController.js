@@ -254,7 +254,7 @@ const sentimentAnalysisController = {
             "llm_subtopic",
             "llm_emotion",
             "llm_language",
-            "u_city",
+            "u_country",
             "llm_keywords",
             "p_url",
             "p_image_url",
@@ -912,7 +912,7 @@ const sentimentAnalysisController = {
                           "llm_subtopic",
                           "llm_emotion",
                           "llm_language",
-                          "u_city",
+                          "u_country",
                           "llm_keywords",
                           "p_url",
                           "p_image_url",
@@ -1430,23 +1430,12 @@ function buildAnalysisQuery(params) {
       }
     });
   }
-  // CASE 2: If no LLM Mention Type given → apply must_not filter
-  else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-    query.bool.must.push({
-      bool: {
-        must_not: [
-          { match: { llm_mention_type: "Promotion" }},
-          { match: { llm_mention_type: "Booking" }},
-          { match: { llm_mention_type: "Others" }}
-        ]
-      }
-    });
-  }
+
 
   // Add countries filter
   if (countries && Array.isArray(countries) && countries.length > 0) {
     query.bool.must.push({
-      terms: { "u_city.keyword": countries },
+      terms: { "u_country.keyword": countries },
     });
   }
 
@@ -1838,7 +1827,7 @@ const formatPostData = (hit) => {
     likes,
     llm_emotion,
     llm_language: source.llm_language,
-    u_city: source.u_city,
+    u_country: source.u_country,
     commentsUrl,
     comments,
     shares,

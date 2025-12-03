@@ -115,6 +115,145 @@ function formatTrustPost(hit) {
   };
 }
 
+/**
+ * Format post data for the frontend
+ * @param {Object} hit - Elasticsearch document hit
+ * @returns {Object} Formatted post data
+ */
+const formatPostData = (hit) => {
+  const source = hit._source;
+
+  // Use a default image if a profile picture is not provided
+  const profilePic =
+    source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+  // Social metrics
+  const followers = source.u_followers > 0 ? `${source.u_followers}` : "";
+  const following = source.u_following > 0 ? `${source.u_following}` : "";
+  const posts = source.u_posts > 0 ? `${source.u_posts}` : "";
+  const likes = source.p_likes > 0 ? `${source.p_likes}` : "";
+
+  // Emotion
+  const llm_emotion =
+    source.llm_emotion ||
+    (source.source === "GoogleMyBusiness" && source.rating
+      ? source.rating >= 4
+        ? "Supportive"
+        : source.rating <= 2
+        ? "Frustrated"
+        : "Neutral"
+      : "");
+
+  // Clean up comments URL if available
+  const commentsUrl =
+    source.p_comments_text && source.p_comments_text.trim() !== ""
+      ? source.p_url.trim().replace("https: // ", "https://")
+      : "";
+
+  const comments = `${source.p_comments}`;
+  const shares = source.p_shares > 0 ? `${source.p_shares}` : "";
+  const engagements =
+    source.p_engagement > 0 ? `${source.p_engagement}` : "";
+
+  const content =
+    source.p_content && source.p_content.trim() !== ""
+      ? source.p_content
+      : "";
+  const imageUrl =
+    source.p_picture_url && source.p_picture_url.trim() !== ""
+      ? source.p_picture_url
+      : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+  // Determine sentiment
+  let predicted_sentiment = "";
+  let predicted_category = "";
+
+  if (source.predicted_sentiment_value)
+    predicted_sentiment = `${source.predicted_sentiment_value}`;
+  else if (source.source === "GoogleMyBusiness" && source.rating) {
+    predicted_sentiment =
+      source.rating >= 4
+        ? "Positive"
+        : source.rating <= 2
+        ? "Negative"
+        : "Neutral";
+  }
+
+  if (source.predicted_category)
+    predicted_category = source.predicted_category;
+
+  // Handle YouTube-specific fields
+  let youtubeVideoUrl = "";
+  let profilePicture2 = "";
+  if (source.source === "Youtube") {
+    if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
+    else if (source.p_id)
+      youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+  } else {
+    profilePicture2 = source.p_picture ? source.p_picture : "";
+  }
+
+  // Determine source icon based on source name
+  let sourceIcon = "";
+  const userSource = source.source;
+  if (
+    ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
+      userSource
+    )
+  )
+    sourceIcon = "Blog";
+  else if (userSource === "Reddit") sourceIcon = "Reddit";
+  else if (["FakeNews", "News"].includes(userSource)) sourceIcon = "News";
+  else if (userSource === "Tumblr") sourceIcon = "Tumblr";
+  else if (userSource === "Vimeo") sourceIcon = "Vimeo";
+  else if (["Web", "DeepWeb"].includes(userSource)) sourceIcon = "Web";
+  else sourceIcon = userSource;
+
+  // Format message text – with special handling for GoogleMaps/Tripadvisor
+  let message_text = "";
+  if (["GoogleMaps", "Tripadvisor"].includes(source.source)) {
+    const parts = source.p_message_text.split("***|||###");
+    message_text = parts[0].replace(/\n/g, "<br>");
+  } else {
+    message_text = source.p_message_text
+      ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
+      : "";
+  }
+
+  return {
+    profilePicture: profilePic,
+    profilePicture2,
+    userFullname: source.u_fullname,
+    user_data_string: "",
+    followers,
+    following,
+    posts,
+    likes,
+    llm_emotion,
+    llm_language: source.llm_language,
+    commentsUrl,
+    comments,
+    shares,
+    engagements,
+    content,
+    image_url: imageUrl,
+    predicted_sentiment,
+    predicted_category,
+    youtube_video_url: youtubeVideoUrl,
+    source_icon: `${source.p_url},${sourceIcon}`,
+    message_text,
+    source: source.source,
+    rating: source.rating,
+    comment: source.comment,
+    businessResponse: source.business_response,
+    uSource: source.u_source,
+    googleName: source.name,
+    created_at: new Date(
+      source.p_created_time || source.created_at
+    ).toLocaleString(),
+  };
+};
+
 const buildQueryString = async (topicId, isScadUser, selectedTab) => {
   const topicData = await prisma.customer_topics.findUnique({
     where: { topic_id: Number(topicId) },
@@ -491,18 +630,7 @@ const getActionRequired = async (
       }
     });
   }
-  // CASE 2: If no LLM Mention Type given → apply must_not filter
-  else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-    query.query.bool.must.push({
-      bool: {
-        must_not: [
-          { match: { llm_mention_type: "Promotion" }},
-          { match: { llm_mention_type: "Booking" }},
-          { match: { llm_mention_type: "Others" }}
-        ]
-      }
-    });
-  }
+
 
   const result = await elasticClient.search({
     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1136,7 +1264,7 @@ const formatPostDataForLanguage = (hit, req) => {
     likes,
     llm_emotion,
     llm_language: source.llm_language,
-    u_city: source.u_city,
+    u_country: source.u_country,
     commentsUrl,
     comments,
     shares,
@@ -1416,18 +1544,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+    
 
       // Execute query
       const result = await elasticClient.search({
@@ -1686,18 +1803,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        params.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+  
 
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1761,14 +1867,6 @@ const mentionsChartController = {
           bool: {
             must: [
               { query_string: { query: topicQueryString } },
-              {
-                range: {
-                  p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
-                  },
-                },
-              },
             ],
             must_not: [{ term: { "llm_mention_recurrence.keyword": "" } }],
           },
@@ -1779,6 +1877,18 @@ const mentionsChartController = {
           },
         },
       };
+
+      // Add date range filter only if dates are provided
+      if (fromDate || toDate) {
+        query.query.bool.must.push({
+          range: {
+            p_created_time: {
+              ...(fromDate && { gte: fromDate }),
+              ...(toDate && { lte: toDate }),
+            },
+          },
+        });
+      }
 
 
 
@@ -1890,19 +2000,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
-
+    
       // Execute query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1967,31 +2065,53 @@ const mentionsChartController = {
 
 
 
-      // **Single Aggregation Query for Dynamic Urgency Levels**
+      // **Single Aggregation Query for Dynamic Country Levels**
       const query = {
         size: 0,
         query: {
           bool: {
             must: [
               { query_string: { query: topicQueryString } },
-              {
-                range: {
-                  p_created_time: {
-                    gte: fromDate || "now-90d",
-                    lte: toDate || "now",
-                  },
-                },
-              },
             ],
-            must_not: [{ term: { "llm_mention_urgency.keyword": "" } }],
+            must_not: [{ term: { "u_country.keyword": "" } }],
           },
         },
         aggs: {
-          urgency_levels: {
-            terms: { field: "llm_mention_urgency.keyword", size: 7 },
+          country_levels: {
+            terms: { field: "u_country.keyword", size: 10 },
+            aggs: {
+              top_posts: {
+                top_hits: {
+                  size: 50,
+                  _source: [
+                    "p_id", "p_message_text", "p_message", "u_country", "source",
+                    "predicted_sentiment_value", "p_created_time", "u_fullname",
+                    "p_url", "p_likes", "p_comments", "p_shares", "p_created_time",
+                    "u_profile_photo", "u_followers", "u_following", "u_posts",
+                    "llm_emotion", "llm_language", "u_country", "p_comments_text",
+                    "p_shares", "p_engagement", "p_content", "p_picture_url",
+                    "predicted_category", "rating", "comment", "business_response",
+                    "u_source", "name", "created_at", "p_comments_data",
+                    "video_embed_url", "p_picture"
+                  ]
+                }
+              }
+            }
           },
         },
       };
+
+      // Add date range filter only if dates are provided
+      if (fromDate || toDate) {
+        query.query.bool.must.push({
+          range: {
+            p_created_time: {
+              ...(fromDate && { gte: fromDate }),
+              ...(toDate && { lte: toDate }),
+            },
+          },
+        });
+      }
       if(workingCategory=="all" && category!=="all"){
                          const categoryFilter = {
                                     bool: {
@@ -2100,18 +2220,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+    
 
       // Execute query
       const result = await elasticClient.search({
@@ -2120,17 +2229,78 @@ const mentionsChartController = {
       });
 
       // Convert dynamic results into required format
-      let responseOutput = [];
-      let totalSentiments = 0;
+      let countries = [];
+      let totalCountries = 0;
 
-      result.aggregations.urgency_levels.buckets.forEach((bucket) => {
-        responseOutput.push(`${bucket.key},${bucket.doc_count}`);
-        totalSentiments += bucket.doc_count;
+      // Gather all filter terms for matched_terms calculation
+      let allFilterTerms = [];
+      if (categoryData) {
+        Object.values(categoryData).forEach((data) => {
+          if (data.keywords && data.keywords.length > 0)
+            allFilterTerms.push(...data.keywords);
+          if (data.hashtags && data.hashtags.length > 0)
+            allFilterTerms.push(...data.hashtags);
+          if (data.urls && data.urls.length > 0)
+            allFilterTerms.push(...data.urls);
+        });
+      }
+
+      result.aggregations.country_levels.buckets.forEach((bucket) => {
+        const countryPosts = [];
+
+        // Collect posts for this country
+        if (bucket.top_posts && bucket.top_posts.hits && bucket.top_posts.hits.hits) {
+          bucket.top_posts.hits.hits.forEach(hit => {
+            const formattedPost = formatPostData(hit);
+            const textFields = [
+              formattedPost.message_text,
+              formattedPost.content,
+              formattedPost.keywords,
+              formattedPost.title,
+              formattedPost.hashtags,
+              formattedPost.uSource,
+              formattedPost.source,
+              formattedPost.p_url,
+              formattedPost.userFullname,
+            ];
+            countryPosts.push({
+              ...formattedPost,
+              country: bucket.key,
+              matched_terms: allFilterTerms.filter((term) =>
+                textFields.some((field) => {
+                  if (!field) return false;
+                  if (Array.isArray(field)) {
+                    return field.some(
+                      (f) =>
+                        typeof f === "string" &&
+                        f.toLowerCase().includes(term.toLowerCase())
+                    );
+                  }
+                  return (
+                    typeof field === "string" &&
+                    field.toLowerCase().includes(term.toLowerCase())
+                  );
+                })
+              ),
+            });
+          });
+        }
+
+        countries.push({
+          name: bucket.key,
+          count: bucket.doc_count,
+          posts: countryPosts
+        });
+
+        totalCountries += bucket.doc_count;
       });
 
       return res
         .status(200)
-        .json({ responseOutput: responseOutput.join("|"), totalSentiments });
+        .json({
+          countries,
+          totalCountries
+        });
     } catch (error) {
       console.error("Error fetching data:", error);
       return res.status(500).json({ error: "Internal server error" });
@@ -2314,18 +2484,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+   
 
       // Execute query
       const result = await elasticClient.search({
@@ -2548,18 +2707,7 @@ const mentionsChartController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
-        query.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+   
 
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -3063,18 +3211,22 @@ const mentionsChartController = {
         bool: {
           must: [
             { query_string: { query: topicQueryString } },
-            {
-              range: {
-                p_created_time: {
-                  gte: fromDate || "now-90d",
-                  lte: toDate || "now",
-                },
-              },
-            },
           ],
           must_not: [{ term: { "llm_language.keyword": "" } }],
         },
       };
+
+      // Add date range filter only if dates are provided
+      if (fromDate || toDate) {
+        baseQuery.bool.must.push({
+          range: {
+            p_created_time: {
+              ...(fromDate && { gte: fromDate }),
+              ...(toDate && { lte: toDate }),
+            },
+          },
+        });
+      }
 
       if (sentimentType && sentimentType != "") {
         baseQuery.bool.must.push({
@@ -5613,140 +5765,6 @@ const mentionsChartController = {
         }
       }
 
-      // Helper function to format post data (similar to your getSentimentsAnalysis)
-      const formatPostData = (hit) => {
-        const source = hit._source;
-
-        // Use a default image if a profile picture is not provided
-        const profilePic =
-          source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-        // Social metrics
-        const followers = source.u_followers > 0 ? `${source.u_followers}` : "";
-        const following = source.u_following > 0 ? `${source.u_following}` : "";
-        const posts = source.u_posts > 0 ? `${source.u_posts}` : "";
-        const likes = source.p_likes > 0 ? `${source.p_likes}` : "";
-
-        // Emotion
-        const llm_emotion =
-          source.llm_emotion ||
-          (source.source === "GoogleMyBusiness" && source.rating
-            ? source.rating >= 4
-              ? "Supportive"
-              : source.rating <= 2
-              ? "Frustrated"
-              : "Neutral"
-            : "");
-
-        // Clean up comments URL if available
-        const commentsUrl =
-          source.p_comments_text && source.p_comments_text.trim() !== ""
-            ? source.p_url.trim().replace("https: // ", "https://")
-            : "";
-
-        const comments = `${source.p_comments}`;
-        const shares = source.p_shares > 0 ? `${source.p_shares}` : "";
-        const engagements =
-          source.p_engagement > 0 ? `${source.p_engagement}` : "";
-
-        const content =
-          source.p_content && source.p_content.trim() !== ""
-            ? source.p_content
-            : "";
-        const imageUrl =
-          source.p_picture_url && source.p_picture_url.trim() !== ""
-            ? source.p_picture_url
-            : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-        // Determine sentiment
-        let predicted_sentiment = "";
-        let predicted_category = "";
-
-        if (source.predicted_sentiment_value)
-          predicted_sentiment = `${source.predicted_sentiment_value}`;
-        else if (source.source === "GoogleMyBusiness" && source.rating) {
-          predicted_sentiment =
-            source.rating >= 4
-              ? "Positive"
-              : source.rating <= 2
-              ? "Negative"
-              : "Neutral";
-        }
-
-        if (source.predicted_category)
-          predicted_category = source.predicted_category;
-
-        // Handle YouTube-specific fields
-        let youtubeVideoUrl = "";
-        let profilePicture2 = "";
-        if (source.source === "Youtube") {
-          if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
-          else if (source.p_id)
-            youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
-        } else {
-          profilePicture2 = source.p_picture ? source.p_picture : "";
-        }
-
-        // Determine source icon based on source name
-        let sourceIcon = "";
-        const userSource = source.source;
-        if (
-          ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
-            userSource
-          )
-        )
-          sourceIcon = "Blog";
-        else if (userSource === "Reddit") sourceIcon = "Reddit";
-        else if (["FakeNews", "News"].includes(userSource)) sourceIcon = "News";
-        else if (userSource === "Tumblr") sourceIcon = "Tumblr";
-        else if (userSource === "Vimeo") sourceIcon = "Vimeo";
-        else if (["Web", "DeepWeb"].includes(userSource)) sourceIcon = "Web";
-        else sourceIcon = userSource;
-
-        // Format message text – with special handling for GoogleMaps/Tripadvisor
-        let message_text = "";
-        if (["GoogleMaps", "Tripadvisor"].includes(source.source)) {
-          const parts = source.p_message_text.split("***|||###");
-          message_text = parts[0].replace(/\n/g, "<br>");
-        } else {
-          message_text = source.p_message_text
-            ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
-            : "";
-        }
-
-        return {
-          profilePicture: profilePic,
-          profilePicture2,
-          userFullname: source.u_fullname,
-          user_data_string: "",
-          followers,
-          following,
-          posts,
-          likes,
-          llm_emotion,
-          llm_language: source.llm_language,
-          commentsUrl,
-          comments,
-          shares,
-          engagements,
-          content,
-          image_url: imageUrl,
-          predicted_sentiment,
-          predicted_category,
-          youtube_video_url: youtubeVideoUrl,
-          source_icon: `${source.p_url},${sourceIcon}`,
-          message_text,
-          source: source.source,
-          rating: source.rating,
-          comment: source.comment,
-          businessResponse: source.business_response,
-          uSource: source.u_source,
-          googleName: source.name,
-          created_at: new Date(
-            source.p_created_time || source.created_at
-          ).toLocaleString(),
-        };
-      };
 
       // Helper function to fetch posts for a specific sentiment and time range
       const fetchPostsForSentiment = async (

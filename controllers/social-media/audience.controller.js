@@ -389,18 +389,7 @@ const audienceController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
-        params.body.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+   
       
       const results = await elasticClient.search(params);
 
@@ -632,18 +621,7 @@ const audienceController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
-        params.body.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+    
 
 
             if (
@@ -923,18 +901,7 @@ const audienceController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
-        params.body.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+    
 
             if (
         sentimentType &&
@@ -2037,18 +2004,7 @@ const audienceController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
-        query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+    
 
       return res.send(params)
       const results = await elasticClient.search(params);
@@ -2270,18 +2226,7 @@ const audienceController = {
           }
         });
       }
-      // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
-        elasticQuery.query.bool.must.push({
-          bool: {
-            must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
-        });
-      }
+    
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
    

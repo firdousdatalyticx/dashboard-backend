@@ -17,7 +17,10 @@ router.get('/config/:topicId', dashboardController.getDashboardConfig);
 // Update dashboard configuration for a topic
 router.put('/config/:topicId', dashboardController.updateDashboardConfig);
 
+// Update graph message prompts for multiple graphs (must come before /graphs/:topicId)
+router.put('/graphs/prompts', dashboardController.updateGraphMessagePrompts);
+
 // Update enabled graphs for a topic
 router.put('/graphs/:topicId', dashboardController.updateTopicGraphs);
 
-module.exports = router; 
+module.exports = router;    

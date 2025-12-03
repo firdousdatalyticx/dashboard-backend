@@ -281,10 +281,11 @@ const dashboardController = {
             const graphsWithStatus = graphs.map(graph => {
                 // Check if this graph is enabled for the topic
                 const isEnabled = enabledGraphs.some(eg => eg.graph_id === graph.id);
-                
+
                 return {
                     ...graph,
-                    isEnabled
+                    isEnabled,
+                    messagePrompt: graph.graph_message_prompt // Map database field to frontend-friendly name
                 };
             });
 
@@ -516,6 +517,85 @@ const dashboardController = {
             return res.status(500).json({
                 success: false,
                 error: 'Failed to fetch dashboard configuration'
+            });
+        }
+    },
+
+    // Update graph message prompts for multiple graphs
+    updateGraphMessagePrompts: async (req, res) => {
+        try {
+            const { graphPrompts } = req.body; // Array of { graphId: number, messagePrompt: string }
+
+            // Validate input
+            if (!Array.isArray(graphPrompts) || graphPrompts.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'graphPrompts must be a non-empty array'
+                });
+            }
+
+            // Validate each graph prompt entry
+            for (const prompt of graphPrompts) {
+                if (!prompt.graphId || typeof prompt.graphId !== 'number') {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Each graph prompt must have a valid graphId (number)'
+                    });
+                }
+                if (prompt.messagePrompt !== undefined && typeof prompt.messagePrompt !== 'string') {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'messagePrompt must be a string or undefined'
+                    });
+                }
+            }
+
+            // Update each graph's message prompt
+            const updatePromises = graphPrompts.map(async (prompt) => {
+                const updateData = {
+                    graph_message_prompt: prompt.messagePrompt || null
+                };
+
+                return prisma.available_graphs.update({
+                    where: {
+                        id: prompt.graphId
+                    },
+                    data: updateData
+                });
+            });
+
+            // Execute all updates
+            const results = await Promise.allSettled(updatePromises);
+
+            // Check for any failures
+            const failures = results.filter(result => result.status === 'rejected');
+            const successes = results.filter(result => result.status === 'fulfilled');
+
+            if (failures.length > 0) {
+                console.error('Some graph prompt updates failed:', failures);
+                return res.status(207).json({
+                    success: false,
+                    message: `Updated ${successes.length} graphs, ${failures.length} failed`,
+                    updated: successes.length,
+                    failed: failures.length,
+                    failures: failures.map((f, index) => ({
+                        graphId: graphPrompts[index].graphId,
+                        error: f.reason?.message || 'Unknown error'
+                    }))
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: `Successfully updated message prompts for ${successes.length} graphs`,
+                updated: successes.length
+            });
+
+        } catch (error) {
+            console.error('Error updating graph message prompts:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to update graph message prompts'
             });
         }
     }

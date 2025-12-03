@@ -2101,8 +2101,9 @@ const mentionsChartController = {
         },
       };
 
-      // Add date range filter only if dates are provided
+      // Add date range filter - default to 90 days if no dates provided (except for topic 2641)
       if (fromDate || toDate) {
+        // Use provided date range
         query.query.bool.must.push({
           range: {
             p_created_time: {
@@ -2111,6 +2112,25 @@ const mentionsChartController = {
             },
           },
         });
+      } else {
+        // Special case: topic 2641 gets ALL data, others get 90 days
+        if (parseInt(topicId) === 2641) {
+          // No date filter - fetch all data for topic 2641
+        } else {
+          // Default to last 90 days for other topics
+          const now = new Date();
+          const ninetyDaysAgo = new Date(now);
+          ninetyDaysAgo.setDate(now.getDate() - 90);
+
+          query.query.bool.must.push({
+            range: {
+              p_created_time: {
+                gte: ninetyDaysAgo.toISOString().split('T')[0], // YYYY-MM-DD format
+                lte: now.toISOString().split('T')[0]
+              },
+            },
+          });
+        }
       }
       if(workingCategory=="all" && category!=="all"){
                          const categoryFilter = {

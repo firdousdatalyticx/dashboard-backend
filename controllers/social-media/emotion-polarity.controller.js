@@ -565,34 +565,28 @@ const emotionPolarityController = {
             
             const topicQueryString = buildTopicQueryString(categoryData);
 
-          // Build date range filter - if no dates provided, don't apply any date filter (fetch all data)
+          // Build date range filter - default to 90 days if no dates provided (except for topic 2641)
       let dateRangeFilter = null;
       if (!fromDate && !toDate) {
-        // If no dates provided, don't apply any date filter - fetch all data
-        dateRangeFilter = null;
-
-        const topic = parseInt(topicId);
-        const now = new Date();
-
-        // Topics requiring last 1 year
-        const lastYearTopics = [2641, 2643, 2644];
-        if (lastYearTopics.includes(topic)) {
-          let ninetyDaysAgo = subDays(now, 365);
-          startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
-          endDate = format(now, "yyyy-MM-dd");
+        // Special case: topic 2641 gets ALL data, others get 90 days
+        if (parseInt(topicId) === 2641) {
+          dateRangeFilter = null; // No date filter - fetch all data for topic 2641
         } else {
-          let ninetyDaysAgo = subDays(now, 90);
-          startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
-          endDate = format(now, "yyyy-MM-dd");
-        }
-        dateRangeFilter = {
-          range: {
-            p_created_time: {
-              gte: new Date(startDate).toISOString(),
-              lte: new Date(endDate).toISOString(),
+          // Default to last 90 days for other topics
+          const now = new Date();
+          const ninetyDaysAgo = subDays(now, 90);
+          const startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+          const endDate = format(now, "yyyy-MM-dd");
+
+          dateRangeFilter = {
+            range: {
+              p_created_time: {
+                gte: new Date(startDate).toISOString(),
+                lte: new Date(endDate).toISOString(),
+              },
             },
-          },
-        };
+          };
+        }
       } else if (fromDate || toDate) {
         // Use provided date range
         const rangeFilter = {};

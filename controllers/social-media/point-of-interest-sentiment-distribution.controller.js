@@ -105,10 +105,23 @@ const poiSentimentDistributionController = {
                 return hasKeywords || hasHashtags || hasUrls;
             });
 
-            // Calculate date range - if no dates provided, don't apply any date filter (fetch all data)
+            // Calculate date range - default to 90 days if no dates provided (except for topic 2641)
             let dateRange;
             if (fromDate == null && toDate == null) {
-                dateRange = null; // No date filter - fetch all data
+                // Special case: topic 2641 gets ALL data, others get 90 days
+                if (parseInt(topicId) === 2641) {
+                    dateRange = null; // No date filter - fetch all data for topic 2641
+                } else {
+                    // Default to last 90 days for other topics
+                    const now = new Date();
+                    const ninetyDaysAgo = new Date(now);
+                    ninetyDaysAgo.setDate(now.getDate() - 90);
+
+                    dateRange = {
+                        gte: ninetyDaysAgo.toISOString().split('T')[0], // YYYY-MM-DD format
+                        lte: now.toISOString().split('T')[0]
+                    };
+                }
             } else {
                 dateRange = {
                     gte: fromDate,

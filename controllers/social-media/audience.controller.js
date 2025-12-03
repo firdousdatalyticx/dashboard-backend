@@ -664,6 +664,10 @@ const audienceController = {
             : post._source.p_comments_data;
 
         post._source.p_comments_data.forEach((comment) => {
+          const commentsSentments =comment?.llm_data?.predicted_sentiment_value?.toLowerCase();
+         if( sentimentType && sentimentType.trim() !== commentsSentments  ){
+              return;
+          }
           totalComments++;
           const id = comment.author.id;
           const commentDate = comment.createdAtString || comment.createdAt;

@@ -438,6 +438,8 @@ const { buildTopicQueryString } = require('../../utils/queryBuilder');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+const { subDays } = require('date-fns/subDays');
+const { format } = require('date-fns/format');
 
 const normalizeSourceInput = (sourceParam) => {
     if (!sourceParam || sourceParam === 'All') {
@@ -563,27 +565,50 @@ const emotionPolarityController = {
             
             const topicQueryString = buildTopicQueryString(categoryData);
 
-            // Build date range filter - if no dates provided, don't apply any date filter (fetch all data)
-            let dateRangeFilter = null;
-            if (!fromDate && !toDate) {
-                // If no dates provided, don't apply any date filter - fetch all data
-                dateRangeFilter = null;
-            } else if (fromDate || toDate) {
-                // Use provided date range
-                const rangeFilter = {};
-                if (fromDate) {
-                    rangeFilter.gte = new Date(fromDate).toISOString();
-                }
-                if (toDate) {
-                    rangeFilter.lte = new Date(toDate).toISOString();
-                }
+          // Build date range filter - if no dates provided, don't apply any date filter (fetch all data)
+      let dateRangeFilter = null;
+      if (!fromDate && !toDate) {
+        // If no dates provided, don't apply any date filter - fetch all data
+        dateRangeFilter = null;
 
-                dateRangeFilter = {
-                    range: {
-                        p_created_time: rangeFilter
-                    }
-                };
-            }
+        const topic = parseInt(topicId);
+        const now = new Date();
+
+        // Topics requiring last 1 year
+        const lastYearTopics = [2641, 2643, 2644];
+        if (lastYearTopics.includes(topic)) {
+          let ninetyDaysAgo = subDays(now, 365);
+          startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+          endDate = format(now, "yyyy-MM-dd");
+        } else {
+          let ninetyDaysAgo = subDays(now, 90);
+          startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+          endDate = format(now, "yyyy-MM-dd");
+        }
+        dateRangeFilter = {
+          range: {
+            p_created_time: {
+              gte: new Date(startDate).toISOString(),
+              lte: new Date(endDate).toISOString(),
+            },
+          },
+        };
+      } else if (fromDate || toDate) {
+        // Use provided date range
+        const rangeFilter = {};
+        if (fromDate) {
+          rangeFilter.gte = new Date(fromDate).toISOString();
+        }
+        if (toDate) {
+          rangeFilter.lte = new Date(toDate).toISOString();
+        }
+
+        dateRangeFilter = {
+          range: {
+            p_created_time: rangeFilter,
+          },
+        };
+      }
 
             // Build sentiment filter
             let sentimentFilter = null;

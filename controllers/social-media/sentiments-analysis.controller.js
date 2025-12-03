@@ -168,21 +168,33 @@ const sentimentsController = {
             }
 
             // Set default date range - last 90 days
-            const now = new Date();
-            const ninetyDaysAgo = subDays(now, 365);
-            
-            let startDate;
-            let endDate = now;
-            
-
-            // Determine date range based on timeSlot
-            if (fromDate && toDate) {
-                startDate = parseISO(fromDate);
-                endDate = parseISO(toDate);
-            }else{
-             startDate = format(ninetyDaysAgo, 'yyyy-MM-dd');
-             endDate = format(now, 'yyyy-MM-dd');
-            } 
+             // Set default date range - last 90 days
+              const now = new Date();
+              let ninetyDaysAgo = subDays(now, 365);
+              
+              let startDate;
+              let endDate = now;
+              
+  
+              // Determine date range based on timeSlot
+              if (fromDate && toDate) {
+                  startDate = parseISO(fromDate);
+                  endDate = parseISO(toDate);
+              }else{
+                  const topic = parseInt(topicId);
+  
+                // Topics requiring last 1 year
+                const lastYearTopics = [2641, 2643, 2644];
+                if (lastYearTopics.includes(topic)) {
+                  startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+                  endDate = format(now, "yyyy-MM-dd");
+                } else {
+                  ninetyDaysAgo = subDays(now, 90);
+                  startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+                  endDate = format(now, "yyyy-MM-dd");
+                }
+             
+              } 
 
 
             const greaterThanTime = format(startDate, 'yyyy-MM-dd');

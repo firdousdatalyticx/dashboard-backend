@@ -645,6 +645,32 @@ const audienceController = {
         });
       }
 
+
+            if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null" &&
+        sentimentType != ""
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+           params.body.query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+           params.body.query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
       const results = await elasticClient.search(params);
       const seenIds = new Map();
       const uniqueCommenters = new Map();
@@ -910,6 +936,31 @@ const audienceController = {
         });
       }
 
+            if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null" &&
+        sentimentType != ""
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+           params.body.query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+           params.body.query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
       const results = await elasticClient.search(params);
       const posts = results.hits.hits.map((hit) => formatPostData(hit, allFilterTerms));
       const datewiseCommentCount = {};
@@ -1072,9 +1123,14 @@ const audienceController = {
         queryString: topicQueryString,
       });
 
+
+
+
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
    
+
+        
 
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1082,6 +1138,7 @@ const audienceController = {
           from: 0,
           size: 0,
           query: {
+           
             bool: {
               must: [
                 {
@@ -1101,7 +1158,8 @@ const audienceController = {
                   },
                 },
                 ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
-              ],
+              ]
+              ,
               must_not: [
                 { term: { "p_comments_data.keyword": "" } },
                 { term: { "p_comments_data.keyword": "[]" } },
@@ -1174,6 +1232,34 @@ const audienceController = {
         });
       }
 
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null" &&
+        sentimentType != ""
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+           params.body.query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+           params.body.query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+      
+
+
       const results = await elasticClient.search(params);
 
       if (!results?.aggregations?.posts_with_comments?.buckets) {
@@ -1206,7 +1292,6 @@ const audienceController = {
 
         const positionLower = positionText.toLowerCase();
         const summaryLower = String(summary || "").toLowerCase();
-        console.log(position, summary);
 
         const combinedText = `${positionLower} ${summaryLower}`;
 
@@ -1738,7 +1823,6 @@ const audienceController = {
         );
       });
 
-      // console.log(seniorityBreakdown);
 
       const summary = {
         seniority_breakdown: seniorityBreakdown,

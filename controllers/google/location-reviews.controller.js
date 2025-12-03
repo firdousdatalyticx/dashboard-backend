@@ -30,14 +30,8 @@ const googleLocationReviewsController = {
                 });
             }
 
-            // Set default date range (last 90 days)
-            const defaultStartDate = new Date();
-            defaultStartDate.setDate(defaultStartDate.getDate() - 90);
-            
-            const greaterThanTime = startDate || defaultStartDate.toISOString();
-            const lessThanTime = endDate || new Date().toISOString();
-            
-            // Build Elasticsearch query
+            // Build Elasticsearch query - fetch ALL reviews for the location
+            // NOTE: Date filters are intentionally ignored to always show all available reviews
             const must = [
                 {
                     term: {
@@ -45,16 +39,8 @@ const googleLocationReviewsController = {
                     }
                 },
                 {
-                    terms: {
-                        source: ['GoogleMyBusiness', 'googlemybusiness'] // Handle different cases
-                    }
-                },
-                {
-                    range: {
-                        p_created_time: {
-                            gte: greaterThanTime,
-                            lte: lessThanTime
-                        }
+                    term: {
+                        'source.keyword': 'GoogleMyBusiness'
                     }
                 }
             ];
@@ -122,7 +108,7 @@ const googleLocationReviewsController = {
             // Add debug logging if no reviews found
             if (reviews.length === 0) {
                 console.log('No reviews found for place ID:', placeId);
-                console.log('Date range:', { greaterThanTime, lessThanTime });
+                console.log('Note: Fetching ALL reviews regardless of date');
             }
             
             return res.status(200).json({
@@ -131,8 +117,8 @@ const googleLocationReviewsController = {
                 total: reviews.length,
                 debug: {
                     totalHits: results.hits.total.value,
-                    dateRange: { greaterThanTime, lessThanTime },
-                    placeId
+                    placeId,
+                    note: 'Fetching all reviews regardless of date filters'
                 }
             });
             

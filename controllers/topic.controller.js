@@ -1374,6 +1374,8 @@ getTopicTotalCount: async (req, res) => {
       const userId = req.user.id;
       const { topicId } = req.query;
   
+
+
       // Validate inputs
       if (!userId) {
         return res.status(400).json({
@@ -1663,7 +1665,7 @@ getTopicTotalCount: async (req, res) => {
       const socialMediaTerms = extractTermsFromCategoryData("all", processedCategories);
   
       // Determine social media sources based on special topic (matching getTopicStats)
-      const socialSources = numericTopicId === 2619 
+      const socialSources = numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 ||userId==458
         ? ["LinkedIn", "Linkedin"] 
         : isSpecialTopic
           ? ["Facebook", "Twitter"]
@@ -1779,6 +1781,7 @@ getTopicTotalCount: async (req, res) => {
           socialMediaPOIs: rawCategories.length,
           termCount: socialMediaTerms.length,
           id: topicIds,
+          query:buildSocialMediaQuery()
         },
       });
     } catch (error) {

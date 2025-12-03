@@ -438,6 +438,69 @@ const { buildTopicQueryString } = require('../../utils/queryBuilder');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+const { subDays } = require('date-fns/subDays');
+const { format } = require('date-fns/format');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
 
 const emotionPolarityController = {
     getEmotionPolarity: async (req, res) => {
@@ -454,7 +517,7 @@ const emotionPolarityController = {
             }            
             // Get request parameters
             const params = req.method === 'POST' ? req.body : req.query;
-            const { 
+            const {
                 maxPostsPerEmotion = 30,
                 topEmotionsCount = 10, // Default to top 10 emotions
                 skipEmptyEmotions = true, // Whether to skip emotions with zero posts
@@ -463,52 +526,109 @@ const emotionPolarityController = {
                 sentiment,
                 source,
                 timeSlot,
-                toDate
+                toDate,
+                category = 'all',
+                llm_mention_type
             } = params;
+
+            if (Object.keys(categoryData).length === 0) {
+                return res.json({
+                    stats: {
+                        mean: 0,
+                        min: -1,
+                        max: 1,
+                        count: 0
+                    },
+                    emotions: [],
+                    totalCount: 0,
+                    distribution: [],
+                    error: 'No category data available'
+                });
+            }
+
+            let finalCategory = category;
+            // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+            if (finalCategory !== 'all' && finalCategory !== '' && finalCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(finalCategory, categoryData);
+
+                if (matchedKey) {
+                    // Category found - filter to only this category
+                    categoryData = { [matchedKey]: categoryData[matchedKey] };
+                    finalCategory = matchedKey;
+                } else {
+                    // Category not found - keep all categoryData and set finalCategory to 'all'
+                    // This maintains existing functionality
+                    finalCategory = 'all';
+                }
+            }
             
             const topicQueryString = buildTopicQueryString(categoryData);
 
-            // Build date range filter
-            let dateRangeFilter = null;
-            if (!fromDate && !toDate) {
-                // If no dates provided, get last 90 days
-                const endDate = new Date();
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 90);
-                
-                dateRangeFilter = {
-                    range: {
-                        p_created_time: {
-                            gte: startDate.toISOString(),
-                            lte: endDate.toISOString()
-                        }
-                    }
-                };
-            } else if (fromDate || toDate) {
-                // Use provided date range
-                const rangeFilter = {};
-                if (fromDate) {
-                    rangeFilter.gte = new Date(fromDate).toISOString();
-                }
-                if (toDate) {
-                    rangeFilter.lte = new Date(toDate).toISOString();
-                }
-                
-                dateRangeFilter = {
-                    range: {
-                        p_created_time: rangeFilter
-                    }
-                };
-            }
+          // Build date range filter - if no dates provided, don't apply any date filter (fetch all data)
+      let dateRangeFilter = null;
+      if (!fromDate && !toDate) {
+        // If no dates provided, don't apply any date filter - fetch all data
+        dateRangeFilter = null;
+
+        const topic = parseInt(topicId);
+        const now = new Date();
+
+        // Topics requiring last 1 year
+        const lastYearTopics = [2641, 2643, 2644];
+        if (lastYearTopics.includes(topic)) {
+          let ninetyDaysAgo = subDays(now, 365);
+          startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+          endDate = format(now, "yyyy-MM-dd");
+        } else {
+          let ninetyDaysAgo = subDays(now, 90);
+          startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+          endDate = format(now, "yyyy-MM-dd");
+        }
+        dateRangeFilter = {
+          range: {
+            p_created_time: {
+              gte: new Date(startDate).toISOString(),
+              lte: new Date(endDate).toISOString(),
+            },
+          },
+        };
+      } else if (fromDate || toDate) {
+        // Use provided date range
+        const rangeFilter = {};
+        if (fromDate) {
+          rangeFilter.gte = new Date(fromDate).toISOString();
+        }
+        if (toDate) {
+          rangeFilter.lte = new Date(toDate).toISOString();
+        }
+
+        dateRangeFilter = {
+          range: {
+            p_created_time: rangeFilter,
+          },
+        };
+      }
 
             // Build sentiment filter
             let sentimentFilter = null;
-            if (sentiment && sentiment !== "" && sentiment !== "All") {
-                sentimentFilter = {
-                    match_phrase: {
-                        predicted_sentiment_value: sentiment
-                    }
-                };
+            if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
+                if (sentiment.includes(',')) {
+                    // Handle multiple sentiment types
+                    const sentimentArray = sentiment.split(',');
+                    sentimentFilter = {
+                        bool: {
+                            should: sentimentArray.map(sentiment => ({
+                                match: { predicted_sentiment_value: sentiment.trim() }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    };
+                } else {
+                    // Handle single sentiment type
+                    sentimentFilter = {
+                        match: { predicted_sentiment_value: sentiment.trim() }
+                    };
+                }
             }
 
             // Update source filter based on middleware data sources
@@ -547,6 +667,33 @@ const emotionPolarityController = {
 
             // Build the main query filters array
             const queryFilters = [sourceFilter];
+
+            // Add fallback category filter if needed
+            if(finalCategory=="all" && category!=="all"){
+                const categoryFilter = {
+                    bool: {
+                        should:  [
+                            {
+                                match_phrase: { p_message_text: category }
+                            },
+                            {
+                                match_phrase: { keywords: category }
+                            },
+                            {
+                                match_phrase: { hashtags: category }
+                            },
+                            {
+                                match_phrase: { u_source: category }
+                            },
+                            {
+                                match_phrase: { p_url: category }
+                            }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
+                queryFilters.push(categoryFilter);
+            }
             
             // Add date range filter if exists
             if (dateRangeFilter) {
@@ -556,6 +703,13 @@ const emotionPolarityController = {
             // Add sentiment filter if exists
             if (sentimentFilter) {
                 queryFilters.push(sentimentFilter);
+            }
+
+            // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+            if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+                queryFilters.push({
+                    term: { is_public_opinion: true }
+                });
             }
 
             const elasticParams = {
@@ -614,6 +768,30 @@ const emotionPolarityController = {
                     }
                 }
             };
+
+            // LLM Mention Type filtering logic
+            let mentionTypesArray = [];
+
+            if (llm_mention_type) {
+              if (Array.isArray(llm_mention_type)) {
+                mentionTypesArray = llm_mention_type;
+              } else if (typeof llm_mention_type === "string") {
+                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+              }
+            }
+
+            // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+            if (mentionTypesArray.length > 0) {
+              elasticParams.body.query.bool.must.push({
+                bool: {
+                  should: mentionTypesArray.map(type => ({
+                    match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+                }
+              });
+            }
+          
 
             const results = await elasticClient.search(elasticParams);
 
@@ -938,6 +1116,8 @@ const formatPostData = async (hit) => {
         posts,
         likes,
         llm_emotion,
+        llm_language: source.llm_language,
+        u_country: source.u_country,
         commentsUrl,
         comments,
         shares,

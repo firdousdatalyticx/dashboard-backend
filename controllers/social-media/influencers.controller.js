@@ -54,72 +54,221 @@ const getSourceIcon = (userSource) => {
   return userSource;
 };
 
+/**
+ * Normalize source input to array of sources
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+  if (!source || source === 'All') {
+    return []; // No specific source filter
+  }
+  if (Array.isArray(source)) {
+    return source.filter(s => s && s.trim() !== '');
+  }
+  if (typeof source === 'string') {
+    return source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+  return [];
+}
+
+/**
+ * Find matching category key with flexible matching.
+ * @param {string} selectedCategory
+ * @param {Object} categoryData
+ * @returns {string|null}
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+  if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+    return selectedCategory;
+  }
+
+  const normalizedSelectedRaw = String(selectedCategory || '');
+  const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+  const categoryKeys = Object.keys(categoryData || {});
+
+  if (categoryKeys.length === 0) {
+    return null;
+  }
+
+  let matchedKey = categoryKeys.find(
+    key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+  );
+
+  if (!matchedKey) {
+    matchedKey = categoryKeys.find(
+      key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+    );
+  }
+
+  if (!matchedKey) {
+    matchedKey = categoryKeys.find(key => {
+      const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+      return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+    });
+  }
+
+  return matchedKey || null;
+}
+
+/**
+ * Build source filter string for query_string
+ * @param {string|Array} source - Source input
+ * @param {number} topicId - Topic ID for special handling
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
+ * @returns {string} Source filter string for query_string
+ */
+function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
+  const normalizedSources = normalizeSourceInput(source);
+  
+  if (normalizedSources.length > 0) {
+    const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+    return `source:(${sourcesStr})`;
+  } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+    return `source:("LinkedIn" OR "Linkedin")`;
+  } else if (isSpecialTopic) {
+    return `source:("Facebook" OR "Twitter")`;
+  }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+    return `source:("Facebook" OR "Twitter" OR "Instagram")`;
+  } else {
+    return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
+  }
+}
+
 // Helper function to create Elasticsearch query
 const createElasticQuery = (
   queryString,
   greaterThanTime,
   lessThanTime,
-  range
-) => ({
-  index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-  body: {
-    query: {
-      bool: {
-        must: [
-          { query_string: { query: queryString } },
-          {
-            range: {
-              p_created_time: { gte: greaterThanTime, lte: lessThanTime },
+  range,
+  category,
+  topicId
+) => {
+  const queryBody = {
+    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+    body: {
+      query: {
+        bool: {
+          must: [
+            { query_string: { query: queryString } },
+            {
+              range: {
+                p_created_time: {
+                  gte: greaterThanTime,
+                  lte: lessThanTime,
+                },
+              },
             },
-          },
-          { range: range },
-        ],
+            { range: range },
+          ],
+        },
       },
     },
-  },
-});
+  };
+
+  // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+  if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+    queryBody.body.query.bool.must.push({
+      term: { is_public_opinion: true }
+    });
+  }
+
+  // ✅ Add category filter only if category is not "all"
+  if (category && category !== "all") {
+    const categoryFilter = {
+      bool: {
+        should: [
+          { match_phrase: { p_message_text: category } },
+          { match_phrase: { keywords: category } },
+          { match_phrase: { hashtags: category } },
+          { match_phrase: { u_source: category } },
+          { match_phrase: { p_url: category } }
+        ],
+        minimum_should_match: 1,
+      },
+    };
+
+    queryBody.body.query.bool.must.push(categoryFilter);
+  }
+
+  return queryBody;
+};
 
 // Helper function to create Elasticsearch query
 const createElasticQueryPost = (
   queryString,
   greaterThanTime,
   lessThanTime,
-  range
-) => ({
-  index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-  body: {
-    query: {
-      bool: {
-        must: [
-          { query_string: { query: queryString } },
-          {
-            range: {
-              p_created_time: { gte: greaterThanTime, lte: lessThanTime },
+  range,
+  category,
+  topicId
+) => {
+  const queryBody = {
+    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+    body: {
+      query: {
+        bool: {
+          must: [
+            { query_string: { query: queryString } },
+            {
+              range: {
+                p_created_time: { gte: greaterThanTime, lte: lessThanTime },
+              },
             },
-          },
-          { range: range },
-        ],
+            { range: range },
+          ],
+        },
       },
+      size: 30,
     },
-    size: 30,
-  },
-});
+    };
+
+    // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+    if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      queryBody.body.query.bool.must.push({
+        term: { is_public_opinion: true }
+      });
+    }
+
+  // ✅ Apply category filter only if valid
+  if (category && category !== "all") {
+    const categoryFilter = {
+      bool: {
+        should: [
+          { match_phrase: { p_message_text: category } },
+          { match_phrase: { keywords: category } },
+          { match_phrase: { hashtags: category } },
+          { match_phrase: { u_source: category } },
+          { match_phrase: { p_url: category } }
+        ],
+        minimum_should_match: 1,
+      },
+    };
+
+    queryBody.body.query.bool.must.push(categoryFilter);
+  }
+
+  return queryBody;
+};
+
 
 const influencersController = {
   getInfluencers: async (req, res) => {
     try {
-      const {
+      let {
         timeSlot,
         fromDate,
         toDate,
         sentimentType,
         isScadUser = "false",
         topicId,
+        category: inputCategory = 'all',
       } = req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
+      let category = inputCategory;
       let categoryData = {};
       
       if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
@@ -132,6 +281,15 @@ const influencersController = {
         return res.json({
           finalDataArray: [],
         });
+      }
+
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (matchedKey) {
+          category = matchedKey;
+        }else{
+           inputCategory = "all";
+        }
       }
 
       const topicQueryString = buildTopicQueryString(categoryData);
@@ -147,6 +305,10 @@ const influencersController = {
 
       const finalDataArray = [];
 
+      // Get source parameter if provided
+      const source = req.body.source || 'All';
+      const normalizedSources = normalizeSourceInput(source);
+
       for (const followerType of INFLUENCER_TYPES) {
         const { type, from, to } = followerType;
 
@@ -155,7 +317,14 @@ const influencersController = {
 
         // Build source filter based on special topic
         let sourceFilterBool;
-        if (parseInt(topicId) === 2619) {
+        if (normalizedSources.length > 0) {
+          sourceFilterBool = {
+            bool: {
+              should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
+              minimum_should_match: 1,
+            },
+          };
+        } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
           sourceFilterBool = {
             bool: {
               should: [
@@ -259,6 +428,37 @@ const influencersController = {
           },
         };
 
+          if(inputCategory!=="all"){
+                         const categoryFilter = {
+                                    bool: {
+                                        should:  [
+                                            {
+                                                "multi_match": {
+                                                    "query": category,
+                                                    "fields": [
+                                                        "p_message_text",
+                                                        "p_message",
+                                                        "hashtags",
+                                                        "u_source",
+                                                        "p_url"
+                                                    ],
+                                                    "type": "phrase"
+                                                }
+                                            }
+                                        ],
+                                        minimum_should_match: 1
+                                    }
+                                };
+                                params.body.query.bool.must.push(categoryFilter);
+                        }
+
+                        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+                        if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+                            params.body.query.bool.must.push({
+                                term: { is_public_opinion: true }
+                            });
+                        }
+
         const results = await elasticClient.search(params);
 
         if (!results?.aggregations?.group_by_user?.buckets) {
@@ -322,7 +522,7 @@ const influencersController = {
 
   getInfluencerCategories: async (req, res) => {
     try {
-      const {
+      let {
         timeSlot,
         fromDate,
         toDate,
@@ -330,11 +530,13 @@ const influencersController = {
         isScadUser = "false",
         selectedTab = "",
         topicId,
+        category: inputCategory = 'all',
       } = req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
+      let category = inputCategory;
       let categoryData = {};
       
       if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
@@ -348,6 +550,15 @@ const influencersController = {
           success: true,
           infArray: {},
         });
+      }
+
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (matchedKey) {
+          category = matchedKey;
+        }else{
+          inputCategory="all";
+        }
       }
 
       // Build initial topic query string
@@ -366,6 +577,7 @@ const influencersController = {
       const availableDataSources = req.processedDataSources || [];
 
       // Handle source filtering based on user type and selected tab
+      const source = req.body.source || 'All';
       let finalQueryString = filters.queryString;
       if (parseInt(topicId) === 2619) {
         finalQueryString = `${finalQueryString} AND source:('"LinkedIn" OR "Linkedin"')`;
@@ -395,7 +607,9 @@ const influencersController = {
               finalQueryString,
               filters.greaterThanTime,
               filters.lessThanTime,
-              range
+              range,
+              inputCategory==="all"?category:"all",
+              topicId
             )
           )
         )
@@ -422,7 +636,7 @@ const influencersController = {
 
   getInfluencerPost: async (req, res) => {
     try {
-      const {
+      let {
         timeSlot,
         greaterThanTime,
         lessThanTime,
@@ -431,6 +645,7 @@ const influencersController = {
         selectedTab = "",
         type,
         topicId,
+        category: inputCategory = 'all',
       } = req.query;
 
       // Check if this is the special topicId
@@ -453,6 +668,16 @@ const influencersController = {
         });
       }
 
+      let category = inputCategory;
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (matchedKey) {
+          category = matchedKey;
+        }else{
+          inputCategory="all";
+        }
+      }
+
       // Build initial topic query string
       let topicQueryString = buildTopicQueryString(categoryData);
 
@@ -469,6 +694,7 @@ const influencersController = {
       const availableDataSources = req.processedDataSources || [];
 
       // Handle source filtering based on user type and selected tab
+      const source = req.query.source || 'All';
       let finalQueryString = filters.queryString;
       if (parseInt(topicId) === 2619) {
         finalQueryString = `${finalQueryString} AND source:('"LinkedIn" OR "Linkedin"')`;
@@ -496,7 +722,9 @@ const influencersController = {
           finalQueryString,
           filters.greaterThanTime,
           filters.lessThanTime,
-          INFLUENCER_CATEGORY_QUERIES[index]
+          INFLUENCER_CATEGORY_QUERIES[index],
+          inputCategory==="all"?category:"all",
+          topicId
         )
       );
 
@@ -642,6 +870,7 @@ const influencersController = {
           posts: posts,
           likes: likes,
           llm_emotion: llm_emotion,
+          llm_language: esData._source.llm_language,
           commentsUrl: commentsUrl,
           comments: comments,
           shares: shares,

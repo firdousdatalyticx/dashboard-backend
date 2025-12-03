@@ -55,12 +55,12 @@ const channelSourceController = {
                                             "source.keyword": "GoogleMyBusiness"
                                         }
                                     },
-                                    // Date range filter
+                                    // Date range filter with broad defaults to match data range
                                     {
                                         range: {
                                             p_created_time: {
-                                                gte: greaterThanTime,
-                                                lte: lessThanTime,
+                                                gte: greaterThanTime || '2020-01-01',
+                                                lte: lessThanTime || '2026-12-31',
                                                 format: 'strict_date_optional_time||epoch_millis||yyyy-MM-dd||yyyy-MM-dd\'T\'HH:mm:ss'
                                             }
                                         }

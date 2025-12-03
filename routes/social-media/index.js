@@ -50,6 +50,10 @@ const llm_motivation_phase_route= require("./llm_motivation-phase.route")
 const llm_motivation_sentiment_route = require("./llm-motivation-sentiment.route")
 const mentionsOverTimeRoute = require("./mentions-over-time.route")
 const businessLocationRoutes = require("./business-locations.routes")
+const engagementDistributionTrendRoutes = require("./engagement-distribution-trend.route")
+const sentimentAnalysisEduRoute = require("./sentiment-analysis-edu.route")
+const subsidiaryDistributions = require("./subsidiary-distributions.route")
+
 /// migration-topics.routes.js
 /**
  * @swagger
@@ -109,4 +113,7 @@ router.use("/llm-motivation-sentiment",llm_motivation_sentiment_route)
 router.use("/business-location",businessLocationRoutes)
 router.use("/health-check",healthCheckRoute)
 
+router.use('/sentiments',sentimentAnalysisEduRoute);
+router.use("/engagement-distribution-trend",engagementDistributionTrendRoutes)
+router.use("/subsidiary-distributions",subsidiaryDistributions)
 module.exports = router; 

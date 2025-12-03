@@ -1,5 +1,60 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const poiSentimentDistributionController = {
     getDistribution: async (req, res) => {
         try {
@@ -26,13 +81,21 @@ const poiSentimentDistributionController = {
                 return res.json({ distribution: [] });
             }
 
-            // Calculate date filter based on special topic
-           
-                // Calculate date 90 days ago
-                const ninetyDaysAgo = new Date();
-                ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-              let  dateFilter = ninetyDaysAgo.toISOString();
-            
+            let workingCategory = category;
+            // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+            if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+
+                if (matchedKey) {
+                    // Category found - filter to only this category
+                    categoryData = { [matchedKey]: categoryData[matchedKey] };
+                    workingCategory = matchedKey;
+                } else {
+                    // Category not found - keep all categoryData and set workingCategory to 'all'
+                    // This maintains existing functionality
+                    workingCategory = 'all';
+                }
+            }
 
             // Filter out categories with empty criteria
             const validCategories = Object.entries(categoryData).filter(([_, data]) => {
@@ -42,17 +105,39 @@ const poiSentimentDistributionController = {
                 return hasKeywords || hasHashtags || hasUrls;
             });
 
-               let dateRange;
-      if (fromDate == null && toDate == null) {
-        dateRange = {
-          gte: dateFilter,
-        };
-      } else {
-        dateRange = {
-          gte: fromDate,
-          lte: toDate,
-        };
-      }
+            // Set default date range - match sentiments-analysis.controller.js logic
+            const now = new Date();
+            let ninetyDaysAgo = new Date(now);
+            ninetyDaysAgo.setDate(now.getDate() - 90);
+
+            let startDate;
+            let endDate = now;
+
+            // Determine date range based on input
+            if (fromDate && toDate) {
+                startDate = fromDate;
+                endDate = toDate;
+            } else {
+                const topic = parseInt(topicId);
+
+                // Topics requiring last 1 year (match sentiments-analysis.controller.js)
+                const lastYearTopics = [2641, 2643, 2644];
+                if (lastYearTopics.includes(topic)) {
+                    ninetyDaysAgo = new Date(now);
+                    ninetyDaysAgo.setDate(now.getDate() - 365);
+                    startDate = ninetyDaysAgo.toISOString().split('T')[0];
+                    endDate = now.toISOString().split('T')[0];
+                } else {
+                    // Default to last 90 days for other topics
+                    startDate = ninetyDaysAgo.toISOString().split('T')[0];
+                    endDate = now.toISOString().split('T')[0];
+                }
+            }
+
+            const dateRange = {
+                gte: startDate,
+                lte: endDate,
+            };
 
             // If no valid categories with search criteria, return empty results
             if (validCategories.length === 0) {
@@ -93,59 +178,27 @@ const poiSentimentDistributionController = {
                     query: {
                         bool: {
                             must: [
+                                // Main category filter using valid categories
                                 {
                                     bool: {
                                         should: validCategories.map(([categoryName, data]) => ({
                                             bool: {
                                                 should: [
                                                     // Keywords matching
-                                                    ...(data.keywords || []).map(keyword => ({
-                                                        multi_match: {
-                                                            query: keyword,
-                                                            fields: [
-                                                                'p_message_text',
-                                                                'p_message',
-                                                                'keywords',
-                                                                'title',
-                                                                'hashtags',
-                                                                'u_source',
-                                                                'p_url'
-                                                            ],
-                                                            type: 'phrase'
-                                                        }
-                                                    })),
+                                                    ...(data.keywords || []).filter(k => k && k.trim()).flatMap(keyword => [
+                                                        { match_phrase: { p_message_text: keyword.trim() } },
+                                                        { match_phrase: { keywords: keyword.trim() } }
+                                                    ]),
                                                     // Hashtags matching
-                                                    ...(data.hashtags || []).map(hashtag => ({
-                                                        multi_match: {
-                                                            query: hashtag,
-                                                            fields: [
-                                                                'p_message_text',
-                                                                'p_message',
-                                                                'keywords',
-                                                                'title',
-                                                                'hashtags',
-                                                                'u_source',
-                                                                'p_url'
-                                                            ],
-                                                            type: 'phrase'
-                                                        }
-                                                    })),
+                                                    ...(data.hashtags || []).filter(h => h && h.trim()).flatMap(hashtag => [
+                                                        { match_phrase: { p_message_text: hashtag.trim() } },
+                                                        { match_phrase: { hashtags: hashtag.trim() } }
+                                                    ]),
                                                     // URLs matching
-                                                    ...(data.urls || []).map(url => ({
-                                                        multi_match: {
-                                                            query: url,
-                                                            fields: [
-                                                                'p_message_text',
-                                                                'p_message',
-                                                                'keywords',
-                                                                'title',
-                                                                'hashtags',
-                                                                'u_source',
-                                                                'p_url'
-                                                            ],
-                                                            type: 'phrase'
-                                                        }
-                                                    }))
+                                                    ...(data.urls || []).filter(u => u && u.trim()).flatMap(url => [
+                                                        { match_phrase: { u_source: url.trim() } },
+                                                        { match_phrase: { p_url: url.trim() } }
+                                                    ])
                                                 ],
                                                 minimum_should_match: 1
                                             }
@@ -157,11 +210,12 @@ const poiSentimentDistributionController = {
                             filter: {
                                 bool: {
                                     must: [
-                                        {
+                                        // Only add date range filter if dateRange is not null
+                                        ...(dateRange ? [{
                                             range: {
                                                 p_created_time: dateRange
                                             }
-                                        },
+                                        }] : []),
                                         {
                                             bool: {
                                                 should: sourceFilter,
@@ -177,65 +231,33 @@ const poiSentimentDistributionController = {
                         categories: {
                             filters: {
                                 filters: Object.fromEntries(
-                                    validCategories.map(([categoryName, data]) => [
+                                // Include valid categories
+                                validCategories.map(([categoryName, data]) => [
                                         categoryName,
                                         {
                                             bool: {
                                                 should: [
                                                     // Keywords matching
-                                                    ...(data.keywords || []).map(keyword => ({
-                                                        multi_match: {
-                                                            query: keyword,
-                                                            fields: [
-                                                                'p_message_text',
-                                                                'p_message',
-                                                                'keywords',
-                                                                'title',
-                                                                'hashtags',
-                                                                'u_source',
-                                                                'p_url'
-                                                            ],
-                                                            type: 'phrase'
-                                                        }
-                                                    })),
+                                                    ...(data.keywords || []).filter(k => k && k.trim()).flatMap(keyword => [
+                                                        { match_phrase: { p_message_text: keyword.trim() } },
+                                                        { match_phrase: { keywords: keyword.trim() } }
+                                                    ]),
                                                     // Hashtags matching
-                                                    ...(data.hashtags || []).map(hashtag => ({
-                                                        multi_match: {
-                                                            query: hashtag,
-                                                            fields: [
-                                                                'p_message_text',
-                                                                'p_message',
-                                                                'keywords',
-                                                                'title',
-                                                                'hashtags',
-                                                                'u_source',
-                                                                'p_url'
-                                                            ],
-                                                            type: 'phrase'
-                                                        }
-                                                    })),
+                                                    ...(data.hashtags || []).filter(h => h && h.trim()).flatMap(hashtag => [
+                                                        { match_phrase: { p_message_text: hashtag.trim() } },
+                                                        { match_phrase: { hashtags: hashtag.trim() } }
+                                                    ]),
                                                     // URLs matching
-                                                    ...(data.urls || []).map(url => ({
-                                                        multi_match: {
-                                                            query: url,
-                                                            fields: [
-                                                                'p_message_text',
-                                                                'p_message',
-                                                                'keywords',
-                                                                'title',
-                                                                'hashtags',
-                                                                'u_source',
-                                                                'p_url'
-                                                            ],
-                                                            type: 'phrase'
-                                                        }
-                                                    }))
+                                                    ...(data.urls || []).filter(u => u && u.trim()).flatMap(url => [
+                                                        { match_phrase: { u_source: url.trim() } },
+                                                        { match_phrase: { p_url: url.trim() } }
+                                                    ])
                                                 ],
                                                 minimum_should_match: 1
                                             }
                                         }
                                     ])
-                                )
+                            )
                             },
                             aggs: {
                                 sentiments: {
@@ -247,12 +269,12 @@ const poiSentimentDistributionController = {
                                         docs: {
                                             top_hits: {
                                                 _source: [
-                                                    'id', 
-                                                    'title', 
-                                                    'content', 
+                                                    'id',
+                                                    'title',
+                                                    'content',
                                                     'created_at',
                                                     'p_created_time',
-                                                    'predicted_sentiment_value', 
+                                                    'predicted_sentiment_value',
                                                     'predicted_category',
                                                     'p_message',
                                                     'p_message_text',
@@ -272,6 +294,8 @@ const poiSentimentDistributionController = {
                                                     'p_picture_url',
                                                     'source',
                                                     'llm_emotion',
+                                                    'llm_language',
+                                                    'u_country',
                                                     'video_embed_url',
                                                     'p_id',
                                                     'rating',
@@ -305,7 +329,7 @@ const poiSentimentDistributionController = {
                             minimum_should_match: 1
                         }
                     };
-                    query.bool.must.push(sentimentFilter);
+                    params.body.query.bool.must.push(sentimentFilter);
                 } else {
                     // Handle single sentiment type
                     params.body.query.bool.must.push({
@@ -313,18 +337,36 @@ const poiSentimentDistributionController = {
                     });
                 }
             }
-              // Apply LLM Mention Type filter if provided
-            if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
-                const mentionTypeFilter = {
-                    bool: {
-                        should: llm_mention_type.map(type => ({
-                            match: { llm_mention_type: type }
-                        })),
-                        minimum_should_match: 1
-                    }
-                };
-                params.body.query.bool.must.push(mentionTypeFilter);
-            }
+                        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+                        if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+                            params.body.query.bool.must.push({
+                                term: { is_public_opinion: true }
+                            });
+                        }
+
+                        // LLM Mention Type filtering logic
+                        let mentionTypesArray = [];
+
+                        if (llm_mention_type) {
+                            if (Array.isArray(llm_mention_type)) {
+                                mentionTypesArray = llm_mention_type;
+                            } else if (typeof llm_mention_type === "string") {
+                                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+                            }
+                        }
+
+                        // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+                        if (mentionTypesArray.length > 0) {
+                            params.body.query.bool.must.push({
+                                bool: {
+                                    should: mentionTypesArray.map(type => ({
+                                        match: { llm_mention_type: type }
+                                    })),
+                                    minimum_should_match: 1
+                                }
+                            });
+                        }
+                     
             const result = await elasticClient.search(params);
             const distribution = Object.entries(result.aggregations?.categories?.buckets || {}).map(
                 ([category, data]) => ({
@@ -495,6 +537,8 @@ const formatPostData = (hit) => {
         posts,
         likes,
         llm_emotion,
+        llm_language: source.llm_language,
+        u_country: source.u_country,
         commentsUrl,
         comments,
         shares,

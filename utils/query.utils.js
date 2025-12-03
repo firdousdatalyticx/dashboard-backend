@@ -89,7 +89,7 @@ const buildQueryString = async (topicId, isScadUser, selectedTab) => {
             
         } else {
             // Existing logic for other tabs
-            strToSearch = `(p_message_text:(${strToSearch.slice(0, -4)}) OR u_fullname:(${strToSearch.slice(0, -4)}) )`;
+            strToSearch = `(p_message_text:(${strToSearch.slice(0, -4)}) OR u_fullname:(${strToSearch.slice(0, -4)}) OR u_source:(${strToSearch.slice(0, -4)}) )`;
         }
 
         // Handle exclusion filters

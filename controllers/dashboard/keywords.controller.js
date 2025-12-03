@@ -6,6 +6,85 @@ const prisma = new PrismaClient();
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 /**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
+/**
+ * Normalize source input to array of sources
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+  if (!source || source === 'All') {
+    return []; // No specific source filter
+  }
+  if (Array.isArray(source)) {
+    return source.filter(s => s && s.trim() !== '');
+  }
+  if (typeof source === 'string') {
+    return source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+  return [];
+}
+
+/**
+ * Build source filter string for query_string
+ * @param {string|Array} source - Source input
+ * @param {number} topicId - Topic ID for special handling
+ * @param {boolean} isSpecialTopic - Whether this is a special topic
+ * @returns {string} Source filter string for query_string
+ */
+function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
+  const normalizedSources = normalizeSourceInput(source);
+  
+  if (normalizedSources.length > 0) {
+    const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+    return `source:(${sourcesStr})`;
+  } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+    return `source:("LinkedIn" OR "Linkedin")`;
+  } else if (isSpecialTopic) {
+    return `source:("Facebook" OR "Twitter")`;
+  } else {
+    return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
+  }
+}
+
+/**
  * Helper function to execute Elasticsearch count query
  * @param {Object} params Query parameters for Elasticsearch
  * @returns {Promise<Object>} Elasticsearch response
@@ -229,35 +308,26 @@ const keywordsController = {
                             Object.values(categoryData).forEach(data => {
                                 if (data.keywords && data.keywords.length > 0) {
                                     data.keywords.forEach(keyword => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: keyword,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { p_message_text: keyword } },
+                                            { match_phrase: { keywords: keyword } }
+                                        );
                                     });
                                 }
                                 if (data.hashtags && data.hashtags.length > 0) {
                                     data.hashtags.forEach(hashtag => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: hashtag,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { p_message_text: hashtag } },
+                                            { match_phrase: { hashtags: hashtag } }
+                                        );
                                     });
                                 }
                                 if (data.urls && data.urls.length > 0) {
                                     data.urls.forEach(url => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: url,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { u_source: url } },
+                                            { match_phrase: { p_url: url } }
+                                        );
                                     });
                                 }
                             });
@@ -471,35 +541,26 @@ const keywordsController = {
                             Object.values(categoryData).forEach(data => {
                                 if (data.keywords && data.keywords.length > 0) {
                                     data.keywords.forEach(keyword => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: keyword,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { p_message_text: keyword } },
+                                            { match_phrase: { keywords: keyword } }
+                                        );
                                     });
                                 }
                                 if (data.hashtags && data.hashtags.length > 0) {
                                     data.hashtags.forEach(hashtag => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: hashtag,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { p_message_text: hashtag } },
+                                            { match_phrase: { hashtags: hashtag } }
+                                        );
                                     });
                                 }
                                 if (data.urls && data.urls.length > 0) {
                                     data.urls.forEach(url => {
-                                        categoryFilters.push({
-                                            multi_match: {
-                                                query: url,
-                                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                                type: 'phrase'
-                                            }
-                                        });
+                                        categoryFilters.push(
+                                            { match_phrase: { u_source: url } },
+                                            { match_phrase: { p_url: url } }
+                                        );
                                     });
                                 }
                             });
@@ -870,7 +931,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source) {
+function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
     const query = {
         bool: {
             must: [
@@ -901,10 +962,34 @@ function buildBaseQuery(dateRange, source) {
         }
     };
 
-    // Add source filter if a specific source is selected
-    if (source !== 'All') {
+    const normalizedSources = normalizeSourceInput(source);
+
+    if (normalizedSources.length > 0) {
         query.bool.must.push({
-            match_phrase: { source: source }
+            bool: {
+                should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
+                minimum_should_match: 1
+            }
+        });
+    } else if (topicId === 2619 || topicId === 2639 || topicId === 2640) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } }
+                ],
+                minimum_should_match: 1
+            }
+        });
+    } else if (isSpecialTopic) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } }
+                ],
+                minimum_should_match: 1
+            }
         });
     } else {
         query.bool.must.push({
@@ -915,9 +1000,11 @@ function buildBaseQuery(dateRange, source) {
                     { match_phrase: { source: "Instagram" } },
                     { match_phrase: { source: "Youtube" } },
                     { match_phrase: { source: "LinkedIn" } },
+                    { match_phrase: { source: "Linkedin" } },
                     { match_phrase: { source: "Pinterest" } },
                     { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } }
+                    { match_phrase: { source: "Reddit" } },
+                    { match_phrase: { source: "TikTok" } }
                 ],
                 minimum_should_match: 1
             }
@@ -939,31 +1026,22 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             bool: {
                 should: [
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.keywords || []).map(keyword => ({
-                            multi_match: {
-                                query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.keywords || []).flatMap(keyword => [
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        ])
                     ),
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.hashtags || []).map(hashtag => ({
-                            multi_match: {
-                                query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.hashtags || []).flatMap(hashtag => [
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        ])
                     ),
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.urls || []).map(url => ({
-                            multi_match: {
-                                query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.urls || []).flatMap(url => [
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        ])
                     )
                 ],
                 minimum_should_match: 1
@@ -982,27 +1060,18 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             query.bool.must.push({
                 bool: {
                     should: [
-                        ...(data.keywords || []).map(keyword => ({
-                            multi_match: {
-                                query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        })),
-                        ...(data.hashtags || []).map(hashtag => ({
-                            multi_match: {
-                                query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        })),
-                        ...(data.urls || []).map(url => ({
-                            multi_match: {
-                                query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        ...(data.keywords || []).flatMap(keyword => [
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        ]),
+                        ...(data.hashtags || []).flatMap(hashtag => [
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        ]),
+                        ...(data.urls || []).flatMap(url => [
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        ])
                     ],
                     minimum_should_match: 1
                 }

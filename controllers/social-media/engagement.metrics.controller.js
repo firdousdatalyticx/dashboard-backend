@@ -4,6 +4,63 @@ const { processFilters } = require('./filter.utils');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
 /**
+ * Normalize source input to array of sources
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+  if (!source || source === 'All') {
+    return []; // No specific source filter
+  }
+  if (Array.isArray(source)) {
+    return source.filter(s => s && s.trim() !== '');
+  }
+  if (typeof source === 'string') {
+    return source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+  return [];
+}
+
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
+/**
  * Helper function to build Elasticsearch query template with performance optimizations
  * @param {string} queryString Topic query string
  * @param {string} gte Start date
@@ -11,40 +68,63 @@ const processCategoryItems = require('../../helpers/processedCategoryItems');
  * @param {Object} aggs Aggregations to perform
  * @returns {Object} Elasticsearch query object
  */
-const elasticQueryTemplate = (queryString, gte, lte, aggs) => ({
-    size: 0,
-    query: {
-        bool: {
-            must: [
-                {
-                    query_string: {
-                        query: queryString,
-                        default_operator: "OR" // Use OR for better performance
-                    }
-                },
-                {
-                    range: {
-                        p_created_time: {
-                            gte: gte,
-                            lte: lte,
-                            format: "yyyy-MM-dd" // Specify format for better performance
+const elasticQueryTemplate = (queryString, gte, lte, aggs, category) => {
+    
+    const baseQuery = {
+        size: 0,
+        query: {
+            bool: {
+                must: [
+                    {
+                        query_string: {
+                            query: queryString,
+                            default_operator: "OR"
+                        }
+                    },
+                    {
+                        range: {
+                            p_created_time: {
+                                gte: gte,
+                                lte: lte,
+                                format: "yyyy-MM-dd"
+                            }
+                        }
+                    },
+                    {
+                        range: {
+                            created_at: {
+                                gte: gte,
+                                lte: lte,
+                                format: "yyyy-MM-dd"
+                            }
                         }
                     }
-                },
-                                {
-                    range: {
-                        created_at: {
-                            gte: gte,
-                            lte: lte,
-                            format: "yyyy-MM-dd" // Specify format for better performance
-                        }
-                    }
-                }
-            ]
-        }
-    },
-    aggs: aggs
-});
+                ]
+            }
+        },
+        aggs: aggs
+    };
+
+    // ✅ Add Category Filter
+    if (category && category !== "all") {
+        const categoryFilter = {
+            bool: {
+                should: [
+                    { match_phrase: { p_message_text: category } },
+                    { match_phrase: { keywords: category } },
+                    { match_phrase: { hashtags: category } },
+                    { match_phrase: { u_source: category } },
+                    { match_phrase: { p_url: category } }
+                ],
+                minimum_should_match: 1
+            }
+        };
+
+        baseQuery.query.bool.must.push(categoryFilter);
+    }
+
+    return baseQuery;
+};
 
 /**
  * Execute Elasticsearch query with timeout for better performance
@@ -116,7 +196,7 @@ const calculateDifference = (currentValue, previousValue) => {
  * @param {boolean} isUnTopic Whether this is for UN topic
  * @returns {Promise<Array>} Daily data
  */
-const getDailyData = async (queryString, metric, isEngagement = false, isUnTopic = false) => {
+  const getDailyData = async (queryString, metric, isEngagement = false, isUnTopic = false, topicId = null) => {
     const datesArray = [];
     const startDate = isUnTopic 
         ? new Date('2023-02-21T00:00:00.000Z')
@@ -150,17 +230,26 @@ const getDailyData = async (queryString, metric, isEngagement = false, isUnTopic
             };
         }
 
+        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+        const mustFilters = [
+            {
+                query_string: {
+                    query: `${queryString} AND p_created_time:("${formattedDate}")`
+                }
+            }
+        ];
+
+        if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+            mustFilters.push({
+                term: { is_public_opinion: true }
+            });
+        }
+
         const params = {
             size: 0, // Explicitly set size to 0 for better performance
             query: {
                 bool: {
-                    must: [
-                        { 
-                            query_string: { 
-                                query: `${queryString} AND p_created_time:("${formattedDate}")` 
-                            } 
-                        }
-                    ]
+                    must: mustFilters
                 }
             },
             aggs: aggs
@@ -235,6 +324,16 @@ const engagementController = {
                 });
             }
 
+            let selectedCategory = category;
+            if (category !== 'all' && category !== '' && category !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(category, categoryData);
+                if (matchedKey) {
+                  selectedCategory = matchedKey;
+                }else{
+                    selectedCategory="all";
+                }
+            }
+
             let query = buildTopicQueryString(categoryData);
 
              // Process filters for time range and sentiment
@@ -273,7 +372,6 @@ const engagementController = {
                 greaterThanTime = '2023-01-01';
                 lessThanTime = '2023-04-30';
             }
-            console.log(filters.queryString)
             let response, graphData, totalCount;
             if (type === 'shares') {
                 const aggsShares = {
@@ -282,7 +380,7 @@ const engagementController = {
            
                 // Get current period data
                 const shares = await executeQuery(
-                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsShares)
+                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsShares,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalShares = shares.aggregations.total_shares.value;
 
@@ -290,7 +388,7 @@ const engagementController = {
           
                 // Get comparison period data
                 const sharesCompare = await executeQuery(
-                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsShares)
+                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsShares,category!=="all" && selectedCategory=="all"?category:"all")
                 );
 
                 const totalSharesCompare = sharesCompare.aggregations.total_shares.value;
@@ -299,7 +397,7 @@ const engagementController = {
                 const difference = calculateDifference(totalShares, totalSharesCompare);
                 
                 // Get daily data for graph
-                graphData = await getDailyData(query, 'shares', false, unTopic === 'true');
+                graphData = await getDailyData(query, 'shares', false, unTopic === 'true', topicId);
                 
                 totalCount = totalShares;
                 response = difference.formatted;
@@ -311,13 +409,13 @@ const engagementController = {
 
                 // Get current period data
                 const comments = await executeQuery(
-                    elasticQueryTemplate(filters.queryString, greaterThanTime, lessThanTime, aggsComments)
+                    elasticQueryTemplate(filters.queryString, greaterThanTime, lessThanTime, aggsComments,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalComments = comments.aggregations.total_comments.value;
 
                 // Get comparison period data
                 const commentsCompare = await executeQuery(
-                    elasticQueryTemplate(filters.queryString, incDecFromDate, incDecToDate, aggsComments)
+                    elasticQueryTemplate(filters.queryString, incDecFromDate, incDecToDate, aggsComments,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalCommentsCompare = commentsCompare.aggregations.total_comments.value;
 
@@ -325,7 +423,7 @@ const engagementController = {
                 const difference = calculateDifference(totalComments, totalCommentsCompare);
                 
                 // Get daily data for graph
-                graphData = await getDailyData(filters.queryString, 'comments', false, unTopic === 'true');
+                graphData = await getDailyData(filters.queryString, 'comments', false, unTopic === 'true', topicId);
                 
                 totalCount = totalComments;
                 response = difference.formatted;
@@ -337,13 +435,13 @@ const engagementController = {
 
                 // Get current period data
                 const likes = await executeQuery(
-                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsLikes)
+                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsLikes,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalLikes = likes.aggregations.total_likes.value;
 
                 // Get comparison period data
                 const likesCompare = await executeQuery(
-                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsLikes)
+                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsLikes,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalLikesCompare = likesCompare.aggregations.total_likes.value;
 
@@ -351,7 +449,7 @@ const engagementController = {
                 const difference = calculateDifference(totalLikes, totalLikesCompare);
                 
                 // Get daily data for graph
-                graphData = await getDailyData(query, 'likes', false, unTopic === 'true');
+                graphData = await getDailyData(query, 'likes', false, unTopic === 'true', topicId);
                 
                 totalCount = totalLikes;
                 response = difference.formatted;
@@ -367,7 +465,7 @@ const engagementController = {
              
                 // Get current period data
                 const engagement = await executeQuery(
-                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsEngagements)
+                    elasticQueryTemplate(query, greaterThanTime, lessThanTime, aggsEngagements,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalEngagement = 
                     engagement.aggregations.total_shares.value +
@@ -377,7 +475,7 @@ const engagementController = {
 
                 // Get comparison period data
                 const engagementCompare = await executeQuery(
-                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsEngagements)
+                    elasticQueryTemplate(query, incDecFromDate, incDecToDate, aggsEngagements,category!=="all" && selectedCategory=="all"?category:"all")
                 );
                 const totalEngagementCompare = 
                     engagementCompare.aggregations.total_shares.value +
@@ -389,7 +487,7 @@ const engagementController = {
                 const difference = calculateDifference(totalEngagement, totalEngagementCompare);
                 
                 // Get daily data for graph
-                graphData = await getDailyData(query, 'engagement', true, unTopic === 'true');
+                graphData = await getDailyData(query, 'engagement', true, unTopic === 'true', topicId);
                 
                 totalCount = totalEngagement;
                 response = difference.formatted;
@@ -555,31 +653,22 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, avai
             bool: {
                 should: [
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.keywords || []).map(keyword => ({
-                            multi_match: {
-                                query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.keywords || []).flatMap(keyword => [
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        ])
                     ),
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.hashtags || []).map(hashtag => ({
-                            multi_match: {
-                                query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.hashtags || []).flatMap(hashtag => [
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        ])
                     ),
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.urls || []).map(url => ({
-                            multi_match: {
-                                query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.urls || []).flatMap(url => [
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        ])
                     )
                 ],
                 minimum_should_match: 1
@@ -598,27 +687,18 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, avai
             query.bool.must.push({
                 bool: {
                     should: [
-                        ...(data.keywords || []).map(keyword => ({
-                            multi_match: {
-                                query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        })),
-                        ...(data.hashtags || []).map(hashtag => ({
-                            multi_match: {
-                                query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        })),
-                        ...(data.urls || []).map(url => ({
-                            multi_match: {
-                                query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        ...(data.keywords || []).flatMap(keyword => [
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        ]),
+                        ...(data.hashtags || []).flatMap(hashtag => [
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        ]),
+                        ...(data.urls || []).flatMap(url => [
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        ])
                     ],
                     minimum_should_match: 1
                 }

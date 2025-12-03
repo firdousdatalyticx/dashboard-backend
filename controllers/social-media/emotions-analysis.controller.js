@@ -2,6 +2,67 @@ const { elasticClient } = require("../../config/elasticsearch");
 const { format, parseISO, subDays } = require("date-fns");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+  if (!sourceParam || sourceParam === 'All') {
+    return [];
+  }
+
+  if (Array.isArray(sourceParam)) {
+    return sourceParam
+      .filter(Boolean)
+      .map(src => src.trim())
+      .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+  }
+
+  if (typeof sourceParam === 'string') {
+    return sourceParam
+      .split(',')
+      .map(src => src.trim())
+      .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+  }
+
+  return [];
+};
+
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
 const emotionsController = {
   /**
    * Get emotions analysis data for social media posts
@@ -14,11 +75,12 @@ const emotionsController = {
       const {
         interval = "monthly",
         source = "All",
-        category = "all",
+        category: inputCategory = "all",
         topicId,
         fromDate,
         toDate,
         sentiment,
+        llm_mention_type,
       } = req.body;
 
       // Check if this is the special topicId
@@ -40,22 +102,48 @@ const emotionsController = {
         });
       }
 
+      let category = inputCategory;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          category = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set category to 'all'
+          // This maintains existing functionality
+          category = 'all';
+        }
+      }
+
       // Set default date range - last 90 days
 
-      const now = new Date();
-      let startDate;
-      let endDate = now;
-
-      const ninetyDaysAgo = subDays(now, 90);
-
-      // Determine date range based on timeSlot
-      if (fromDate && toDate) {
-        startDate = parseISO(fromDate);
-        endDate = parseISO(toDate);
-      } else {
-        startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
-        endDate = format(now, "yyyy-MM-dd");
-      }
+        const now = new Date();
+        let startDate;
+        let endDate = now;
+  
+        let ninetyDaysAgo = subDays(now, 365);
+  
+        // Determine date range based on timeSlot
+        if (fromDate && toDate) {
+          startDate = parseISO(fromDate);
+          endDate = parseISO(toDate);
+        } else {
+          const topic = parseInt(topicId);
+  
+          // Topics requiring last 1 year
+          const lastYearTopics = [2641, 2643, 2644];
+          if (lastYearTopics.includes(topic)) {
+            startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+            endDate = format(now, "yyyy-MM-dd");
+          } else {
+            let ninetyDaysAgo = subDays(now, 90);
+            startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+            endDate = format(now, "yyyy-MM-dd");
+          }
+        }
 
       const greaterThanTime = format(startDate, "yyyy-MM-dd");
       const lessThanTime = format(endDate, "yyyy-MM-dd");
@@ -80,17 +168,87 @@ const emotionsController = {
 
       // Build base query with special topic source filtering
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+        query.bool.must.push({
+          term: {
+            is_public_opinion: true
+          }
+        });
+      }
+
+      if(category=="all" && inputCategory!=="all"){
+        const categoryFilter = {
+            bool: {
+                should:  [
+                    {
+                        "multi_match": {
+                            "query": inputCategory,
+                            "fields": [
+                                "p_message_text",
+                                "p_message",
+                                "hashtags",
+                                "u_source",
+                                "p_url"
+                            ],
+                            "type": "phrase"
+                        }
+                    }
+                ],
+                minimum_should_match: 1
+            }
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
       // Add category filters
       addCategoryFilters(query, category, categoryData);
 
       // Add sentiment filter if provided
-      if (sentiment && sentiment != "" && sentiment !== "All") {
+      if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
+        if (sentiment.includes(',')) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentiment.split(',');
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map(sentiment => ({
+                match: { predicted_sentiment_value: sentiment.trim() }
+              })),
+              minimum_should_match: 1
+            }
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentiment.trim() }
+          });
+        }
+      }
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
         query.bool.must.push({
-          match_phrase: {
-            predicted_sentiment_value: sentiment,
-          },
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
         });
       }
+   
 
       // Create aggregations for both simple counts and interval-based data
       const params = {
@@ -287,45 +445,44 @@ const emotionsController = {
 
           try {
             // Execute the query
-            // const emotionPostsResponse = await elasticClient.search({
-            //   index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            //   body: emotionPostsQuery,
-            // });
+            const emotionPostsResponse = await elasticClient.search({
+              index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+              body: emotionPostsQuery,
+            });
 
-            // // Format posts for this emotion
-            // const postsRaw = emotionPostsResponse.hits.hits.map((hit) => formatPostData(hit));
+            // Format posts for this emotion
+            const postsRaw = emotionPostsResponse.hits.hits.map((hit) => formatPostData(hit));
             // Add matched_terms to each post
-            const posts = []
-            // postsRaw.map(post => {
-            //   const textFields = [
-            //     post.message_text,
-            //     post.content,
-            //     post.keywords,
-            //     post.title,
-            //     post.hashtags,
-            //     post.uSource,
-            //     post.source,
-            //     post.p_url,
-            //     post.userFullname
-            //   ];
-            //   return {
-            //     ...post,
-            //     matched_terms: allFilterTerms.filter(term =>
-            //       textFields.some(field => {
-            //         if (!field) return false;
-            //         if (Array.isArray(field)) {
-            //           return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-            //         }
-            //         return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-            //       })
-            //     )
-            //   };
-            // });
+            const posts = postsRaw.map(post => {
+              const textFields = [
+                post.message_text,
+                post.content,
+                post.keywords,
+                post.title,
+                post.hashtags,
+                post.uSource,
+                post.source,
+                post.p_url,
+                post.userFullname
+              ];
+              return {
+                ...post,
+                matched_terms: allFilterTerms.filter(term =>
+                  textFields.some(field => {
+                    if (!field) return false;
+                    if (Array.isArray(field)) {
+                      return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                    }
+                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                  })
+                )
+              };
+            });
 
-            // Add to interval results with the actual count from aggregation
+            // Add to interval results with the count matching returned posts
             emotionsInInterval.push({
               name: emotionName,
-              count: emotionCount, // Use the total count from aggregation
+              count: posts.length, // Use actual posts count
               posts: posts, // Limited to MAX_POSTS_PER_EMOTION
             });
           } catch (error) {
@@ -369,14 +526,15 @@ const emotionsController = {
     const {
       interval = "monthly",
       source = "All",
-      category = "all",
+      category: inputCategory = "all",
       topicId,
       fromDate,
       toDate,
       sentiment,
       emotion,
       page = 1,
-      limit = 30
+      limit = 30,
+      llm_mention_type
     } = req.body;
 
     // Check if this is the special topicId
@@ -398,6 +556,22 @@ const emotionsController = {
         posts: [],
         total: 0
       });
+    }
+
+    let category = inputCategory;
+    // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+    if (category !== 'all' && category !== '' && category !== 'custom') {
+      const matchedKey = findMatchingCategoryKey(category, categoryData);
+
+      if (matchedKey) {
+        // Category found - filter to only this category
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        category = matchedKey;
+      } else {
+        // Category not found - keep all categoryData and set category to 'all'
+        // This maintains existing functionality
+        category = 'all';
+      }
     }
 
     // Set default date range - last 90 days if no dates provided
@@ -428,16 +602,62 @@ const emotionsController = {
       parseInt(topicId)
     );
 
+    // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+    if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+      query.bool.must.push({
+        term: {
+          is_public_opinion: true
+        }
+      });
+    }
+
+    if(category=="all" && inputCategory!=="all"){
+      const categoryFilter = {
+          bool: {
+              should:  [
+                  {
+                      "multi_match": {
+                          "query": inputCategory,
+                          "fields": [
+                              "p_message_text",
+                              "p_message",
+                              "hashtags",
+                              "u_source",
+                              "p_url"
+                          ],
+                          "type": "phrase"
+                      }
+                  }
+              ],
+              minimum_should_match: 1
+          }
+      };
+      query.bool.must.push(categoryFilter);
+    }
+
     // Add category filters
     addCategoryFilters(query, category, categoryData);
 
     // Add sentiment filter if provided
-    if (sentiment && sentiment != "" && sentiment !== "All") {
-      query.bool.must.push({
-        match_phrase: {
-          predicted_sentiment_value: sentiment,
-        },
-      });
+    if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
+      if (sentiment.includes(',')) {
+        // Handle multiple sentiment types
+        const sentimentArray = sentiment.split(',');
+        const sentimentFilter = {
+          bool: {
+            should: sentimentArray.map(sentiment => ({
+              match: { predicted_sentiment_value: sentiment.trim() }
+            })),
+            minimum_should_match: 1
+          }
+        };
+        query.bool.must.push(sentimentFilter);
+      } else {
+        // Handle single sentiment type
+        query.bool.must.push({
+          match: { predicted_sentiment_value: sentiment.trim() }
+        });
+      }
     }
 
     // Add emotion filter
@@ -448,6 +668,30 @@ const emotionsController = {
         }
       });
     }
+
+    // LLM Mention Type filtering logic
+    let mentionTypesArray = [];
+
+    if (llm_mention_type) {
+      if (Array.isArray(llm_mention_type)) {
+        mentionTypesArray = llm_mention_type;
+      } else if (typeof llm_mention_type === "string") {
+        mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+      }
+    }
+
+    // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+    if (mentionTypesArray.length > 0) {
+      query.bool.must.push({
+        bool: {
+          should: mentionTypesArray.map(type => ({
+            match: { llm_mention_type: type }
+          })),
+          minimum_should_match: 1
+        }
+      });
+    }
+  
 
     // Calculate pagination
     const offset = (page - 1) * limit;
@@ -634,6 +878,8 @@ const formatPostData = (hit) => {
     posts,
     likes,
     llm_emotion,
+    llm_language: source.llm_language,
+    u_country: source.u_country,
     commentsUrl,
     comments,
     shares,
@@ -737,55 +983,22 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
       bool: {
         should: [
           ...Object.values(categoryData).flatMap((data) =>
-            (data.keywords || []).map((keyword) => ({
-              multi_match: {
-                query: keyword,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            }))
+            (data.keywords || []).flatMap((keyword) => [
+              { match_phrase: { p_message_text: keyword } },
+              { match_phrase: { keywords: keyword } }
+            ])
           ),
           ...Object.values(categoryData).flatMap((data) =>
-            (data.hashtags || []).map((hashtag) => ({
-              multi_match: {
-                query: hashtag,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            }))
+            (data.hashtags || []).flatMap((hashtag) => [
+              { match_phrase: { p_message_text: hashtag } },
+              { match_phrase: { hashtags: hashtag } }
+            ])
           ),
           ...Object.values(categoryData).flatMap((data) =>
-            (data.urls || []).map((url) => ({
-              multi_match: {
-                query: url,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            }))
+            (data.urls || []).flatMap((url) => [
+              { match_phrase: { u_source: url } },
+              { match_phrase: { p_url: url } }
+            ])
           ),
         ],
         minimum_should_match: 1,
@@ -806,51 +1019,18 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
       query.bool.must.push({
         bool: {
           should: [
-            ...(data.keywords || []).map((keyword) => ({
-              multi_match: {
-                query: keyword,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            })),
-            ...(data.hashtags || []).map((hashtag) => ({
-              multi_match: {
-                query: hashtag,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            })),
-            ...(data.urls || []).map((url) => ({
-              multi_match: {
-                query: url,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            })),
+            ...(data.keywords || []).flatMap((keyword) => [
+              { match_phrase: { p_message_text: keyword } },
+              { match_phrase: { keywords: keyword } }
+            ]),
+            ...(data.hashtags || []).flatMap((hashtag) => [
+              { match_phrase: { p_message_text: hashtag } },
+              { match_phrase: { hashtags: hashtag } }
+            ]),
+            ...(data.urls || []).flatMap((url) => [
+              { match_phrase: { u_source: url } },
+              { match_phrase: { p_url: url } }
+            ]),
           ],
           minimum_should_match: 1,
         },

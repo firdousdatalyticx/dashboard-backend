@@ -360,9 +360,10 @@ const topicCategoriesController = {
 
 
             // Determine social media sources based on special topic
-            const socialSources = numericTopicId === 2619 ? ["LinkedIn", "Linkedin"] : isSpecialTopic
-                ? ["Facebook", "Twitter"]
-                : [
+            const socialSources = numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 ? ["LinkedIn", "Linkedin"] :
+                numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644 ? ["Facebook", "facebook", "Twitter", "twitter", "Instagram", "instagram"] :
+                isSpecialTopic ? ["Facebook", "Twitter"] :
+                [
                     "Facebook",
                     "Twitter",
                     "Instagram",
@@ -376,9 +377,9 @@ const topicCategoriesController = {
                 ];
 
 
-            const must = [
+            const must = []
 
-            ]
+           
             const googleMust =
                 [
                     {
@@ -392,61 +393,67 @@ const topicCategoriesController = {
 
           
             // Query builder for social media data
-            const buildSocialMediaQuery = () => ({
-                bool: {
-                    must: must,
-                    filter: [
-                        {
-                            terms: {
-                                "source.keyword": socialSources,
+            const buildSocialMediaQuery = () => {
+                const query = {
+                    bool: {
+                        must: must,
+                        filter: [
+                            {
+                                terms: {
+                                    "source.keyword": socialSources,
+                                },
                             },
-                        },
-                        {
-                            bool: {
-                                must_not: [
-                                    {
-                                        term: {
-                                            source: "DM",
+                            {
+                                bool: {
+                                    must_not: [
+                                        {
+                                            term: {
+                                                source: "DM",
+                                            },
                                         },
-                                    },
-                                ],
+                                    ],
+                                },
                             },
-                        },
-                    ],
-                    should: [
-                        // Match all text fields with keywords/hashtags
-                        {
-                            bool: {
-                                should: socialMediaTerms.map((term) => ({
-                                    multi_match: {
-                                        query: term,
-                                        fields: [
-                                            "p_message_text",
-                                            "p_message",
-                                            "keywords",
-                                            "title",
-                                            "hashtags",
-                                            "u_source",
-                                        ],
-                                        type: "phrase",
-                                    },
-                                })),
-                                minimum_should_match: 1,
+                        ],
+                        should: [
+                            // Match all text fields with keywords/hashtags
+                            {
+                                bool: {
+                                    should: socialMediaTerms.map((term) => ({
+                                        multi_match: {
+                                            query: term,
+                                            fields: [
+                                                "p_message_text",
+                                                "p_message",
+                                                "keywords",
+                                                "title",
+                                                "hashtags",
+                                                "u_source",
+                                            ],
+                                            type: "phrase",
+                                        },
+                                    })),
+                                    minimum_should_match: 1,
+                                },
                             },
-                        },
-                        // Match URLs in p_url
-                        {
-                            bool: {
-                                should: socialMediaTerms.map((term) => ({
-                                    term: { p_url: term },
-                                })),
-                                minimum_should_match: 1,
+                            // Match URLs in p_url
+                            {
+                                bool: {
+                                    should: socialMediaTerms.map((term) => ({
+                                        term: { p_url: term },
+                                    })),
+                                    minimum_should_match: 1,
+                                },
                             },
-                        },
-                    ],
-                    minimum_should_match: 1, // Ensures at least one condition is met
-                },
-            });
+                        ],
+                        minimum_should_match: 1, // Ensures at least one condition is met
+                    },
+                };
+
+          
+
+                return query;
+            };
 
             // Query builder for Google data
             const buildGoogleQuery = () => ({

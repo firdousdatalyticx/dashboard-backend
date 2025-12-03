@@ -14,7 +14,7 @@ const googleLocationsController = {
      */
     getGoogleLocations: async (req, res) => {
         try {
-            const { topicId, fromDate, toDate, sentimentType } = req.body;
+            const { topicId, greaterThanTime, lessThanTime, fromDate, toDate, sentimentType } = req.body;
 
             if (!topicId) {
                 return res.status(400).json({
@@ -23,6 +23,11 @@ const googleLocationsController = {
                     locations: []
                 });
             }
+
+            // Use greaterThanTime/lessThanTime for consistency with other Google controllers
+            // Fall back to fromDate/toDate if greaterThanTime/lessThanTime not provided
+            const startDate = greaterThanTime || fromDate;
+            const endDate = lessThanTime || toDate;
 
             // Fetch topics and categories
             const customerTopics = await prisma.customer_topics.findMany({
@@ -57,8 +62,8 @@ const googleLocationsController = {
             // Process filters for sentiment and date range (if provided)
             const filters = processFilters({
                 sentimentType,
-                fromDate,
-                toDate,
+                fromDate: startDate,
+                toDate: endDate,
                 queryString: ""
             });
 
@@ -73,11 +78,13 @@ const googleLocationsController = {
                                     'u_source.keyword': googleUrls
                                 }
                             },
+                            // Always include date range filter for consistency with other Google controllers
                             {
                                 range: {
-                                    created_at: {
-                                        gte: fromDate || 'now-90d',
-                                        lte: toDate || 'now',
+                                    p_created_time: {
+                                        gte: startDate || '2020-01-01',  // Broad default to match data range
+                                        lte: endDate || '2026-12-31',
+                                        format: 'strict_date_optional_time||epoch_millis||yyyy-MM-dd||yyyy-MM-dd\'T\'HH:mm:ss'
                                     }
                                 }
                             }
@@ -107,7 +114,7 @@ const googleLocationsController = {
                                 filter: {
                                     range: {
                                         p_created_time: {
-                                            gte: fromDate || 'now-90d'
+                                            gte: startDate || '2020-01-01'
                                         }
                                     }
                                 },

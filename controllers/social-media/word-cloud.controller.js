@@ -16,10 +16,10 @@ const buildWordCloudParams = (options) => {
     from = 0,
     size = 5000,
     sort = "p_created_time:desc",
-    timeRange = {
-      gte: fromDate != null ? fromDate : "now-90d",
-      lte: toDate != null ? toDate : "now",
-    },
+    timeRange = fromDate != null && toDate != null ? {
+      gte: fromDate,
+      lte: toDate,
+    } : undefined,
     llm_mention_type,
     topicId,
     req
@@ -57,11 +57,6 @@ const buildWordCloudParams = (options) => {
         {
           query_string: {
             query: `(p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${sourceFilter})`,
-          },
-        },
-        {
-          range: {
-            p_created_time: timeRange,
           },
         },
       ],
@@ -106,6 +101,12 @@ const buildWordCloudParams = (options) => {
           field: "p_created_time",
           fixed_interval: "1d",
           min_doc_count: 0,
+          ...(timeRange && {
+            extended_bounds: {
+              min: timeRange.gte,
+              max: timeRange.lte,
+            },
+          }),
         },
       },
       top_terms: {
@@ -134,10 +135,10 @@ const buildPostsByPhraseParams = (options) => {
     from = 0,
     size = 100,
     sort = "p_created_time:desc",
-    timeRange = {
-      gte: fromDate != null ? fromDate : "now-90d",
-      lte: toDate != null ? toDate : "now",
-    },
+    timeRange = fromDate != null && toDate != null ? {
+      gte: fromDate,
+      lte: toDate,
+    } : undefined,
     llm_mention_type,
     topicId,
     req
@@ -174,7 +175,7 @@ const buildPostsByPhraseParams = (options) => {
       ? "llm_positive_points.keyword"
       : "llm_negative_points.keyword";
 
-    const sourceData =   source != "All" ? source : topicId && parseInt(topicId)===2619?'"LinkedIn" OR "Linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok"'
+    const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin" OR "linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook" OR "twitter" OR "facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644  ? '"Twitter" OR "Facebook" OR "Instagram" OR "twitter" OR "facebook" OR "instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok" OR "twitter" OR "facebook" OR "instagram" OR "youtube" OR "pinterest" OR "reddit" OR "linkedin" OR "web" OR "tiktok"'
 
   // Base query structure
   const baseQuery = {
@@ -185,14 +186,20 @@ const buildPostsByPhraseParams = (options) => {
             query: `(${phraseField}:"${phrase}") AND (p_message:(${queryString}) OR p_url:(${queryString})) AND NOT source:("DM") AND NOT manual_entry_type:("review") AND source:(${sourceFilter})`,
           },
         },
-        {
-          range: {
-            p_created_time: timeRange,
-          },
-        },
       ],
     },
   };
+
+  // Add time range filter only if dates are provided
+  if (timeRange) {
+    baseQuery.bool.must.push({
+      range: {
+        p_created_time: timeRange,
+      },
+    });
+  }
+
+
   
   // Apply LLM Mention Type filter if provided
   if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
@@ -331,8 +338,13 @@ const wordCloudController = {
           value: term.doc_count,
         })),
         total: posts.length,
-        query:params
-        
+        query: params,
+        samplePosts: posts.slice(0, 3), // Show first 3 posts for debugging
+        postsWithPhrases: posts.filter(post => {
+          const phrasesField = sentimentType === "positive" ? "llm_positive_points" : "llm_negative_points";
+          return post._source && post._source[phrasesField] && Array.isArray(post._source[phrasesField]) && post._source[phrasesField].length > 0;
+        }).length // Count posts that actually have phrases
+
       });
     } catch (error) {
       console.error("Error fetching word cloud data:", error);

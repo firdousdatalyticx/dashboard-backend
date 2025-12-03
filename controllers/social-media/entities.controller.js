@@ -4,6 +4,63 @@ const { format } = require('date-fns');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+/**
+ * Normalize source input to array of sources
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+  if (!source || source === 'All') {
+    return []; // No specific source filter
+  }
+  if (Array.isArray(source)) {
+    return source.filter(s => s && s.trim() !== '');
+  }
+  if (typeof source === 'string') {
+    return source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+  return [];
+}
+
+/**
+ * Find matching category key with flexible matching
+ * @param {string} selectedCategory - Category to find
+ * @param {Object} categoryData - Category data object
+ * @returns {string|null} Matched category key or null
+ */
+function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+}
+
 const entitiesController = {
     getEntities: async (req, res) => {
         try {
@@ -16,14 +73,15 @@ const entitiesController = {
                 toDate,
                 sentimentType,
                 source = 'All',
-                category = 'all',
+                category: inputCategory = 'all',
                 greaterThanTime: inputGreaterThanTime,
                 lessThanTime: inputLessThanTime,
                 unTopic = 'false',
                 limit = 10,
                 maxPostsPerEntity = 200, // Safety limit for max posts to fetch per entity
                 topicId,
-                categoryItems
+                categoryItems,
+                llm_mention_type
             } = params;
             
             // Check if this is the special topicId
@@ -42,6 +100,18 @@ const entitiesController = {
                 return res.json({ 
                     entitiesData: [] 
                 });
+            }
+
+            let category = inputCategory;
+            if (category !== 'all' && category !== '' && category !== 'custom') {
+                const matchedKey = findMatchingCategoryKey(category, categoryData);
+                if (!matchedKey) {
+                    return res.json({ 
+                        entitiesData: [],
+                        error: 'Category not found'
+                    });
+                }
+                category = matchedKey;
             }
 
             // Build base query string
@@ -132,7 +202,31 @@ const entitiesController = {
                     });
                 }
             }
-            
+
+            // LLM Mention Type filtering logic
+            let mentionTypesArray = [];
+
+            if (llm_mention_type) {
+              if (Array.isArray(llm_mention_type)) {
+                mentionTypesArray = llm_mention_type;
+              } else if (typeof llm_mention_type === "string") {
+                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+              }
+            }
+
+            // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+            if (mentionTypesArray.length > 0) {
+              query.bool.must.push({
+                bool: {
+                  should: mentionTypesArray.map(type => ({
+                    match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+                }
+              });
+            }
+          
+
             // For compatibility with posts controller
             // If query doesn't already contain a p_created_time filter, add it
             const hasCreatedTimeFilter = query.bool.must.some(clause => 
@@ -573,31 +667,22 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             bool: {
                 should: [
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.keywords || []).map(keyword => ({
-                            multi_match: {
-                                query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.keywords || []).flatMap(keyword => [
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        ])
                     ),
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.hashtags || []).map(hashtag => ({
-                            multi_match: {
-                                query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.hashtags || []).flatMap(hashtag => [
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        ])
                     ),
                     ...Object.values(categoryData).flatMap(data =>
-                        (data.urls || []).map(url => ({
-                            multi_match: {
-                                query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        (data.urls || []).flatMap(url => [
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        ])
                     )
                 ],
                 minimum_should_match: 1
@@ -616,27 +701,18 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             query.bool.must.push({
                 bool: {
                     should: [
-                        ...(data.keywords || []).map(keyword => ({
-                            multi_match: {
-                                query: keyword,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        })),
-                        ...(data.hashtags || []).map(hashtag => ({
-                            multi_match: {
-                                query: hashtag,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        })),
-                        ...(data.urls || []).map(url => ({
-                            multi_match: {
-                                query: url,
-                                fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                                type: 'phrase'
-                            }
-                        }))
+                        ...(data.keywords || []).flatMap(keyword => [
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        ]),
+                        ...(data.hashtags || []).flatMap(hashtag => [
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        ]),
+                        ...(data.urls || []).flatMap(url => [
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        ])
                     ],
                     minimum_should_match: 1
                 }

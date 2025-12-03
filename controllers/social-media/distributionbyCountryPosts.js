@@ -4,6 +4,24 @@ const { buildTopicQueryString } = require("../../utils/queryBuilder");
 const { processFilters } = require("./filter.utils");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+/**
+ * Normalize source input to array of sources
+ * @param {string|Array} source - Source input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Array of normalized sources
+ */
+function normalizeSourceInput(source) {
+  if (!source || source === 'All') {
+    return []; // No specific source filter
+  }
+  if (Array.isArray(source)) {
+    return source.filter(s => s && s.trim() !== '');
+  }
+  if (typeof source === 'string') {
+    return source.split(',').map(s => s.trim()).filter(s => s !== '');
+  }
+  return [];
+}
+
 //Benchmarking presence & sentiment - IGOs / NGOs / Countries
 const distributionbyCountryPostsController = {
     /**
@@ -30,7 +48,8 @@ const distributionbyCountryPostsController = {
           limit,
           rating,
           category="all",
-          source="All"
+          source="All",
+          llm_mention_type
         } = req.query;
         
         // Check if this is the special topicId
@@ -84,6 +103,15 @@ const distributionbyCountryPostsController = {
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
                         }, source, isSpecialTopic,parseInt(topicId));
+
+                        // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+                        if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+                            query.bool.must.push({
+                                term: {
+                                    is_public_opinion: true
+                                }
+                            });
+                        }
             
                         // Add category filters
                         addCategoryFilters(query, "all", categoryData);
@@ -128,8 +156,31 @@ const distributionbyCountryPostsController = {
                 }
             };
 
+            // LLM Mention Type filtering logic
+            let mentionTypesArray = [];
 
-        
+            if (llm_mention_type) {
+              if (Array.isArray(llm_mention_type)) {
+                mentionTypesArray = llm_mention_type;
+              } else if (typeof llm_mention_type === "string") {
+                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+              }
+            }
+
+            // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+            if (mentionTypesArray.length > 0) {
+              query.bool.must.push({
+                bool: {
+                  should: mentionTypesArray.map(type => ({
+                    match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+                }
+              });
+            }
+           
+
+
         // Execute the Elasticsearch query.
         const results = await elasticClient.search(params);
         const responseArray =[];
@@ -444,31 +495,22 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
           bool: {
               should: [
                   ...Object.values(categoryData).flatMap(data =>
-                      (data.keywords || []).map(keyword => ({
-                          multi_match: {
-                              query: keyword,
-                              fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                              type: 'phrase'
-                          }
-                      }))
+                      (data.keywords || []).flatMap(keyword => [
+                          { match_phrase: { p_message_text: keyword } },
+                          { match_phrase: { keywords: keyword } }
+                      ])
                   ),
                   ...Object.values(categoryData).flatMap(data =>
-                      (data.hashtags || []).map(hashtag => ({
-                          multi_match: {
-                              query: hashtag,
-                              fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                              type: 'phrase'
-                          }
-                      }))
+                      (data.hashtags || []).flatMap(hashtag => [
+                          { match_phrase: { p_message_text: hashtag } },
+                          { match_phrase: { hashtags: hashtag } }
+                      ])
                   ),
                   ...Object.values(categoryData).flatMap(data =>
-                      (data.urls || []).map(url => ({
-                          multi_match: {
-                              query: url,
-                              fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                              type: 'phrase'
-                          }
-                      }))
+                      (data.urls || []).flatMap(url => [
+                          { match_phrase: { u_source: url } },
+                          { match_phrase: { p_url: url } }
+                      ])
                   )
               ],
               minimum_should_match: 1
@@ -487,27 +529,18 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
           query.bool.must.push({
               bool: {
                   should: [
-                      ...(data.keywords || []).map(keyword => ({
-                          multi_match: {
-                              query: keyword,
-                              fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                              type: 'phrase'
-                          }
-                      })),
-                      ...(data.hashtags || []).map(hashtag => ({
-                          multi_match: {
-                              query: hashtag,
-                              fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                              type: 'phrase'
-                          }
-                      })),
-                      ...(data.urls || []).map(url => ({
-                          multi_match: {
-                              query: url,
-                              fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
-                              type: 'phrase'
-                          }
-                      }))
+                      ...(data.keywords || []).flatMap(keyword => [
+                          { match_phrase: { p_message_text: keyword } },
+                          { match_phrase: { keywords: keyword } }
+                      ]),
+                      ...(data.hashtags || []).flatMap(hashtag => [
+                          { match_phrase: { p_message_text: hashtag } },
+                          { match_phrase: { hashtags: hashtag } }
+                      ]),
+                      ...(data.urls || []).flatMap(url => [
+                          { match_phrase: { u_source: url } },
+                          { match_phrase: { p_url: url } }
+                      ])
                   ],
                   minimum_should_match: 1
               }

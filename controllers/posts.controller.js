@@ -955,3 +955,4 @@ function hasMultiMatchWithFields(query) {
 }
 
 module.exports = postsController;
+

@@ -6,6 +6,61 @@ const { processFilters } = require("./filter.utils");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 const prisma = require('../../config/database');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
+const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
+    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
+        return selectedCategory;
+    }
+
+    const normalizedSelectedRaw = String(selectedCategory || '');
+    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
+    const categoryKeys = Object.keys(categoryData || {});
+
+    if (categoryKeys.length === 0) {
+        return null;
+    }
+
+    let matchedKey = categoryKeys.find(
+        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    );
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(
+            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
+        );
+    }
+
+    if (!matchedKey) {
+        matchedKey = categoryKeys.find(key => {
+            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
+            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
+        });
+    }
+
+    return matchedKey || null;
+};
+
  createCountryWiseAggregations = (categoryData) => {
   // Group data by country
   const countryGroups = {};
@@ -149,6 +204,8 @@ const prisma = require('../../config/database');
   
   return elasticAggs;
 };
+
+
 const audienceController = {
   getAudience: async (req, res) => {
     try {
@@ -159,36 +216,46 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
-        categoryItems
+        categoryItems,
+        source = 'All',
+        category = 'all',
+        llm_mention_type
       } = req.body;
 
-      let categoryData = {};
+      // Determine which category data to use
+      let audienceCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        audienceCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        audienceCategoryData = req.processedCategories || {};
       }
 
       // Get available data sources from middleware
       const availableDataSources = req.processedDataSources || [];
 
-      if (Object.keys(categoryData).length === 0) {
+      if (Object.keys(audienceCategoryData).length === 0) {
         return res.json({
           data_array: [],
         });
       }
 
-      const topicQueryString = buildTopicQueryString(categoryData);
+      const topicQueryString = buildTopicQueryString(audienceCategoryData);
       let sourcesQuery = null;
       if (availableDataSources && availableDataSources.length > 0) {
         // Use available data sources if present
         const sourcesList = availableDataSources.map(source => `"${source}"`).join(' OR ');
         sourcesQuery = ` AND source:(${sourcesList})`;
       } else {
-        sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        // Default logic based on topic
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+        } else  if (parseInt(topicId) === 2641) {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
+        }else {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        }
       }
 
       // Process filters for time range
@@ -200,6 +267,9 @@ const audienceController = {
         queryString: topicQueryString,
       });
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+  
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
@@ -225,6 +295,7 @@ const audienceController = {
                     },
                   },
                 },
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
               ],
               must_not: [{ term: { "u_profile_photo.keyword": "" } }],
             },
@@ -259,6 +330,55 @@ const audienceController = {
         },
       };
 
+      if(category!="all"){
+    const categoryFilter = {
+      bool: {
+        should: [
+          {
+            multi_match: {
+              query: category,
+              fields: [
+                "p_message_text",
+                "p_message",
+                "hashtags",
+                "u_source",
+                "p_url",
+              ],
+              type: "phrase",
+            },
+          },
+        ],
+        minimum_should_match: 1,
+      },
+    };
+
+    params.body.query.bool.must.push(categoryFilter);
+  }
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+   
+      
       const results = await elasticClient.search(params);
 
       if (!results?.aggregations?.group_by_user?.buckets) {
@@ -306,23 +426,26 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
-        categoryItems
+        categoryItems,
+        source = 'All',
+        category = 'all',
+        llm_mention_type
       } = req.body;
 
-      let categoryData = {};
+      // Determine which category data to use
+      let breakdownCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        breakdownCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        breakdownCategoryData = req.processedCategories || {};
       }
 
       // Get available data sources from middleware
       const availableDataSources = req.processedDataSources || [];
 
-      if (Object.keys(categoryData).length === 0) {
+      if (Object.keys(breakdownCategoryData).length === 0) {
         return res.json({
           data_array: [],
           summary: {
@@ -341,14 +464,19 @@ const audienceController = {
         });
       }
 
-      const topicQueryString = buildTopicQueryString(categoryData);
+      const topicQueryString = buildTopicQueryString(breakdownCategoryData);
       let sourcesQuery = null;
       if (availableDataSources && availableDataSources.length > 0) {
         // Use available data sources if present
         const sourcesList = availableDataSources.map(source => `"${source}"`).join(' OR ');
         sourcesQuery = ` AND source:(${sourcesList})`;
       } else {
-        sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        // Default logic based on topic
+        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642 ) {
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+        } else {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        }
       }
 
       // Process filters for time range
@@ -359,6 +487,10 @@ const audienceController = {
         sentimentType,
         queryString: topicQueryString,
       });
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+   
 
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -417,6 +549,7 @@ const audienceController = {
                     },
                   },
                 },
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
               ],
               must_not: [
                 { term: { "p_comments_data.keyword": "" } },
@@ -427,6 +560,56 @@ const audienceController = {
         },
       };
 
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+    
+
+
+            if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null" &&
+        sentimentType != ""
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+           params.body.query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+           params.body.query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
       const results = await elasticClient.search(params);
       const seenIds = new Map();
       const uniqueCommenters = new Map();
@@ -442,6 +625,10 @@ const audienceController = {
             : post._source.p_comments_data;
 
         post._source.p_comments_data.forEach((comment) => {
+          const commentsSentments =comment?.llm_data?.predicted_sentiment_value?.toLowerCase();
+         if( sentimentType && sentimentType.trim() !== commentsSentments  ){
+              return;
+          }
           totalComments++;
           const id = comment.author.id;
           const commentDate = comment.createdAtString || comment.createdAt;
@@ -512,29 +699,32 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
-        categoryItems
+        categoryItems,
+        source = 'All',
+        category = 'all',
+        llm_mention_type
       } = req.body;
 
-      let categoryData = {};
+      // Determine which category data to use
+      let trendCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        trendCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        trendCategoryData = req.processedCategories || {};
       }
 
       // Get available data sources from middleware
       const availableDataSources = req.processedDataSources || [];
-      if (Object.keys(categoryData).length === 0) {
+      if (Object.keys(trendCategoryData).length === 0) {
         return res.json({
           dates: [],
           maxTrendData: "0,0",
         });
       }
 
-      const topicQueryString = buildTopicQueryString(categoryData);
+      const topicQueryString = buildTopicQueryString(trendCategoryData);
       let sourcesQuery = null;
       if (availableDataSources && availableDataSources.length > 0) {
         // Use available data sources if present
@@ -554,13 +744,17 @@ const audienceController = {
 
       // Gather all filter terms
       let allFilterTerms = [];
-      if (categoryData) {
-        Object.values(categoryData).forEach((data) => {
+      if (trendCategoryData) {
+        Object.values(trendCategoryData).forEach((data) => {
           if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
           if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
           if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
         });
       }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+   
 
       // Optimized query to only get the fields we need
       const params = {
@@ -617,6 +811,7 @@ const audienceController = {
                     },
                   },
                 },
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
               ],
               must_not: [
                 { term: { "p_comments_data.keyword": "" } },
@@ -627,6 +822,55 @@ const audienceController = {
         },
       };
 
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+    
+
+            if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null" &&
+        sentimentType != ""
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+           params.body.query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+           params.body.query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
       const results = await elasticClient.search(params);
       const posts = results.hits.hits.map((hit) => formatPostData(hit, allFilterTerms));
       const datewiseCommentCount = {};
@@ -712,17 +956,20 @@ const audienceController = {
         sentimentType,
         records = 20,
         topicId,
-        categoryItems
+        categoryItems,
+        source = 'All',
+        category = 'all',
+        llm_mention_type
       } = req.body;
 
-      let categoryData = {};
+      // Determine which category data to use
+      let seniorityCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        seniorityCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        seniorityCategoryData = req.processedCategories || {};
       }
 
       // Get available data sources from middleware
@@ -758,12 +1005,22 @@ const audienceController = {
         queryString: topicQueryString,
       });
 
+
+
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+   
+
+        
+
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
           from: 0,
           size: 0,
           query: {
+           
             bool: {
               must: [
                 {
@@ -782,7 +1039,9 @@ const audienceController = {
                     },
                   },
                 },
-              ],
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
+              ]
+              ,
               must_not: [
                 { term: { "p_comments_data.keyword": "" } },
                 { term: { "p_comments_data.keyword": "[]" } },
@@ -820,6 +1079,69 @@ const audienceController = {
         },
       };
 
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+      // CASE 2: If no LLM Mention Type given → apply must_not filter
+      else if(Number(topicId) == 2641) {
+        params.body.query.bool.must.push({
+          bool: {
+            must_not: [
+              { match: { llm_mention_type: "Promotion" }},
+              { match: { llm_mention_type: "Booking" }},
+              { match: { llm_mention_type: "Others" }}
+            ]
+          }
+        });
+      }
+
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null" &&
+        sentimentType != ""
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+           params.body.query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+           params.body.query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+      
+
+
       const results = await elasticClient.search(params);
 
       if (!results?.aggregations?.posts_with_comments?.buckets) {
@@ -852,7 +1174,6 @@ const audienceController = {
 
         const positionLower = positionText.toLowerCase();
         const summaryLower = String(summary || "").toLowerCase();
-        console.log(position, summary);
 
         const combinedText = `${positionLower} ${summaryLower}`;
 
@@ -1384,7 +1705,6 @@ const audienceController = {
         );
       });
 
-      // console.log(seniorityBreakdown);
 
       const summary = {
         seniority_breakdown: seniorityBreakdown,
@@ -1444,23 +1764,24 @@ const audienceController = {
         fromDate,
         toDate,
         sentimentType,
-        category = "all",
+        category: inputCategory = "all",
         source = "All",
         topicId,
-        categoryItems
+        categoryItems,
+        llm_mention_type
       } = req.body;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-      let categoryData = {};
+      // Determine which category data to use
+      let countryCategoryData = {};
 
       if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
-        categoryData = processCategoryItems(categoryItems);
-        category = 'custom';
+        countryCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
-        categoryData = req.processedCategories || {};
+        countryCategoryData = req.processedCategories || {};
       }
 
       // Get available data sources from middleware
@@ -1471,8 +1792,21 @@ const audienceController = {
         });
       }
 
+      // Handle category parameter - validate if provided
+      let category = inputCategory;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
+        if (!matchedKey) {
+          return res.json({
+            responseArray: [],
+            error: 'Category not found'
+          });
+        }
+        category = matchedKey;
+      }
+
       // Build base query for filters processing
-      const baseQueryString = buildBaseQueryString(category, categoryData);
+      const baseQueryString = buildBaseQueryString(category, countryCategoryData);
 
       // Process filters (time slot, date range, sentiment)
       const filters = processFilters({
@@ -1545,6 +1879,9 @@ const audienceController = {
 
       query.bool.must.push({ exists: { field: "u_country" } });
 
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+ 
+
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
@@ -1563,6 +1900,30 @@ const audienceController = {
           },
         },
       };
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+    
 
       return res.send(params)
       const results = await elasticClient.search(params);
@@ -1634,8 +1995,29 @@ const audienceController = {
         category = "all",
         source = "All",
         topicId,
-        categoryItems
+        categoryItems,
+        llm_mention_type
       } = req.body;
+
+      // Determine which category data to use
+      let undpCategoryData = {};
+
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        undpCategoryData = processCategoryItems(categoryItems);
+      } else {
+        // Fall back to middleware data
+        undpCategoryData = req.processedCategories || {};
+      }
+
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(category, undpCategoryData);
+        if (!matchedKey) {
+          return res.json([]);
+        }
+        selectedCategory = matchedKey;
+      }
 
    const filters = processFilters({
         sentimentType,
@@ -1665,28 +2047,39 @@ const audienceController = {
   // Create country-wise aggregations
   const countryAggs = createCountryWiseAggregations(categoryData);
   
+  // Source filtering logic
+  const normalizedSources = normalizeSourceInput(source);
+  let sourceFilter = {};
+
+  if (normalizedSources.length > 0) {
+    // Specific sources provided
+    sourceFilter = {
+      bool: {
+        should: normalizedSources.map(src => ({
+          match_phrase: { source: src }
+        })),
+        minimum_should_match: 1
+      }
+    };
+  } else {
+    // Default to Facebook and Twitter
+    sourceFilter = {
+      bool: {
+        should: [
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } }
+        ],
+        minimum_should_match: 1
+      }
+    };
+  }
+
   // Your Elasticsearch query
   const elasticQuery = {
     "query":{
     "bool": {
         "must": [
-            {
-                "bool": {
-                    "should": [
-                        {
-                            "match_phrase": {
-                                "source": "Facebook"
-                            }
-                        },
-                        {
-                            "match_phrase": {
-                                "source": "Twitter"
-                            }
-                        }
-                    ],
-                    "minimum_should_match": 1
-                }
-            },
+            sourceFilter,
                {
                     "range": {
                         "p_created_time": {
@@ -1720,7 +2113,7 @@ const audienceController = {
               minimum_should_match: 1,
             },
           };
-          elasticQuery,query.bool.must.push(sentimentFilter);
+          elasticQuery.query.bool.must.push(sentimentFilter);
         } else {
           // Handle single sentiment type
           elasticQuery.query.bool.must.push({
@@ -1729,6 +2122,33 @@ const audienceController = {
         }
       }
 
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        elasticQuery.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map(type => ({
+              match: { llm_mention_type: type }
+            })),
+            minimum_should_match: 1
+          }
+        });
+      }
+    
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+   
 
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1977,6 +2397,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
   return queryString;
 }
 
+
 /**
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
@@ -2065,55 +2486,22 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
       bool: {
         should: [
           ...Object.values(categoryData).flatMap((data) =>
-            (data.keywords || []).map((keyword) => ({
-              multi_match: {
-                query: keyword,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            }))
+            (data.keywords || []).flatMap((keyword) => [
+              { match_phrase: { p_message_text: keyword } },
+              { match_phrase: { keywords: keyword } }
+            ])
           ),
           ...Object.values(categoryData).flatMap((data) =>
-            (data.hashtags || []).map((hashtag) => ({
-              multi_match: {
-                query: hashtag,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            }))
+            (data.hashtags || []).flatMap((hashtag) => [
+              { match_phrase: { p_message_text: hashtag } },
+              { match_phrase: { hashtags: hashtag } }
+            ])
           ),
           ...Object.values(categoryData).flatMap((data) =>
-            (data.urls || []).map((url) => ({
-              multi_match: {
-                query: url,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            }))
+            (data.urls || []).flatMap((url) => [
+              { match_phrase: { u_source: url } },
+              { match_phrase: { p_url: url } }
+            ])
           ),
         ],
         minimum_should_match: 1,
@@ -2134,51 +2522,18 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
       query.bool.must.push({
         bool: {
           should: [
-            ...(data.keywords || []).map((keyword) => ({
-              multi_match: {
-                query: keyword,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            })),
-            ...(data.hashtags || []).map((hashtag) => ({
-              multi_match: {
-                query: hashtag,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            })),
-            ...(data.urls || []).map((url) => ({
-              multi_match: {
-                query: url,
-                fields: [
-                  "p_message_text",
-                  "p_message",
-                  "keywords",
-                  "title",
-                  "hashtags",
-                  "u_source",
-                  "p_url",
-                ],
-                type: "phrase",
-              },
-            })),
+            ...(data.keywords || []).flatMap((keyword) => [
+              { match_phrase: { p_message_text: keyword } },
+              { match_phrase: { keywords: keyword } }
+            ]),
+            ...(data.hashtags || []).flatMap((hashtag) => [
+              { match_phrase: { p_message_text: hashtag } },
+              { match_phrase: { hashtags: hashtag } }
+            ]),
+            ...(data.urls || []).flatMap((url) => [
+              { match_phrase: { u_source: url } },
+              { match_phrase: { p_url: url } }
+            ]),
           ],
           minimum_should_match: 1,
         },
@@ -2197,3 +2552,4 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
 }
 
 module.exports = audienceController;
+

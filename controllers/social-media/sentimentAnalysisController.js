@@ -563,6 +563,7 @@ const sentimentAnalysisController = {
             terms: {
               field: "llm_subtopic.keyword",
               size: 20,
+              exclude: "null",
             },
           },
         },
@@ -702,6 +703,7 @@ const sentimentAnalysisController = {
             terms: {
               field: "llm_subtopic.keyword",
               size: 20,
+              exclude: "null",
             },
             aggs: {
               sentiments: {
@@ -1117,6 +1119,7 @@ const sentimentAnalysisController = {
             terms: {
               field: "llm_subtopic.keyword",
               size: 20,
+              exclude: "null",
             },
             aggs: {
               emotions: {

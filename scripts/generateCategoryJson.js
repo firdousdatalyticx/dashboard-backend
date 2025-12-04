@@ -170,51 +170,104 @@ async function generateCategoryJson(topicId) {
                 continue;
             }
 
+            // Build source filter based on topicId (same logic as socials-distributions.controller.js)
+            let sourceFilter;
+            const topicIdNum = parseInt(topicId);
+
+            if (topicIdNum === 2619 || topicIdNum === 2639 || topicIdNum === 2640) {
+                sourceFilter = {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "LinkedIn" } },
+                            { match_phrase: { source: "Linkedin" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
+            } else if (topicIdNum === 2643 || topicIdNum === 2644) {
+                sourceFilter = {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "Facebook" } },
+                            { match_phrase: { source: "Twitter" } },
+                            { match_phrase: { source: "Instagram" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
+            } else if (topicIdNum === 2634) {
+                sourceFilter = {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "Facebook" } },
+                            { match_phrase: { source: "Twitter" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
+            } else {
+                // Default sources (same as before)
+                sourceFilter = {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: "Facebook" } },
+                            { match_phrase: { source: "Twitter" } },
+                            { match_phrase: { source: "Instagram" } },
+                            { match_phrase: { source: "Youtube" } },
+                            { match_phrase: { source: "LinkedIn" } },
+                            { match_phrase: { source: "Linkedin" } },
+                            { match_phrase: { source: "Pinterest" } },
+                            { match_phrase: { source: "Web" } },
+                            { match_phrase: { source: "Reddit" } },
+                            { match_phrase: { source: "TikTok" } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                };
+            }
+
+            // Build category filter using the same logic as addCategoryFilters()
+            const categoryFilters = [];
+
+            // Add keywords matching
+            if (categoryInfo.keywords && categoryInfo.keywords.length > 0) {
+                categoryInfo.keywords.forEach(keyword => {
+                    categoryFilters.push(
+                        { match_phrase: { p_message_text: keyword } },
+                        { match_phrase: { keywords: keyword } }
+                    );
+                });
+            }
+
+            // Add hashtags matching
+            if (categoryInfo.hashtags && categoryInfo.hashtags.length > 0) {
+                categoryInfo.hashtags.forEach(hashtag => {
+                    categoryFilters.push(
+                        { match_phrase: { p_message_text: hashtag } },
+                        { match_phrase: { hashtags: hashtag } }
+                    );
+                });
+            }
+
+            // Add URLs matching
+            if (categoryInfo.urls && categoryInfo.urls.length > 0) {
+                categoryInfo.urls.forEach(url => {
+                    categoryFilters.push(
+                        { match_phrase: { u_source: url } },
+                        { match_phrase: { p_url: url } }
+                    );
+                });
+            }
+
             const query = {
                 query: {
                     bool: {
                         must: [
+                            sourceFilter,
                             {
                                 bool: {
-                                    should: [
-                                        { match_phrase: { source: "Facebook" } },
-                                        { match_phrase: { source: "Twitter" } },
-                                        { match_phrase: { source: "Instagram" } },
-                                        { match_phrase: { source: "Youtube" } },
-                                        { match_phrase: { source: "LinkedIn" } },
-                                        { match_phrase: { source: "Pinterest" } },
-                                        { match_phrase: { source: "Web" } },
-                                        { match_phrase: { source: "Reddit" } }
-                                    ],
+                                    should: categoryFilters,
                                     minimum_should_match: 1
-                                }
-                            },
-                            {
-                                bool: {
-                                    should: allSearchTerms.map(term => ({
-                                        multi_match: {
-                                            query: term,
-                                            fields: [
-                                                "p_message_text",
-                                                "p_message",
-                                                "keywords",
-                                                "title",
-                                                "hashtags",
-                                                "u_source",
-                                                "p_url"
-                                            ],
-                                            type: "phrase"
-                                        }
-                                    })),
-                                    minimum_should_match: 1
-                                }
-                            },
-                            {
-                                range: {
-                                    p_created_time: {
-                                        gte: "2020-01-01T00:00:00.000Z",
-                                        lte: "2025-01-01T23:59:59.999Z"
-                                    }
                                 }
                             }
                         ]
@@ -240,10 +293,49 @@ async function generateCategoryJson(topicId) {
                 const fileName = `${categoryName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
                 const filePath = path.join(outputDir, fileName);
 
+                // Calculate field counts
+                let predictedSentimentCount = 0;
+                let llmEmotionCount = 0;
+                let llmSubtopicCount = 0;
+                let validTimestampCount = 0;
+
+                posts.forEach(post => {
+                    // Count predicted_sentiment_value (non-null, non-empty)
+                    if (post.predicted_sentiment_value && post.predicted_sentiment_value.trim() !== '') {
+                        predictedSentimentCount++;
+                    }
+
+                    // Count llm_emotion (non-null, non-empty)
+                    if (post.llm_emotion && post.llm_emotion.trim() !== '') {
+                        llmEmotionCount++;
+                    }
+
+                    // Count llm_subtopic (non-null, non-empty)
+                    if (post.llm_subtopic && post.llm_subtopic.trim() !== '') {
+                        llmSubtopicCount++;
+                    }
+
+                    // Count posts with valid ISO timestamp format (e.g., "2024-09-13T15:00:01+00:00")
+                    if (post.p_created_time) {
+                        const timestamp = post.p_created_time;
+                        // Check if it's a valid ISO timestamp format
+                        const isoRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?(\+|\-)\d{2}:\d{2}$/;
+                        if (isoRegex.test(timestamp)) {
+                            validTimestampCount++;
+                        }
+                    }
+                });
+
                 // Create the JSON structure
                 const categoryJsonData = {
                     categoryName: categoryName,
                     totalSize: posts.length,
+                    fieldCounts: {
+                        predictedSentimentValue: predictedSentimentCount,
+                        llmEmotion: llmEmotionCount,
+                        llmSubtopic: llmSubtopicCount,
+                        validIsoTimestamps: validTimestampCount
+                    },
                     searchTermsUsed: allSearchTerms,
                     originalData: {
                         urls: categoryInfo.urls,
@@ -303,4 +395,5 @@ async function main() {
 }
 
 // Run the script
+main();
 main();

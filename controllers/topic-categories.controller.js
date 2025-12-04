@@ -359,11 +359,18 @@ const topicCategoriesController = {
        
 
 
-            // Determine social media sources based on special topic
-            const socialSources = numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 ? ["LinkedIn", "Linkedin"] :
-                numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644 ? ["Facebook", "facebook", "Twitter", "twitter", "Instagram", "instagram"] :
-                isSpecialTopic ? ["Facebook", "Twitter"] :
-                [
+            // Determine social media sources based on topicId (same as socials-distributions.controller.js)
+            let socialSources = [];
+            if (numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640) {
+                socialSources = ["LinkedIn", "Linkedin"];
+            } else if (numericTopicId === 2643 || numericTopicId === 2644) {
+                socialSources = ["Facebook", "Twitter", "Instagram"];
+            } else if (numericTopicId === 2634) {
+                socialSources = ["Facebook", "Twitter"];
+            } else if (isSpecialTopic) {
+                socialSources = ["Facebook", "Twitter"];
+            } else {
+                socialSources = [
                     "Facebook",
                     "Twitter",
                     "Instagram",
@@ -372,9 +379,10 @@ const topicCategoriesController = {
                     "Reddit",
                     "LinkedIn",
                     "Linkedin",
-                    "TikTok",
                     "Web",
+                    "TikTok"
                 ];
+            }
 
 
             const must = []
@@ -392,11 +400,54 @@ const topicCategoriesController = {
 
 
           
+            // Build category filters using the same logic as addCategoryFilters()
+            const categoryFilters = [];
+
+            // Process each category to build individual filters
+            Object.values(categoryData).forEach(data => {
+                // Add keywords matching
+                if (data.keywords && data.keywords.length > 0) {
+                    data.keywords.forEach(keyword => {
+                        categoryFilters.push(
+                            { match_phrase: { p_message_text: keyword } },
+                            { match_phrase: { keywords: keyword } }
+                        );
+                    });
+                }
+
+                // Add hashtags matching
+                if (data.hashtags && data.hashtags.length > 0) {
+                    data.hashtags.forEach(hashtag => {
+                        categoryFilters.push(
+                            { match_phrase: { p_message_text: hashtag } },
+                            { match_phrase: { hashtags: hashtag } }
+                        );
+                    });
+                }
+
+                // Add URLs matching
+                if (data.urls && data.urls.length > 0) {
+                    data.urls.forEach(url => {
+                        categoryFilters.push(
+                            { match_phrase: { u_source: url } },
+                            { match_phrase: { p_url: url } }
+                        );
+                    });
+                }
+            });
+
             // Query builder for social media data
             const buildSocialMediaQuery = () => {
                 const query = {
                     bool: {
-                        must: must,
+                        must: [
+                            {
+                                bool: {
+                                    should: categoryFilters,
+                                    minimum_should_match: 1
+                                }
+                            }
+                        ],
                         filter: [
                             {
                                 terms: {
@@ -414,43 +465,9 @@ const topicCategoriesController = {
                                     ],
                                 },
                             },
-                        ],
-                        should: [
-                            // Match all text fields with keywords/hashtags
-                            {
-                                bool: {
-                                    should: socialMediaTerms.map((term) => ({
-                                        multi_match: {
-                                            query: term,
-                                            fields: [
-                                                "p_message_text",
-                                                "p_message",
-                                                "keywords",
-                                                "title",
-                                                "hashtags",
-                                                "u_source",
-                                            ],
-                                            type: "phrase",
-                                        },
-                                    })),
-                                    minimum_should_match: 1,
-                                },
-                            },
-                            // Match URLs in p_url
-                            {
-                                bool: {
-                                    should: socialMediaTerms.map((term) => ({
-                                        term: { p_url: term },
-                                    })),
-                                    minimum_should_match: 1,
-                                },
-                            },
-                        ],
-                        minimum_should_match: 1, // Ensures at least one condition is met
+                        ]
                     },
                 };
-
-          
 
                 return query;
             };

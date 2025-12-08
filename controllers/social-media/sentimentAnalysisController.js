@@ -1323,8 +1323,10 @@ function buildAnalysisQuery(params) {
     excludeTopic2641Logic = false // New parameter to exclude topicId 2641 logic for getTrendOverTime
   } = params;
 
+  const topicIdNum = parseInt(topicId, 10);
+
   // Build base query with time range (conditionally for topicId 2641, but not for getTrendOverTime)
-  const noDateProvided = !excludeTopic2641Logic && parseInt(topicId) === 2641 ?
+  const noDateProvided = !excludeTopic2641Logic && topicIdNum === 2641 ?
     ((fromDate === null || fromDate === undefined || fromDate === '') &&
      (toDate === null || toDate === undefined || toDate === '')) :
     ((timeSlot === null || timeSlot === undefined || timeSlot === '') &&
@@ -1374,7 +1376,19 @@ function buildAnalysisQuery(params) {
         minimum_should_match: 1
       }
     });
-  }else if(topicId && topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ){        
+  } else if (topicIdNum === 2646) {
+    // Topic 2646: limit to LinkedIn and Twitter sources
+    query.bool.must.push({
+      bool: {
+        should: [
+          { match_phrase: { source: "LinkedIn" } },
+          { match_phrase: { source: "Linkedin" } },
+          { match_phrase: { source: "Twitter" } }
+        ],
+        minimum_should_match: 1
+      }
+    });
+  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644) {        
         query.bool.must.push({
             bool: {
                 should: [
@@ -1405,7 +1419,7 @@ function buildAnalysisQuery(params) {
   }
 
   // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-  if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+  if (topicIdNum === 2643 || topicIdNum === 2644 ) {
     query.bool.must.push({
       term: { is_public_opinion: true }
     });

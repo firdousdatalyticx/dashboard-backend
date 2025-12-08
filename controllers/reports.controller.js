@@ -204,6 +204,8 @@ const reportsController = {
 
                  if(parseInt(req.body.topicId)==2619 || parseInt(req.body.topicId)==2639 || parseInt(req.body.topicId)==2640 || parseInt(req.body.topicId)==2642){
             topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin)`;
+        }else if(parseInt(req.body.topicId)==2619){
+                      topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin OR Twitter)`;
         }
 
       // Build Elasticsearch query

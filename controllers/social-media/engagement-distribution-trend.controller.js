@@ -692,12 +692,50 @@ const engagementDistributionTrendController = {
       categoryData = req.processedCategories || {};
     }
 
-    if (Object.keys(categoryData).length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "No category data available",
-      });
-    }
+    req.processedCategories={
+  "danatjebeldhannaresort": {
+    "urls": [
+      "https://www.facebook.com/InterContiAD",
+      "https://www.instagram.com/ncth.uae",
+      "https://www.instagram.com/danatjebeldhannaresort",
+      "https://www.instagram.com/intercontinentalresidencesad",
+      "https://www.instagram.com/dhafrabeachotel",
+      "https://www.instagram.com/interconad",
+      "https://x.com/ncth_uae",
+      "https://x.com/InterContiAD",
+      "https://x.com/DanatResort",
+      "https://x.com/DhafraBeachH"
+    ],
+    "keywords": [
+      "@ncth_uae",
+      "@InterContiAD",
+      "InterContinental Abu Dhabi Residence Hote",
+      "@DanatResort",
+      "NCTH UAE",
+      "intercontinental abu dhabi",
+      "Danat Al Ain Resort",
+      "Danat Jebel Dhanna Resort",
+      "Dhafra Beach Hotel",
+      "ncth.uae",
+      "interconad",
+      "dhafrabeachotel",
+      "danatjebeldhannaresort",
+      "intercontinentalresidencesad"
+    ],
+    "hashtags": [
+      "#danatjebeldhannaresort"
+    ]
+  }
+}
+
+
+    // return res.send(req.processedCategories)
+    // if (Object.keys(categoryData).length === 0) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     error: "No category data available",
+    //   });
+    // }
 
     if (category !== "all" && category !== "" && category !== "custom") {
       const matchedKey = findMatchingCategoryKey(category, categoryData);
@@ -845,13 +883,135 @@ const engagementDistributionTrendController = {
 //       ]
 //     }
 // }}
+//  return res.status(200).json(query);
+const query2 ={
+  "bool": {
+    "must": [
+  
+        {
+                "bool": {
+                    "should": [
+                        {
+                            "match_phrase": {
+                                "source": "Facebook"
+                            }
+                        },
+                        {
+                            "match_phrase": {
+                                "source": "Twitter"
+                            }
+                        },
+                        {
+                            "match_phrase": {
+                                "source": "Instagram"
+                            }
+                        }
+                    ],
+                    "minimum_should_match": 1
+                }
+            },
+      {
+        "bool": {
+          "should": [
+            { "match_phrase": { "p_message_text": "@ncth_uae" }},
+            { "match_phrase": { "keywords": "@ncth_uae" }},
+            
+            { "match_phrase": { "p_message_text": "@InterContiAD" }},
+            { "match_phrase": { "keywords": "@InterContiAD" }},
+
+            { "match_phrase": { "p_message_text": "InterContinental Abu Dhabi Residence Hote" }},
+            { "match_phrase": { "keywords": "InterContinental Abu Dhabi Residence Hote" }},
+
+            { "match_phrase": { "p_message_text": "@DanatResort" }},
+            { "match_phrase": { "keywords": "@DanatResort" }},
+
+            { "match_phrase": { "p_message_text": "NCTH UAE" }},
+            { "match_phrase": { "keywords": "NCTH UAE" }},
+
+            { "match_phrase": { "p_message_text": "intercontinental abu dhabi" }},
+            { "match_phrase": { "keywords": "intercontinental abu dhabi" }},
+
+            { "match_phrase": { "p_message_text": "Danat Al Ain Resort" }},
+            { "match_phrase": { "keywords": "Danat Al Ain Resort" }},
+
+            { "match_phrase": { "p_message_text": "Danat Jebel Dhanna Resort" }},
+            { "match_phrase": { "keywords": "Danat Jebel Dhanna Resort" }},
+
+            { "match_phrase": { "p_message_text": "Dhafra Beach Hotel" }},
+            { "match_phrase": { "keywords": "Dhafra Beach Hotel" }},
+
+            { "match_phrase": { "p_message_text": "ncth.uae" }},
+            { "match_phrase": { "keywords": "ncth.uae" }},
+
+            { "match_phrase": { "p_message_text": "interconad" }},
+            { "match_phrase": { "keywords": "interconad" }},
+
+            { "match_phrase": { "p_message_text": "dhafrabeachotel" }},
+            { "match_phrase": { "keywords": "dhafrabeachotel" }},
+
+            { "match_phrase": { "p_message_text": "danatjebeldhannaresort" }},
+            { "match_phrase": { "keywords": "danatjebeldhannaresort" }},
+            
+            { "match_phrase": { "p_message_text": "intercontinentalresidencesad" }},
+            { "match_phrase": { "keywords": "intercontinentalresidencesad" }},
+
+            { "match_phrase": { "p_message_text": "#danatjebeldhannaresort" }},
+            { "match_phrase": { "hashtags": "#danatjebeldhannaresort" }},
+
+            { "match_phrase": { "u_source": "https://www.facebook.com/InterContiAD" }},
+            { "match_phrase": { "p_url": "https://www.facebook.com/InterContiAD" }},
+
+            { "match_phrase": { "u_source": "https://www.instagram.com/ncth.uae" }},
+            { "match_phrase": { "p_url": "https://www.instagram.com/ncth.uae" }},
+
+            { "match_phrase": { "u_source": "https://www.instagram.com/danatjebeldhannaresort" }},
+            { "match_phrase": { "p_url": "https://www.instagram.com/danatjebeldhannaresort" }},
+
+            { "match_phrase": { "u_source": "https://www.instagram.com/intercontinentalresidencesad" }},
+            { "match_phrase": { "p_url": "https://www.instagram.com/intercontinentalresidencesad" }},
+
+            { "match_phrase": { "u_source": "https://www.instagram.com/dhafrabeachotel" }},
+            { "match_phrase": { "p_url": "https://www.instagram.com/dhafrabeachotel" }},
+
+            { "match_phrase": { "u_source": "https://www.instagram.com/interconad" }},
+            { "match_phrase": { "p_url": "https://www.instagram.com/interconad" }},
+
+            { "match_phrase": { "u_source": "https://x.com/ncth_uae" }},
+            { "match_phrase": { "p_url": "https://x.com/ncth_uae" }},
+
+            { "match_phrase": { "u_source": "https://x.com/InterContiAD" }},
+            { "match_phrase": { "p_url": "https://x.com/InterContiAD" }},
+
+            { "match_phrase": { "u_source": "https://x.com/DanatResort" }},
+            { "match_phrase": { "p_url": "https://x.com/DanatResort" }},
+
+            { "match_phrase": { "u_source": "https://x.com/DhafraBeachH" }},
+            { "match_phrase": { "p_url": "https://x.com/DhafraBeachH" }}
+          ],
+          "minimum_should_match": 1
+        }
+      }
+    ],
+    "must_not": [
+      {
+        "term": {
+          "source": "DM"
+        }
+      }
+    ]
+  }
+}
+
+
+
 
    
-  // return res.status(200).json(query);
+// console.log("firdous")
+  return res.status(200).json({query:query2});
 
 
     // Fetch all data using scroll API
-    const allResults = await fetchAllDataWithScroll(elasticClient, query, exportFields);
+    const allResults = await fetchAllDataWithScroll(elasticClient, query2, exportFields);
 
     if (allResults.length === 0) {
       return res.status(404).json({
@@ -1278,7 +1438,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
         minimum_should_match: 1,
       },
     });
-  } else if (topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+  } else if (topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2645 ) {
     query.bool.must.push({
       bool: {
         should: [

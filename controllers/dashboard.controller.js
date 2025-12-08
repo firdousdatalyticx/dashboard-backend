@@ -279,12 +279,14 @@ const dashboardController = {
 
             // Add enabled status to each graph and group by category
             const graphsWithStatus = graphs.map(graph => {
-                // Check if this graph is enabled for the topic
-                const isEnabled = enabledGraphs.some(eg => eg.graph_id === graph.id);
+                // Find the enabled graph record for this graph
+                const enabledGraph = enabledGraphs.find(eg => eg.graph_id === graph.id);
+                const isEnabled = !!enabledGraph;
 
                 return {
                     ...graph,
                     isEnabled,
+                    customTitle: enabledGraph?.custom_title || null,
                     messagePrompt: graph.graph_message_prompt // Map database field to frontend-friendly name
                 };
             });

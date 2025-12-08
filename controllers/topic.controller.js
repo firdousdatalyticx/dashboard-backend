@@ -99,7 +99,7 @@ const topicController = {
                 dashboard_start_date,
                 dashboard_end_date,
                 // Graph enablement
-                enabledGraphs, // Array of graph IDs
+                enabledGraphs, // Array of { graphId: number, customTitle?: string }
                 // Premium status
                 topic_is_premium,
                 // Archive configuration fields
@@ -187,7 +187,7 @@ const topicController = {
             // Handle enabled graphs update if provided
             if (enabledGraphs !== undefined) {
                 let parsedEnabledGraphs = enabledGraphs;
-                
+
                 // If enabledGraphs is a string, try to parse it as JSON
                 if (typeof enabledGraphs === 'string') {
                     try {
@@ -206,21 +206,37 @@ const topicController = {
 
                     // Add new enabled graphs if any
                     if (parsedEnabledGraphs.length > 0) {
-                        
+
+                        // Extract graph IDs for validation
+                        const graphIds = parsedEnabledGraphs.map(item => item.graphId);
+
                         // Validate that all provided graph IDs exist and are active
                         const validGraphs = await prisma.available_graphs.findMany({
                             where: {
-                                id: { in: parsedEnabledGraphs },
+                                id: { in: graphIds },
                                 is_active: true
                             }
                         });
+
+                        // Validate object structure
+                        for (const item of parsedEnabledGraphs) {
+                            if (!item.graphId || typeof item.graphId !== 'number') {
+                                console.error('Invalid graphId in enabledGraphs:', item);
+                                continue;
+                            }
+                            if (item.customTitle !== undefined && typeof item.customTitle !== 'string') {
+                                console.error('Invalid customTitle in enabledGraphs:', item);
+                                continue;
+                            }
+                        }
 
                         if (validGraphs.length > 0) {
                             const graphsToCreate = validGraphs.map((graph, index) => ({
                                 topic_id: parseInt(id),
                                 graph_id: graph.id,
                                 is_enabled: true,
-                                position_order: index
+                                position_order: index,
+                                custom_title: parsedEnabledGraphs.find(item => item.graphId === graph.id)?.customTitle || null
                             }));
 
                             await prisma.topic_enabled_graphs.createMany({
@@ -452,7 +468,7 @@ const topicController = {
                 dashboard_start_date,
                 dashboard_end_date,
                 // Graph enablement
-                enabledGraphs, // Array of graph IDs
+                enabledGraphs, // Array of { graphId: number, customTitle?: string }
                 // Premium status
                 topic_is_premium,
                 // Archive configuration fields
@@ -641,7 +657,7 @@ const topicController = {
             // Enable selected graphs for this topic
             if (enabledGraphs) {
                 let parsedEnabledGraphs = enabledGraphs;
-                
+
                 // If enabledGraphs is a string, try to parse it as JSON
                 if (typeof enabledGraphs === 'string') {
                     try {
@@ -653,21 +669,37 @@ const topicController = {
                 }
 
                 if (Array.isArray(parsedEnabledGraphs) && parsedEnabledGraphs.length > 0) {
-                    
+
+                    // Extract graph IDs for validation
+                    const graphIds = parsedEnabledGraphs.map(item => item.graphId);
+
                     // Validate that all provided graph IDs exist and are active
                     const validGraphs = await prisma.available_graphs.findMany({
                         where: {
-                            id: { in: parsedEnabledGraphs },
+                            id: { in: graphIds },
                             is_active: true
                         }
                     });
+
+                    // Validate object structure
+                    for (const item of parsedEnabledGraphs) {
+                        if (!item.graphId || typeof item.graphId !== 'number') {
+                            console.error('Invalid graphId in enabledGraphs:', item);
+                            continue;
+                        }
+                        if (item.customTitle !== undefined && typeof item.customTitle !== 'string') {
+                            console.error('Invalid customTitle in enabledGraphs:', item);
+                            continue;
+                        }
+                    }
 
                     if (validGraphs.length > 0) {
                         const graphsToCreate = validGraphs.map((graph, index) => ({
                             topic_id: newTopic.topic_id,
                             graph_id: graph.id,
                             is_enabled: true,
-                            position_order: index
+                            position_order: index,
+                            custom_title: parsedEnabledGraphs.find(item => item.graphId === graph.id)?.customTitle || null
                         }));
 
                         await prisma.topic_enabled_graphs.createMany({

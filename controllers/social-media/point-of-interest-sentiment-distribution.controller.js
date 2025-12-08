@@ -151,6 +151,12 @@ const poiSentimentDistributionController = {
             { match_phrase: { source: "Linkedin" } },
             ];
 
+         } else if(parseInt(topicId) === 2646 ){
+             sourceFilter = [
+             { match_phrase: { source: 'LinkedIn' } },
+            { match_phrase: { source: "Linkedin" } },
+            { match_phrase: { source: 'Twitter' } }
+            ];
         } else if (isSpecialTopic){
              sourceFilter = [
                 { match_phrase: { source: 'Facebook' } },

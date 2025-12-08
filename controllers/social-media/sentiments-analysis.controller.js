@@ -541,6 +541,7 @@ const sentimentsController = {
                 sentiments,
                 totalCount,
                 timeIntervals: timeIntervalsWithPosts,
+                
             });
 
         } catch (error) {
@@ -1644,6 +1645,17 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
                   should: [
                     { match_phrase: { source: "LinkedIn" } },
                           { match_phrase: { source: "Linkedin" } },
+                  ],
+                  minimum_should_match: 1
+              }
+          });
+    } else  if(topicIdNum===2646 ){
+       query.bool.must.push({
+              bool: {
+                  should: [
+                    { match_phrase: { source: "LinkedIn" } },
+                          { match_phrase: { source: "Linkedin" } },
+                          { match_phrase: { source: "Twitter" } }
                   ],
                   minimum_should_match: 1
               }

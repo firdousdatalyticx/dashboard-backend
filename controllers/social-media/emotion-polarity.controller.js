@@ -637,7 +637,19 @@ const emotionPolarityController = {
                         minimum_should_match: 1
                     }
                 }
-                : parseInt(topicId)==2619 ||  parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ? {
+                : parseInt(topicId)==2646 ?
+                {
+                    bool: {
+                        should: [
+                            { match_phrase: { source: 'LinkedIn' } },
+                             { match_phrase: { source: 'Linkedin' } },
+                              { match_phrase: { source: 'Twitter' } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                }
+                
+                :parseInt(topicId)==2619 ||  parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ? {
                     bool: {
                         should: [
                             { match_phrase: { source: 'LinkedIn' } },

@@ -958,6 +958,18 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
       },
     });
   }
+    if (topicId === 2646) {
+    query.bool.must.push({
+      bool: {
+        should: [
+          { match_phrase: { source: "Twitter" } },
+          { match_phrase: { source: "LinkedIn" } },
+          { match_phrase: { source: "Linkedin" } },
+        ],
+        minimum_should_match: 1,
+      },
+    });
+  }
   else if (normalizedSources.length > 0) {
     query.bool.must.push({
       bool: {

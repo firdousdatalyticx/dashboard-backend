@@ -132,7 +132,10 @@ else {
           qsParts.push(` source:("LinkedIn" OR "Linkedin")`);
         } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 ) {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);
-        }else {
+        } else  if (topicId=== 2646) {
+          qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin")`);
+        }
+        else {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`);
         }
       }

@@ -513,7 +513,9 @@ const audienceController = {
         // Default logic based on topic
         if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642 ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
-        } else {
+        } else if (parseInt(topicId) === 2646) {
+          sourcesQuery = ` AND source:("Twitter" OR "LinkedIn" OR "Linkedin")`;
+        }else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }
       }
@@ -1049,7 +1051,7 @@ const audienceController = {
       // Handle category parameter - validate if provided
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
+        const matchedKey = findMatchingCategoryKey(category, seniorityCategoryData);
         if (!matchedKey) {
           return res.json({
             data_array: [],

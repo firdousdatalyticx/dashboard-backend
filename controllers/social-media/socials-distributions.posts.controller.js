@@ -255,7 +255,11 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicId) {
     });
   } else if (topicId===2619 || topicId===2639 || topicId===2640) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
-  } else if (topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
+  } 
+ else if (topicId===2646) {
+    query.bool.must.push({ bool: { should: [  { match_phrase: { source: "Twitter" } },{ match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
+  } 
+  else if (topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
     query.bool.must.push({
       bool: {
         should: [

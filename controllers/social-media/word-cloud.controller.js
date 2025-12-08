@@ -28,7 +28,8 @@ const buildWordCloudParams = (options) => {
 
   const [sortField, sortOrder] = sort.split(":");
 
-  const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin" OR "linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook" OR "twitter" OR "facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ? '"Twitter" OR "Facebook" OR "Instagram" OR "twitter" OR "facebook" OR "instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok" OR "twitter" OR "facebook" OR "instagram" OR "youtube" OR "pinterest" OR "reddit" OR "linkedin" OR "web" OR "tiktok"'
+  const sourceData =   source != "All" ? source : topicId && parseInt(topicId)===2646?'"LinkedIn" OR "Linkedin" OR "linkedin" OR "Twitter"':
+   topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 )?'"LinkedIn" OR "Linkedin" OR "linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook" OR "twitter" OR "facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ? '"Twitter" OR "Facebook" OR "Instagram" OR "twitter" OR "facebook" OR "instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok" OR "twitter" OR "facebook" OR "instagram" OR "youtube" OR "pinterest" OR "reddit" OR "linkedin" OR "web" OR "tiktok"'
 
   // Base query structure
   const baseQuery = {

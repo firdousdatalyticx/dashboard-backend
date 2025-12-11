@@ -365,7 +365,12 @@ const topicCategoriesController = {
                 socialSources = ["LinkedIn", "Linkedin"];
             } else if (numericTopicId === 2646) {
                 socialSources = ["LinkedIn", "Linkedin", "Twitter"];
-            } else if (numericTopicId === 2643 || numericTopicId === 2644) {
+            } 
+            else if (numericTopicId === 2641) {
+                socialSources = ["Twitter", "Facebook", "Instagram"];
+            } 
+            
+            else if (numericTopicId === 2643 || numericTopicId === 2644) {
                 socialSources = ["Facebook", "Twitter", "Instagram"];
             } else if (numericTopicId === 2634) {
                 socialSources = ["Facebook", "Twitter"];
@@ -448,23 +453,20 @@ const topicCategoriesController = {
                                     should: categoryFilters,
                                     minimum_should_match: 1
                                 }
-                            }
-                        ],
-                        filter: [
-                            {
-                                terms: {
-                                    "source.keyword": socialSources,
-                                },
                             },
                             {
                                 bool: {
-                                    must_not: [
-                                        {
-                                            term: {
-                                                source: "DM",
-                                            },
-                                        },
-                                    ],
+                                    should: socialSources.map(src => ({
+                                        match_phrase: { source: src }
+                                    })),
+                                    minimum_should_match: 1
+                                }
+                            }
+                        ],
+                        must_not: [
+                            {
+                                term: {
+                                    source: "DM",
                                 },
                             },
                         ]

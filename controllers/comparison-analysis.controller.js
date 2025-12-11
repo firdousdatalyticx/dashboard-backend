@@ -356,7 +356,8 @@ const comparisonAnalysisController = {
               minimum_should_match: 1,
             },
           });
-        } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+        } 
+        else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2647 || parseInt(topicId) === 2648 || parseInt(topicId) === 2649) {
           query.bool.must.push({
             bool: {
               should: [
@@ -366,7 +367,13 @@ const comparisonAnalysisController = {
               minimum_should_match: 1,
             },
           });
-        } else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
+        } 
+   
+        
+        
+        
+        
+        else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
           query.bool.must.push({
             bool: {
               should: [

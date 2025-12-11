@@ -1639,7 +1639,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
 
     const normalizedSources = normalizeSourceInput(source);
 
-    if(topicIdNum===2619 || topicIdNum===2639 || topicIdNum===2640){
+    if(topicIdNum===2619 || topicIdNum===2639 || topicIdNum===2640 || topicIdNum===2647 || topicIdNum===2648 || topicIdNum===2649){
        query.bool.must.push({
               bool: {
                   should: [

@@ -128,7 +128,7 @@ const buildElasticsearchQuery = (params) => {
   // No fallback logic - if no sources specified, don't filter by source
 else {
         // Default logic based on topic
-        if (topicId=== 2619 || topicId=== 2639 || topicId=== 2640 || topicId===2642) {
+        if (topicId=== 2619 || topicId=== 2639 || topicId=== 2640 || topicId===2642 || topicId===2647  || topicId===2648  || topicId===2649 ) {
           qsParts.push(` source:("LinkedIn" OR "Linkedin")`);
         } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 ) {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);

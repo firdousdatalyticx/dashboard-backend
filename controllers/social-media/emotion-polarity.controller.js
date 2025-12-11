@@ -649,7 +649,7 @@ const emotionPolarityController = {
                     }
                 }
                 
-                :parseInt(topicId)==2619 ||  parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ? {
+                :parseInt(topicId)==2619 ||  parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2647 || parseInt(topicId) === 2648 || parseInt(topicId) === 2649? {
                     bool: {
                         should: [
                             { match_phrase: { source: 'LinkedIn' } },

@@ -437,7 +437,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
   }
 
   // Otherwise, use topic-specific defaults
-  if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640)) {
+  if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2647 || parseInt(topicId) === 2648 || parseInt(topicId) === 2649)) {
     return 'source:("LinkedIn" OR "Linkedin")';
   } else if (isSpecialTopic) {
     return 'source:("Twitter" OR "Facebook")';

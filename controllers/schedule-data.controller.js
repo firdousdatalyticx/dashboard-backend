@@ -195,7 +195,10 @@ const scheduleDataController = {
             body: {
               query: query,
               size: 100,
-              sort: [{ p_created_time: { order: 'desc' } }]
+              sort: [{ p_created_time: { order: 'desc' } }],
+              _source: {
+                excludes: ['u_profile_photo', 'p_picture', 'p_picture_url']
+              }
             }
           });
 
@@ -220,7 +223,6 @@ const scheduleDataController = {
 
 const formatPostData = (hit) => {
   const s = hit._source;
-  const profilePic = s.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
   const followers = s.u_followers > 0 ? `${s.u_followers}` : '';
   const following = s.u_following > 0 ? `${s.u_following}` : '';
   const posts = s.u_posts > 0 ? `${s.u_posts}` : '';
@@ -231,23 +233,15 @@ const formatPostData = (hit) => {
   const shares = s.p_shares > 0 ? `${s.p_shares}` : '';
   const engagements = s.p_engagement > 0 ? `${s.p_engagement}` : '';
   const content = s.p_content?.trim() || '';
-  const imageUrl = s.p_picture_url?.trim() || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
   let predicted_sentiment = s.predicted_sentiment_value || '';
   const predicted_category = s.predicted_category || '';
   let youtubeVideoUrl = '';
-  let profilePicture2 = '';
   if (s.source === 'Youtube') {
     youtubeVideoUrl = s.video_embed_url ? s.video_embed_url : (s.p_id ? `https://www.youtube.com/embed/${s.p_id}` : '');
-  } else {
-    profilePicture2 = s.p_picture || '';
   }
-  const sourceIcon = ['Web', 'DeepWeb'].includes(s.source) ? 'Web' : s.source;
   const message_text = (s.p_message_text || '').replace(/<\/?[^>]+(>|$)/g, '');
   return {
-    profilePicture: profilePic,
-    profilePicture2,
     userFullname: s.u_fullname,
-    user_data_string: '',
     followers,
     following,
     posts,
@@ -260,11 +254,9 @@ const formatPostData = (hit) => {
     shares,
     engagements,
     content,
-    image_url: imageUrl,
     predicted_sentiment,
     predicted_category,
     youtube_video_url: youtubeVideoUrl,
-    source_icon: `${s.p_url},${sourceIcon}`,
     message_text,
     source: s.source,
     rating: s.rating,

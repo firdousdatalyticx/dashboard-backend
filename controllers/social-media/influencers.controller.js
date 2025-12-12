@@ -126,7 +126,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
     return `source:(${sourcesStr})`;
   } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
     return `source:("LinkedIn" OR "Linkedin")`;
-  } else if (parseInt(topicId) === 2646) {
+  } else if (parseInt(topicId) === 2646 || parseInt(topicId) === 2650) {
     return `source:("LinkedIn" OR "Linkedin" OR "Twitter")`;
   } 
    else if (isSpecialTopic) {
@@ -335,7 +335,7 @@ const influencersController = {
             },
           };
         }
-         else if (parseInt(topicId) === 2646) {
+         else if (parseInt(topicId) === 2646 || parseInt(topicId) === 2650) {
           sourceFilterBool = {
             bool: {
               should: [

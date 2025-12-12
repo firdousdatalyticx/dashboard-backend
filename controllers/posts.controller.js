@@ -132,7 +132,7 @@ else {
           qsParts.push(` source:("LinkedIn" OR "Linkedin")`);
         } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 ) {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);
-        } else  if (topicId=== 2646) {
+        } else  if (topicId=== 2646 || topicId === 2650) {
           qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin")`);
         }
         else {

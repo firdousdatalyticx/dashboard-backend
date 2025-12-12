@@ -637,7 +637,7 @@ const emotionPolarityController = {
                         minimum_should_match: 1
                     }
                 }
-                : parseInt(topicId)==2646 ?
+                : parseInt(topicId)==2646 || parseInt(topicId) === 2650 ?
                 {
                     bool: {
                         should: [

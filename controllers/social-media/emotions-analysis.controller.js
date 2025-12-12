@@ -958,7 +958,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
       },
     });
   }
-    if (topicId === 2646) {
+    if (topicId === 2646 || topicId === 2650) {
     query.bool.must.push({
       bool: {
         should: [

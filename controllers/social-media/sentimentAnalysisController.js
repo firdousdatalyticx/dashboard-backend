@@ -1376,7 +1376,7 @@ function buildAnalysisQuery(params) {
         minimum_should_match: 1
       }
     });
-  } else if (topicIdNum === 2646) {
+  } else if (topicIdNum === 2646 || topicIdNum === 2650) {
     // Topic 2646: limit to LinkedIn and Twitter sources
     query.bool.must.push({
       bool: {

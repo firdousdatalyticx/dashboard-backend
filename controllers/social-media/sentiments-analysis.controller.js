@@ -1649,7 +1649,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
                   minimum_should_match: 1
               }
           });
-    } else  if(topicIdNum===2646 ){
+    } else  if(topicIdNum===2646 || topicIdNum===2650 ){
        query.bool.must.push({
               bool: {
                   should: [

@@ -151,7 +151,7 @@ const poiSentimentDistributionController = {
             { match_phrase: { source: "Linkedin" } },
             ];
 
-         } else if(parseInt(topicId) === 2646 ){
+         } else if(parseInt(topicId) === 2646 || parseInt(topicId) === 2650 ){
              sourceFilter = [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },

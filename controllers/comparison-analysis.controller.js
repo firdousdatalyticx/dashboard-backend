@@ -356,7 +356,7 @@ const comparisonAnalysisController = {
               minimum_should_match: 1,
             },
           });
-        } 
+        }
         else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2647 || parseInt(topicId) === 2648 || parseInt(topicId) === 2649) {
           query.bool.must.push({
             bool: {
@@ -367,17 +367,27 @@ const comparisonAnalysisController = {
               minimum_should_match: 1,
             },
           });
-        } 
-   
-        
-        
-        
-        
+        }
+
+        else if (parseInt(topicId) === 2646 || parseInt(topicId) === 2650) {
+          sourceFilter = [
+            { match_phrase: { source: "Twitter" } },
+            { match_phrase: { source: "LinkedIn" } },
+            { match_phrase: { source: "Linkedin" } },
+            { match_phrase: { source: "Web" } },
+
+          ];
+        }
+
+
+
+
+
         else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
           query.bool.must.push({
             bool: {
               should: [
-                  { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Facebook" } },
                 { match_phrase: { source: "Twitter" } },
                 { match_phrase: { source: "Instagram" } },
               ],
@@ -631,10 +641,10 @@ const comparisonAnalysisController = {
                               isGoogleSentimentChart === "true"
                                 ? ["predicted_sentiment_value"]
                                 : [
-                                    "p_message",
-                                    "llm_emotion",
-                                    "predicted_sentiment_value",
-                                  ],
+                                  "p_message",
+                                  "llm_emotion",
+                                  "predicted_sentiment_value",
+                                ],
                             size: 5,
                           },
                         },
@@ -692,7 +702,7 @@ const comparisonAnalysisController = {
 
   getDistributions: async (req, res) => {
     try {
-      const {topicId, timeSlot, fromDate, toDate, sentimentType } = req.body;
+      const { topicId, timeSlot, fromDate, toDate, sentimentType } = req.body;
 
       const categoryData = req.processedCategories || {};
 
@@ -729,38 +739,49 @@ const comparisonAnalysisController = {
         queryString: "",
       });
 
-       let sourceFilter = [];
+      let sourceFilter = [];
 
-        if (parseInt(topicId) === 2600) {
-            sourceFilter = [
-            { match_phrase: { source: "Facebook" } },
-            { match_phrase: { source: "Twitter" } },
-            ];
-        } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2647 || parseInt(topicId) === 2648 || parseInt(topicId) === 2649) {
-            sourceFilter = [
-            { match_phrase: { source: "LinkedIn" } },
-            { match_phrase: { source: "Linkedin" } },
-            ];
-        } else if ( parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
-            sourceFilter = [
-              { match_phrase: { source: "Facebook" } },
-            { match_phrase: { source: "Twitter" } },
-            { match_phrase: { source: "Instagram" } },
-            ];
-        }else {
-            sourceFilter = [
-            { match_phrase: { source: "Facebook" } },
-            { match_phrase: { source: "Twitter" } },
-            { match_phrase: { source: "Instagram" } },
-            { match_phrase: { source: "Youtube" } },
-            { match_phrase: { source: "Linkedin" } },
-            { match_phrase: { source: "LinkedIn" } },
-            { match_phrase: { source: "Pinterest" } },
-            { match_phrase: { source: "Web" } },
-            { match_phrase: { source: "Reddit" } },
-            // { match_phrase: { source: "TikTok" } },
-            ];
-        }
+      if (parseInt(topicId) === 2600) {
+        sourceFilter = [
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } },
+        ];
+      } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2647 || parseInt(topicId) === 2648 || parseInt(topicId) === 2649) {
+        sourceFilter = [
+          { match_phrase: { source: "LinkedIn" } },
+          { match_phrase: { source: "Linkedin" } },
+        ];
+      } else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
+        sourceFilter = [
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } },
+          { match_phrase: { source: "Instagram" } },
+        ];
+      }
+
+      else if (parseInt(topicId) === 2646 || parseInt(topicId) === 2650) {
+        sourceFilter = [
+          { match_phrase: { source: "Twitter" } },
+          { match_phrase: { source: "LinkedIn" } },
+          { match_phrase: { source: "Linkedin" } },
+          { match_phrase: { source: "Web" } },
+        ];
+      }
+
+      else {
+        sourceFilter = [
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } },
+          { match_phrase: { source: "Instagram" } },
+          { match_phrase: { source: "Youtube" } },
+          { match_phrase: { source: "Linkedin" } },
+          { match_phrase: { source: "LinkedIn" } },
+          { match_phrase: { source: "Pinterest" } },
+          { match_phrase: { source: "Web" } },
+          { match_phrase: { source: "Reddit" } },
+          // { match_phrase: { source: "TikTok" } },
+        ];
+      }
 
       const buildQuery = () => ({
         query: {

@@ -152,11 +152,12 @@ const leaderboardAnalysisController = {
             // Define source filter based on special topic
             const sourceFilter = normalizedSources.length > 0
             ? normalizedSources.map(src => ({ match_phrase: { source: src } }))
-            : parseInt(2646)?
+            : parseInt(2646) || parseInt(2650)?
             [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },
             { match_phrase: { source: 'Twitter' } },
+            { match_phrase: { source: 'Web' } },
             ]
             
             :parseInt(topicId)==2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ?

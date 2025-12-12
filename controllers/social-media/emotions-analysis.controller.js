@@ -958,13 +958,14 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
       },
     });
   }
-    if (topicId === 2646) {
+    if (topicId === 2646 || topicId === 2650) {
     query.bool.must.push({
       bool: {
         should: [
           { match_phrase: { source: "Twitter" } },
           { match_phrase: { source: "LinkedIn" } },
           { match_phrase: { source: "Linkedin" } },
+          { match_phrase: { source: "Web" } },
         ],
         minimum_should_match: 1,
       },

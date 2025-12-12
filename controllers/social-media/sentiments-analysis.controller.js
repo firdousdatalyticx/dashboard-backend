@@ -1649,13 +1649,14 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
                   minimum_should_match: 1
               }
           });
-    } else  if(topicIdNum===2646 ){
+    } else  if(topicIdNum===2646 || topicIdNum===2650 ){
        query.bool.must.push({
               bool: {
                   should: [
                     { match_phrase: { source: "LinkedIn" } },
                           { match_phrase: { source: "Linkedin" } },
-                          { match_phrase: { source: "Twitter" } }
+                          { match_phrase: { source: "Twitter" } },
+                          { match_phrase: { source: "Web" } }
                   ],
                   minimum_should_match: 1
               }

@@ -1253,8 +1253,10 @@ let firstUrl = Object.values(trendCategoryData)[0].urls[0];
     if(isMatch){
     const isMatchComment = comment.author.fullPositions?.filter(
   pos => pos.companyURL === firstUrl
-);     
-  // return res.status(200).json(isMatchComment);
+);   
+if(req.body?.needCommentsData){
+commentsList.push(comment)
+}  else{
   commentsList.push({
     name:comment?.author?.name || comment?.author?.firstName+" "+comment?.author?.lastName,
     text:comment.text,
@@ -1265,7 +1267,10 @@ let firstUrl = Object.values(trendCategoryData)[0].urls[0];
     sharesCount:comment.totalSocialActivityCounts.numShares,
     ReactionCount:comment.totalSocialActivityCounts.totalReactionCount,
   });}
-   } continue;
+   }
+}
+  // return res.status(200).json(isMatchComment);
+ continue;
    
         }
 
@@ -1282,9 +1287,9 @@ let firstUrl = Object.values(trendCategoryData)[0].urls[0];
           message: "No comments found"
         });
       }
-      // console.log(req.body?.isCSV)
+      console.log(req.body?.isCSV)
 
-      if( req.body?.isCSV==false){
+      if(req.body.isCSV==false || req.body?.needCommentsData){
       return res.status(200).json(commentsList);
       }
 

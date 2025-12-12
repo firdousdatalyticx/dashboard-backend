@@ -3,210 +3,236 @@ const { buildTopicQueryString } = require("../../utils/queryBuilder");
 const { getCountryCode } = require("../../utils/countryHelper");
 const { getSourceIcon } = require("../../utils/sourceHelper");
 const { processFilters } = require("./filter.utils");
-const processCategoryItems = require('../../helpers/processedCategoryItems');
-const prisma = require('../../config/database');
-const fs = require('fs').promises;
-const path = require('path');
+const processCategoryItems = require("../../helpers/processedCategoryItems");
+const prisma = require("../../config/database");
+const fs = require("fs").promises;
+const path = require("path");
 
 const normalizeSourceInput = (sourceParam) => {
-    if (!sourceParam || sourceParam === 'All') {
-        return [];
-    }
-
-    if (Array.isArray(sourceParam)) {
-        return sourceParam
-            .filter(Boolean)
-            .map(src => src.trim())
-            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
-    }
-
-    if (typeof sourceParam === 'string') {
-        return sourceParam
-            .split(',')
-            .map(src => src.trim())
-            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
-    }
-
+  if (!sourceParam || sourceParam === "All") {
     return [];
+  }
+
+  if (Array.isArray(sourceParam)) {
+    return sourceParam
+      .filter(Boolean)
+      .map((src) => src.trim())
+      .filter((src) => src.length > 0 && src.toLowerCase() !== "all");
+  }
+
+  if (typeof sourceParam === "string") {
+    return sourceParam
+      .split(",")
+      .map((src) => src.trim())
+      .filter((src) => src.length > 0 && src.toLowerCase() !== "all");
+  }
+
+  return [];
 };
 
 const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
-    if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
-        return selectedCategory;
-    }
+  if (
+    !selectedCategory ||
+    selectedCategory === "all" ||
+    selectedCategory === "custom" ||
+    selectedCategory === ""
+  ) {
+    return selectedCategory;
+  }
 
-    const normalizedSelectedRaw = String(selectedCategory || '');
-    const normalizedSelected = normalizedSelectedRaw.toLowerCase().replace(/\s+/g, '');
-    const categoryKeys = Object.keys(categoryData || {});
+  const normalizedSelectedRaw = String(selectedCategory || "");
+  const normalizedSelected = normalizedSelectedRaw
+    .toLowerCase()
+    .replace(/\s+/g, "");
+  const categoryKeys = Object.keys(categoryData || {});
 
-    if (categoryKeys.length === 0) {
-        return null;
-    }
+  if (categoryKeys.length === 0) {
+    return null;
+  }
 
-    let matchedKey = categoryKeys.find(
-        key => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+  let matchedKey = categoryKeys.find(
+    (key) => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+  );
+
+  if (!matchedKey) {
+    matchedKey = categoryKeys.find(
+      (key) => key.toLowerCase().replace(/\s+/g, "") === normalizedSelected
     );
+  }
 
-    if (!matchedKey) {
-        matchedKey = categoryKeys.find(
-            key => key.toLowerCase().replace(/\s+/g, '') === normalizedSelected
-        );
-    }
+  if (!matchedKey) {
+    matchedKey = categoryKeys.find((key) => {
+      const normalizedKey = key.toLowerCase().replace(/\s+/g, "");
+      return (
+        normalizedKey.includes(normalizedSelected) ||
+        normalizedSelected.includes(normalizedKey)
+      );
+    });
+  }
 
-    if (!matchedKey) {
-        matchedKey = categoryKeys.find(key => {
-            const normalizedKey = key.toLowerCase().replace(/\s+/g, '');
-            return normalizedKey.includes(normalizedSelected) || normalizedSelected.includes(normalizedKey);
-        });
-    }
-
-    return matchedKey || null;
+  return matchedKey || null;
 };
 
- createCountryWiseAggregations = (categoryData) => {
+createCountryWiseAggregations = (categoryData) => {
   // Group data by country
   const countryGroups = {};
-  
-  categoryData.forEach(category => {
+
+  categoryData.forEach((category) => {
     const country = category.country;
-    
+
     if (!countryGroups[country]) {
       countryGroups[country] = {
         hashtags: [],
         keywords: [],
-        urls: []
+        urls: [],
       };
     }
-    
+
     // Process hashtags
     if (category.topic_hash_tags) {
       const hashtags = category.topic_hash_tags
         .split(/[,|]/)
-        .map(tag => tag.trim().replace(/^#/, ''))
-        .filter(tag => tag.length > 0);
+        .map((tag) => tag.trim().replace(/^#/, ""))
+        .filter((tag) => tag.length > 0);
       countryGroups[country].hashtags.push(...hashtags);
     }
-    
+
     // Process keywords
     if (category.topic_keywords) {
       const keywords = category.topic_keywords
         .split(/[,|]/)
-        .map(keyword => keyword.trim())
-        .filter(keyword => keyword.length > 0);
+        .map((keyword) => keyword.trim())
+        .filter((keyword) => keyword.length > 0);
       countryGroups[country].keywords.push(...keywords);
     }
-    
+
     // Process URLs
     if (category.topic_urls) {
       const urls = category.topic_urls
         .split(/[,|]/)
-        .map(url => url.trim())
-        .filter(url => url.length > 0);
+        .map((url) => url.trim())
+        .filter((url) => url.length > 0);
       countryGroups[country].urls.push(...urls);
     }
   });
-  
+
   // Remove duplicates and create Elasticsearch aggregations
   const elasticAggs = {};
-  
-  Object.keys(countryGroups).forEach(country => {
-    const countryKey = country.toLowerCase().replace(/\s+/g, '_');
+
+  Object.keys(countryGroups).forEach((country) => {
+    const countryKey = country.toLowerCase().replace(/\s+/g, "_");
     const data = countryGroups[country];
-    
+
     // Remove duplicates
     const uniqueHashtags = [...new Set(data.hashtags)];
     const uniqueKeywords = [...new Set(data.keywords)];
     const uniqueUrls = [...new Set(data.urls)];
-    
+
     // Create combined search terms
     const allTerms = [
-      ...uniqueHashtags.map(tag => `#${tag}`),
+      ...uniqueHashtags.map((tag) => `#${tag}`),
       ...uniqueKeywords,
-      ...uniqueUrls
+      ...uniqueUrls,
     ];
-    
+
     if (allTerms.length > 0) {
       elasticAggs[`${countryKey}`] = {
-        "filter": {
-          "bool": {
-            "should": [
+        filter: {
+          bool: {
+            should: [
               // Search in hashtags
-              ...uniqueHashtags.map(hashtag => ({
-                "multi_match": {
-                  "query": hashtag,
-                  "fields": ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
-                  "type": "phrase"
-                }
+              ...uniqueHashtags.map((hashtag) => ({
+                multi_match: {
+                  query: hashtag,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
               })),
               // Search in keywords
-              ...uniqueKeywords.map(keyword => ({
-                "multi_match": {
-                  "query": keyword,
-                  "fields": ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
-                  "type": "phrase"
-                }
+              ...uniqueKeywords.map((keyword) => ({
+                multi_match: {
+                  query: keyword,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
               })),
               // Search in URLs
-              ...uniqueUrls.map(url => ({
-                "multi_match": {
-                  "query": url,
-                  "fields": ['p_message_text', 'p_message', 'hashtags', 'u_source', 'p_url'],
-                  "type": "phrase"
-                }
-              }))
+              ...uniqueUrls.map((url) => ({
+                multi_match: {
+                  query: url,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              })),
             ],
-            "minimum_should_match": 1
-          }
+            minimum_should_match: 1,
+          },
         },
-        "aggs": {
-          "top_posts": {
-            "top_hits": {
-              "size": 30,  // Get top 30 posts for each country
-              "sort": [{"p_created_time": {"order": "desc"}}],  // Sort by most recent
-              "_source": {
-                "includes": [
-                 "u_profile_photo",
-            "u_followers",
-            "u_following",
-            "u_posts",
-            "p_likes",
-            "llm_emotion",
-            "p_comments_text",
-            "p_url",
-            "p_comments",
-            "p_shares",
-            "p_engagement",
-            "p_content",
-            "p_picture_url",
-            "predicted_sentiment_value",
-            "predicted_category",
-            "source",
-            "rating",
-            "u_fullname",
-            "p_message_text",
-            "comment",
-            "business_response",
-            "u_source",
-            "name",
-            "p_created_time",
-            "created_at",
-            "p_comments_data",
-            "video_embed_url",
-            "p_id",
-            "p_picture",
-
-                ]
-              }
-            }
-          }
-        }
+        aggs: {
+          top_posts: {
+            top_hits: {
+              size: 30, // Get top 30 posts for each country
+              sort: [{ p_created_time: { order: "desc" } }], // Sort by most recent
+              _source: {
+                includes: [
+                  "u_profile_photo",
+                  "u_followers",
+                  "u_following",
+                  "u_posts",
+                  "p_likes",
+                  "llm_emotion",
+                  "p_comments_text",
+                  "p_url",
+                  "p_comments",
+                  "p_shares",
+                  "p_engagement",
+                  "p_content",
+                  "p_picture_url",
+                  "predicted_sentiment_value",
+                  "predicted_category",
+                  "source",
+                  "rating",
+                  "u_fullname",
+                  "p_message_text",
+                  "comment",
+                  "business_response",
+                  "u_source",
+                  "name",
+                  "p_created_time",
+                  "created_at",
+                  "p_comments_data",
+                  "video_embed_url",
+                  "p_id",
+                  "p_picture",
+                ],
+              },
+            },
+          },
+        },
       };
     }
   });
-  
+
   return elasticAggs;
 };
-
 
 const audienceController = {
   getAudience: async (req, res) => {
@@ -219,15 +245,19 @@ const audienceController = {
         records = 20,
         topicId,
         categoryItems,
-        source = 'All',
-        category = 'all',
-        llm_mention_type
+        source = "All",
+        category = "all",
+        llm_mention_type,
       } = req.body;
 
       // Determine which category data to use
       let audienceCategoryData = {};
 
-      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
         audienceCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
@@ -242,12 +272,20 @@ const audienceController = {
 
       // Handle category parameter - validate if provided
       let selectedCategory = category;
-      if (category && category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, audienceCategoryData);
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          category,
+          audienceCategoryData
+        );
         if (matchedKey) {
-        selectedCategory = matchedKey;
-        }else{
-          selectedCategory="all"
+          selectedCategory = matchedKey;
+        } else {
+          selectedCategory = "all";
         }
       }
 
@@ -255,19 +293,23 @@ const audienceController = {
 
       // Source filtering logic
       const normalizedSources = normalizeSourceInput(source);
-      let sourcesQuery = '';
+      let sourcesQuery = "";
 
       if (normalizedSources.length > 0) {
         // Specific sources provided
-        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        const sourcesStr = normalizedSources.map((s) => `"${s}"`).join(" OR ");
         sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
         // Default logic based on topic
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
+        if (
+          parseInt(topicId) === 2619 ||
+          parseInt(topicId) === 2639 ||
+          parseInt(topicId) === 2640
+        ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
-        } else  if (parseInt(topicId) === 2641) {
+        } else if (parseInt(topicId) === 2641) {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
-        }else {
+        } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }
       }
@@ -283,7 +325,7 @@ const audienceController = {
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
-  
+
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
@@ -344,30 +386,30 @@ const audienceController = {
         },
       };
 
-      if(selectedCategory!="all"){
-    const categoryFilter = {
-      bool: {
-        should: [
-          {
-            multi_match: {
-              query: category,
-              fields: [
-                "p_message_text",
-                "p_message",
-                "hashtags",
-                "u_source",
-                "p_url",
-              ],
-              type: "phrase",
-            },
+      if (selectedCategory != "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
           },
-        ],
-        minimum_should_match: 1,
-      },
-    };
+        };
 
-    params.body.query.bool.must.push(categoryFilter);
-  }
+        params.body.query.bool.must.push(categoryFilter);
+      }
 
       // LLM Mention Type filtering logic
       let mentionTypesArray = [];
@@ -376,7 +418,7 @@ const audienceController = {
         if (Array.isArray(llm_mention_type)) {
           mentionTypesArray = llm_mention_type;
         } else if (typeof llm_mention_type === "string") {
-          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
         }
       }
 
@@ -384,15 +426,14 @@ const audienceController = {
       if (mentionTypesArray.length > 0) {
         params.body.query.bool.must.push({
           bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
             })),
-            minimum_should_match: 1
-          }
+            minimum_should_match: 1,
+          },
         });
       }
-   
-      
+
       const results = await elasticClient.search(params);
 
       if (!results?.aggregations?.group_by_user?.buckets) {
@@ -441,15 +482,19 @@ const audienceController = {
         records = 20,
         topicId,
         categoryItems,
-        source = 'All',
-        category = 'all',
-        llm_mention_type
+        source = "All",
+        category = "all",
+        llm_mention_type,
       } = req.body;
 
       // Determine which category data to use
       let breakdownCategoryData = {};
 
-      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
         breakdownCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
@@ -477,8 +522,16 @@ const audienceController = {
 
       // Handle category parameter - validate if provided
       let selectedCategory = category;
-      if (category && category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, breakdownCategoryData);
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          category,
+          breakdownCategoryData
+        );
         if (!matchedKey) {
           return res.json({
             data_array: [],
@@ -495,7 +548,7 @@ const audienceController = {
                 unique_commenters: { total_count: 0, list: [] },
               },
             },
-            error: 'Category not found'
+            error: "Category not found",
           });
         }
         selectedCategory = matchedKey;
@@ -505,19 +558,24 @@ const audienceController = {
 
       // Source filtering logic
       const normalizedSources = normalizeSourceInput(source);
-      let sourcesQuery = '';
+      let sourcesQuery = "";
 
       if (normalizedSources.length > 0) {
         // Specific sources provided
-        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        const sourcesStr = normalizedSources.map((s) => `"${s}"`).join(" OR ");
         sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
         // Default logic based on topic
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642 ) {
+        if (
+          parseInt(topicId) === 2619 ||
+          parseInt(topicId) === 2639 ||
+          parseInt(topicId) === 2640 ||
+          parseInt(topicId) === 2642
+        ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else if (parseInt(topicId) === 2646) {
           sourcesQuery = ` AND source:("Twitter" OR "LinkedIn" OR "Linkedin")`;
-        }else {
+        } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }
       }
@@ -533,7 +591,6 @@ const audienceController = {
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
-   
 
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -610,7 +667,7 @@ const audienceController = {
         if (Array.isArray(llm_mention_type)) {
           mentionTypesArray = llm_mention_type;
         } else if (typeof llm_mention_type === "string") {
-          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
         }
       }
 
@@ -618,17 +675,15 @@ const audienceController = {
       if (mentionTypesArray.length > 0) {
         params.body.query.bool.must.push({
           bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
             })),
-            minimum_should_match: 1
-          }
+            minimum_should_match: 1,
+          },
         });
       }
-    
 
-
-            if (
+      if (
         sentimentType &&
         sentimentType !== "undefined" &&
         sentimentType !== "null" &&
@@ -645,10 +700,10 @@ const audienceController = {
               minimum_should_match: 1,
             },
           };
-           params.body.query.bool.must.push(sentimentFilter);
+          params.body.query.bool.must.push(sentimentFilter);
         } else {
           // Handle single sentiment type
-           params.body.query.bool.must.push({
+          params.body.query.bool.must.push({
             match: { predicted_sentiment_value: sentimentType.trim() },
           });
         }
@@ -668,9 +723,10 @@ const audienceController = {
             : post._source.p_comments_data;
 
         post._source.p_comments_data.forEach((comment) => {
-          const commentsSentments =comment?.llm_data?.predicted_sentiment_value?.toLowerCase();
-         if( sentimentType && sentimentType.trim() !== commentsSentments  ){
-              return;
+          const commentsSentments =
+            comment?.llm_data?.predicted_sentiment_value?.toLowerCase();
+          if (sentimentType && sentimentType.trim() !== commentsSentments) {
+            return;
           }
           totalComments++;
           const id = comment.author.id;
@@ -743,21 +799,25 @@ const audienceController = {
         records = 20,
         topicId,
         categoryItems,
-        source = 'All',
-        category = 'all',
-        llm_mention_type
+        source = "All",
+        category = "all",
+        llm_mention_type,
       } = req.body;
 
       // Determine which category data to use
       let trendCategoryData = {};
 
-      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
         trendCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
         trendCategoryData = req.processedCategories || {};
       }
-      
+
       if (Object.keys(trendCategoryData).length === 0) {
         return res.json({
           dates: [],
@@ -767,13 +827,18 @@ const audienceController = {
 
       // Handle category parameter - validate if provided
       let selectedCategory = category;
-      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
         const matchedKey = findMatchingCategoryKey(category, trendCategoryData);
         if (!matchedKey) {
           return res.json({
             dates: [],
             maxTrendData: "0,0",
-            error: 'Category not found'
+            error: "Category not found",
           });
         }
         selectedCategory = matchedKey;
@@ -783,15 +848,20 @@ const audienceController = {
 
       // Source filtering logic
       const normalizedSources = normalizeSourceInput(source);
-      let sourcesQuery = '';
+      let sourcesQuery = "";
 
       if (normalizedSources.length > 0) {
         // Specific sources provided
-        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        const sourcesStr = normalizedSources.map((s) => `"${s}"`).join(" OR ");
         sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
         // Default logic based on topic
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642) {
+        if (
+          parseInt(topicId) === 2619 ||
+          parseInt(topicId) === 2639 ||
+          parseInt(topicId) === 2640 ||
+          parseInt(topicId) === 2642
+        ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
@@ -811,15 +881,17 @@ const audienceController = {
       let allFilterTerms = [];
       if (trendCategoryData) {
         Object.values(trendCategoryData).forEach((data) => {
-          if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
-          if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
-          if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+          if (data.keywords && data.keywords.length > 0)
+            allFilterTerms.push(...data.keywords);
+          if (data.hashtags && data.hashtags.length > 0)
+            allFilterTerms.push(...data.hashtags);
+          if (data.urls && data.urls.length > 0)
+            allFilterTerms.push(...data.urls);
         });
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
-   
 
       // Optimized query to only get the fields we need
       const params = {
@@ -894,7 +966,7 @@ const audienceController = {
         if (Array.isArray(llm_mention_type)) {
           mentionTypesArray = llm_mention_type;
         } else if (typeof llm_mention_type === "string") {
-          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
         }
       }
 
@@ -902,16 +974,15 @@ const audienceController = {
       if (mentionTypesArray.length > 0) {
         params.body.query.bool.must.push({
           bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
             })),
-            minimum_should_match: 1
-          }
+            minimum_should_match: 1,
+          },
         });
       }
-    
 
-            if (
+      if (
         sentimentType &&
         sentimentType !== "undefined" &&
         sentimentType !== "null" &&
@@ -928,16 +999,18 @@ const audienceController = {
               minimum_should_match: 1,
             },
           };
-           params.body.query.bool.must.push(sentimentFilter);
+          params.body.query.bool.must.push(sentimentFilter);
         } else {
           // Handle single sentiment type
-           params.body.query.bool.must.push({
+          params.body.query.bool.must.push({
             match: { predicted_sentiment_value: sentimentType.trim() },
           });
         }
       }
       const results = await elasticClient.search(params);
-      const posts = results.hits.hits.map((hit) => formatPostData(hit, allFilterTerms));
+      const posts = results.hits.hits.map((hit) =>
+        formatPostData(hit, allFilterTerms)
+      );
       const datewiseCommentCount = {};
       const datewisePostCount = {};
 
@@ -1012,7 +1085,7 @@ const audienceController = {
     }
   },
 
-   getCommentAudienceLeaderBoard: async (req, res) => {
+  getCommentAudienceLeaderBoard: async (req, res) => {
     try {
       const {
         timeSlot,
@@ -1022,21 +1095,25 @@ const audienceController = {
         records = 20,
         topicId,
         categoryItems,
-        source = 'All',
-        category = 'all',
-        llm_mention_type
+        source = "All",
+        category = "all",
+        llm_mention_type,
       } = req.body;
 
       // Determine which category data to use
       let trendCategoryData = {};
 
-      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
         trendCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
         trendCategoryData = req.processedCategories || {};
       }
-      
+
       if (Object.keys(trendCategoryData).length === 0) {
         return res.json({
           dates: [],
@@ -1046,13 +1123,18 @@ const audienceController = {
 
       // Handle category parameter - validate if provided
       let selectedCategory = category;
-      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
         const matchedKey = findMatchingCategoryKey(category, trendCategoryData);
         if (!matchedKey) {
           return res.json({
             dates: [],
             maxTrendData: "0,0",
-            error: 'Category not found'
+            error: "Category not found",
           });
         }
         selectedCategory = matchedKey;
@@ -1060,18 +1142,25 @@ const audienceController = {
 
       const topicQueryString = buildTopicQueryString(trendCategoryData);
 
-
       // Source filtering logic
       const normalizedSources = normalizeSourceInput(source);
-      let sourcesQuery = '';
+      let sourcesQuery = "";
 
       if (normalizedSources.length > 0) {
         // Specific sources provided
-        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        const sourcesStr = normalizedSources.map((s) => `"${s}"`).join(" OR ");
         sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
         // Default logic based on topic
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642 || parseInt(topicId) === 2649|| parseInt(topicId)==2647 || parseInt(topicId)==2648) {
+        if (
+          parseInt(topicId) === 2619 ||
+          parseInt(topicId) === 2639 ||
+          parseInt(topicId) === 2640 ||
+          parseInt(topicId) === 2642 ||
+          parseInt(topicId) === 2649 ||
+          parseInt(topicId) == 2647 ||
+          parseInt(topicId) == 2648 || parseInt(topicId) == 2650 || parseInt(topicId) == 2646
+        ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
@@ -1091,17 +1180,24 @@ const audienceController = {
       let allFilterTerms = [];
       if (trendCategoryData) {
         Object.values(trendCategoryData).forEach((data) => {
-          if (data.keywords && data.keywords.length > 0) allFilterTerms.push(...data.keywords);
-          if (data.hashtags && data.hashtags.length > 0) allFilterTerms.push(...data.hashtags);
-          if (data.urls && data.urls.length > 0) allFilterTerms.push(...data.urls);
+          if (data.keywords && data.keywords.length > 0)
+            allFilterTerms.push(...data.keywords);
+          if (data.hashtags && data.hashtags.length > 0)
+            allFilterTerms.push(...data.hashtags);
+          if (data.urls && data.urls.length > 0)
+            allFilterTerms.push(...data.urls);
         });
       }
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
-   
-let firstUrl = Object.values(trendCategoryData)[0].urls[0];
-// console.log("firstUrl",firstUrl);
+    
+     
+          
+      let firstUrl = Object.values(trendCategoryData)[0].urls;
+const linkedInUrl = firstUrl.find(url => url.includes("linkedin.com/company"));
+
+      // console.log("firstUrl",firstUrl);
       // Optimized query to only get the fields we need
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1143,10 +1239,10 @@ let firstUrl = Object.values(trendCategoryData)[0].urls[0];
               must: [
                 {
                   query_string: {
-                 query: `${topicQueryString} ${sourcesQuery}`,
-                     analyze_wildcard: true,
+                    query: `${topicQueryString} ${sourcesQuery}`,
+                    analyze_wildcard: true,
                     default_operator: "AND",
-                  },//OR \"https://www.linkedin.com/company/cpxholding/\". OR \"https://www.linkedin.com/company/cpxholding/\" OR \"https://www.linkedin.com/company/cpxholding/\"
+                  }, //OR \"https://www.linkedin.com/company/cpxholding/\". OR \"https://www.linkedin.com/company/cpxholding/\" OR \"https://www.linkedin.com/company/cpxholding/\"
                 },
                 { exists: { field: "p_comments_data" } },
                 {
@@ -1175,7 +1271,7 @@ let firstUrl = Object.values(trendCategoryData)[0].urls[0];
         if (Array.isArray(llm_mention_type)) {
           mentionTypesArray = llm_mention_type;
         } else if (typeof llm_mention_type === "string") {
-          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
         }
       }
 
@@ -1183,16 +1279,15 @@ let firstUrl = Object.values(trendCategoryData)[0].urls[0];
       if (mentionTypesArray.length > 0) {
         params.body.query.bool.must.push({
           bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
             })),
-            minimum_should_match: 1
-          }
+            minimum_should_match: 1,
+          },
         });
       }
-    
 
-            if (
+      if (
         sentimentType &&
         sentimentType !== "undefined" &&
         sentimentType !== "null" &&
@@ -1209,20 +1304,21 @@ let firstUrl = Object.values(trendCategoryData)[0].urls[0];
               minimum_should_match: 1,
             },
           };
-           params.body.query.bool.must.push(sentimentFilter);
+          params.body.query.bool.must.push(sentimentFilter);
         } else {
           // Handle single sentiment type
-           params.body.query.bool.must.push({
+          params.body.query.bool.must.push({
             match: { predicted_sentiment_value: sentimentType.trim() },
           });
         }
       }
-  
 
       const results = await elasticClient.search(params);
-      const posts = results.hits.hits.map((hit) => formatPostData(hit, allFilterTerms));
+      const posts = results.hits.hits.map((hit) =>
+        formatPostData(hit, allFilterTerms)
+      );
 
-  const commentsList = [];
+      const commentsList = [];
       for (const post of results.hits.hits) {
         if (!post._source.p_comments_data) continue;
 
@@ -1240,81 +1336,90 @@ let firstUrl = Object.values(trendCategoryData)[0].urls[0];
         if (!Array.isArray(commentsData)) continue;
 
         // To avoid counting the same post multiple times for the same date
-   
-      if(req.body.companyURL){
-        firstUrl=req.body.companyURL
+
+        if (req.body.companyURL) {
+          linkedInUrl = req.body.companyURL;
         }
+
+      
         for (const comment of commentsData) {
-            // commentsList.push(comment)
-  if(comment.author?.fullPositions && Array.isArray(comment.author?.fullPositions) ){
-    const isMatch = comment.author.fullPositions?.some(
-  pos => pos.companyURL === firstUrl
-);
-    if(isMatch){
-    const isMatchComment = comment.author.fullPositions?.filter(
-  pos => pos.companyURL === firstUrl
-);   
-if(req.body?.needCommentsData){
-commentsList.push(comment)
-}  else{
-  commentsList.push({
-    name:comment?.author?.name || comment?.author?.firstName+" "+comment?.author?.lastName,
-    text:comment.text,
-    profile_url:comment?.author?.profilePicture,
-    position:isMatchComment[0].title,
-    commentsCount:comment.totalSocialActivityCounts.numComments,
-    likeCount:comment.totalSocialActivityCounts.likeCount,
-    sharesCount:comment.totalSocialActivityCounts.numShares,
-    ReactionCount:comment.totalSocialActivityCounts.totalReactionCount,
-  });}
-   }
-}
-  // return res.status(200).json(isMatchComment);
- continue;
-   
+          // commentsList.push(comment)
+          if (
+            comment.author?.fullPositions &&
+            Array.isArray(comment.author?.fullPositions)
+          ) {
+            const isMatch = comment.author.fullPositions?.some(
+              (pos) => pos.companyURL === linkedInUrl
+            );
+            if (isMatch) {
+              const isMatchComment = comment.author.fullPositions?.filter(
+                (pos) => pos.companyURL === linkedInUrl
+              );
+              if (req.body?.needCommentsData) {
+                commentsList.push(comment);
+              } else {
+                commentsList.push({
+                  name:
+                    comment?.author?.name ||
+                    comment?.author?.firstName +
+                      " " +
+                      comment?.author?.lastName,
+                  text: comment.text,
+                  profile_url: comment?.author?.profilePicture,
+                  position: isMatchComment[0].title,
+                  commentsCount: comment.totalSocialActivityCounts.numComments,
+                  likeCount: comment.totalSocialActivityCounts.likeCount,
+                  sharesCount: comment.totalSocialActivityCounts.numShares,
+                  ReactionCount:
+                    comment.totalSocialActivityCounts.totalReactionCount,
+                });
+              }
+            }
+          }
+          // return res.status(200).json(isMatchComment);
+          continue;
         }
-
-      
       }
-
-      
-
 
       // Generate CSV from commentsList
       if (commentsList.length === 0) {
         return res.status(404).json({
           success: false,
-          message: "No comments found"
+          message: "No comments found",
         });
       }
-      console.log(req.body?.isCSV)
+      console.log(req.body?.isCSV);
 
-      if(req.body.isCSV==false || req.body?.needCommentsData){
-      return res.status(200).json(commentsList);
+      if (req.body.isCSV == false || req.body?.needCommentsData) {
+        return res.status(200).json(commentsList);
       }
 
-            // return res.status(200).json(commentsList);
-
-      
+      // return res.status(200).json(commentsList);
 
       // Helper function to flatten nested objects
-      const flattenObject = (obj, prefix = '') => {
+      const flattenObject = (obj, prefix = "") => {
         const flattened = {};
 
         for (const key in obj) {
           if (obj[key] === null || obj[key] === undefined) {
-            flattened[prefix + key] = '';
+            flattened[prefix + key] = "";
             continue;
           }
 
-          if (typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
-            Object.assign(flattened, flattenObject(obj[key], `${prefix}${key}.`));
+          if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
+            Object.assign(
+              flattened,
+              flattenObject(obj[key], `${prefix}${key}.`)
+            );
           } else if (Array.isArray(obj[key])) {
             // Handle arrays by converting to JSON string or processing first element
-            if (obj[key].length > 0 && typeof obj[key][0] === 'object') {
-              Object.assign(flattened, flattenObject(obj[key][0], `${prefix}${key}.`));
+            if (obj[key].length > 0 && typeof obj[key][0] === "object") {
+              Object.assign(
+                flattened,
+                flattenObject(obj[key][0], `${prefix}${key}.`)
+              );
             } else {
-              flattened[prefix + key] = obj[key].join('; ');
+              flattened[prefix + key] = obj[key].join("; ");
             }
           } else {
             flattened[prefix + key] = obj[key];
@@ -1325,39 +1430,50 @@ commentsList.push(comment)
       };
 
       // Flatten all comments to get all possible keys
-      const flattenedComments = commentsList.map(comment => flattenObject(comment));
+      const flattenedComments = commentsList.map((comment) =>
+        flattenObject(comment)
+      );
 
       // Get all unique headers from all comments
       const allHeaders = new Set();
-      flattenedComments.forEach(comment => {
-        Object.keys(comment).forEach(key => allHeaders.add(key));
+      flattenedComments.forEach((comment) => {
+        Object.keys(comment).forEach((key) => allHeaders.add(key));
       });
 
       const csvHeaders = Array.from(allHeaders);
 
       // Helper function to escape CSV values
       const escapeCsvValue = (value) => {
-        if (value === null || value === undefined) return '';
+        if (value === null || value === undefined) return "";
 
         const stringValue = String(value);
         // Escape double quotes and wrap in quotes if contains comma, newline, or quote
-        if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
-          return `"${stringValue.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
+        if (
+          stringValue.includes(",") ||
+          stringValue.includes("\n") ||
+          stringValue.includes('"')
+        ) {
+          return `"${stringValue.replace(/"/g, '""').replace(/\n/g, " ")}"`;
         }
         return stringValue;
       };
 
       // Convert commentsList to CSV rows
-      const csvRows = flattenedComments.map(comment => {
-        return csvHeaders.map(header => escapeCsvValue(comment[header])).join(',');
+      const csvRows = flattenedComments.map((comment) => {
+        return csvHeaders
+          .map((header) => escapeCsvValue(comment[header]))
+          .join(",");
       });
 
       // Combine headers and rows
-      const csvContent = [csvHeaders.join(','), ...csvRows].join('\n');
+      const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
 
       // Store CSV file to disk
-      const exportsDir = path.join(__dirname, '../../exports');
-      const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+      const exportsDir = path.join(__dirname, "../../exports");
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/:/g, "-")
+        .split(".")[0];
       const filename = `comments-export-${timestamp}.csv`;
       const filePath = path.join(exportsDir, filename);
 
@@ -1365,13 +1481,13 @@ commentsList.push(comment)
       await fs.mkdir(exportsDir, { recursive: true });
 
       // Write CSV file
-      await fs.writeFile(filePath, csvContent, 'utf8');
+      await fs.writeFile(filePath, csvContent, "utf8");
 
       return res.json({
         success: true,
-        message: 'CSV file stored successfully',
+        message: "CSV file stored successfully",
         filePath: filePath,
-        filename: filename
+        filename: filename,
       });
     } catch (error) {
       console.error("Error fetching comment audience trend:", error);
@@ -1392,15 +1508,19 @@ commentsList.push(comment)
         records = 20,
         topicId,
         categoryItems,
-        source = 'All',
-        category = 'all',
-        llm_mention_type
+        source = "All",
+        category = "all",
+        llm_mention_type,
       } = req.body;
 
       // Determine which category data to use
       let seniorityCategoryData = {};
 
-      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
         seniorityCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
@@ -1422,8 +1542,16 @@ commentsList.push(comment)
 
       // Handle category parameter - validate if provided
       let selectedCategory = category;
-      if (category && category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, seniorityCategoryData);
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          category,
+          seniorityCategoryData
+        );
         if (!matchedKey) {
           return res.json({
             data_array: [],
@@ -1435,7 +1563,7 @@ commentsList.push(comment)
                 highest_engagement_seniority: "",
               },
             },
-            error: 'Category not found'
+            error: "Category not found",
           });
         }
         selectedCategory = matchedKey;
@@ -1445,15 +1573,20 @@ commentsList.push(comment)
 
       // Source filtering logic
       const normalizedSources = normalizeSourceInput(source);
-      let sourcesQuery = '';
+      let sourcesQuery = "";
 
       if (normalizedSources.length > 0) {
         // Specific sources provided
-        const sourcesStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
+        const sourcesStr = normalizedSources.map((s) => `"${s}"`).join(" OR ");
         sourcesQuery = ` AND source:(${sourcesStr})`;
       } else {
         // Default logic based on topic
-        if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2642 ) {
+        if (
+          parseInt(topicId) === 2619 ||
+          parseInt(topicId) === 2639 ||
+          parseInt(topicId) === 2640 ||
+          parseInt(topicId) === 2642
+        ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
@@ -1468,14 +1601,8 @@ commentsList.push(comment)
         queryString: topicQueryString,
       });
 
-
-
-
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
-   
-
-        
 
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1483,7 +1610,6 @@ commentsList.push(comment)
           from: 0,
           size: 0,
           query: {
-           
             bool: {
               must: [
                 {
@@ -1503,8 +1629,7 @@ commentsList.push(comment)
                   },
                 },
                 ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
-              ]
-              ,
+              ],
               must_not: [
                 { term: { "p_comments_data.keyword": "" } },
                 { term: { "p_comments_data.keyword": "[]" } },
@@ -1549,7 +1674,7 @@ commentsList.push(comment)
         if (Array.isArray(llm_mention_type)) {
           mentionTypesArray = llm_mention_type;
         } else if (typeof llm_mention_type === "string") {
-          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
         }
       }
 
@@ -1557,23 +1682,23 @@ commentsList.push(comment)
       if (mentionTypesArray.length > 0) {
         params.body.query.bool.must.push({
           bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
             })),
-            minimum_should_match: 1
-          }
+            minimum_should_match: 1,
+          },
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if(Number(topicId) == 2641) {
+      else if (Number(topicId) == 2641) {
         params.body.query.bool.must.push({
           bool: {
             must_not: [
-              { match: { llm_mention_type: "Promotion" }},
-              { match: { llm_mention_type: "Booking" }},
-              { match: { llm_mention_type: "Others" }}
-            ]
-          }
+              { match: { llm_mention_type: "Promotion" } },
+              { match: { llm_mention_type: "Booking" } },
+              { match: { llm_mention_type: "Others" } },
+            ],
+          },
         });
       }
 
@@ -1594,16 +1719,14 @@ commentsList.push(comment)
               minimum_should_match: 1,
             },
           };
-           params.body.query.bool.must.push(sentimentFilter);
+          params.body.query.bool.must.push(sentimentFilter);
         } else {
           // Handle single sentiment type
-           params.body.query.bool.must.push({
+          params.body.query.bool.must.push({
             match: { predicted_sentiment_value: sentimentType.trim() },
           });
         }
       }
-      
-
 
       const results = await elasticClient.search(params);
 
@@ -1622,14 +1745,13 @@ commentsList.push(comment)
       }
 
       const categorizeSeniority = (position, summary) => {
-
         // Handle case where position is an array of job objects
         let positionText = "";
         if (Array.isArray(position)) {
           // Extract titles from job objects and combine them
           positionText = position
-            .map(job => job.title || "")
-            .filter(title => title.trim() !== "")
+            .map((job) => job.title || "")
+            .filter((title) => title.trim() !== "")
             .join(" ");
         } else {
           positionText = String(position || "");
@@ -1643,8 +1765,10 @@ commentsList.push(comment)
         // Helper function for better keyword matching
         const containsKeyword = (text, keyword) => {
           // Handle special cases for abbreviations and dots
-          if (keyword.includes('.')) {
-            return text.includes(keyword) || text.includes(keyword.replace('.', ''));
+          if (keyword.includes(".")) {
+            return (
+              text.includes(keyword) || text.includes(keyword.replace(".", ""))
+            );
           }
           // Use word boundary for most cases, but handle edge cases
           const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1654,49 +1778,168 @@ commentsList.push(comment)
 
         // Expanded and prioritized keyword lists
         const executiveKeywords = [
-          "ceo", "chief", "cto", "cfo", "coo", "cmo", "cio", "cpo",
-          "founder", "co-founder", "owner", "partner", "president", "chairman",
-          "board member", "vice president", "vp", "area vice president",
-          "regional vice president", "country manager", "general manager",
-          "global head", "executive director", "managing director",
-          "group director", "regional director", "country head", "global manager"
+          "ceo",
+          "chief",
+          "cto",
+          "cfo",
+          "coo",
+          "cmo",
+          "cio",
+          "cpo",
+          "founder",
+          "co-founder",
+          "owner",
+          "partner",
+          "president",
+          "chairman",
+          "board member",
+          "vice president",
+          "vp",
+          "area vice president",
+          "regional vice president",
+          "country manager",
+          "general manager",
+          "global head",
+          "executive director",
+          "managing director",
+          "group director",
+          "regional director",
+          "country head",
+          "global manager",
         ];
 
         const seniorKeywords = [
-          "senior", "sr.", "sr ", "lead", "principal", "director", "head of",
-          "manager", "managing", "supervisor", "team lead", "architect",
-          "strategist", "expert", "specialist", "department head", "division head",
-          "senior manager", "senior director", "senior consultant", "senior engineer",
-          "senior analyst", "senior developer", "senior architect", "senior advisor",
-          "customer success advisor lead", "key account manager", "solution engineering",
-          "sales manager", "account director", "practice lead", "delivery manager",
-          "program manager", "technical lead", "staff engineer", "staff developer",
-          "staff architect", "enterprise sales", "enterprise", "business development manager",
-          "regional manager", "area manager", "territory manager", "channel manager",
-          "partnership manager", "strategic", "solutions architect", "systems architect",
-          "it specialist", "technology specialist", "renewal specialist", "license specialist",
-          "managed services", "cloud specialist", "aws specialist", "azure specialist",
-          "devops engineer", "security specialist", "infrastructure manager"
+          "senior",
+          "sr.",
+          "sr ",
+          "lead",
+          "principal",
+          "director",
+          "head of",
+          "manager",
+          "managing",
+          "supervisor",
+          "team lead",
+          "architect",
+          "strategist",
+          "expert",
+          "specialist",
+          "department head",
+          "division head",
+          "senior manager",
+          "senior director",
+          "senior consultant",
+          "senior engineer",
+          "senior analyst",
+          "senior developer",
+          "senior architect",
+          "senior advisor",
+          "customer success advisor lead",
+          "key account manager",
+          "solution engineering",
+          "sales manager",
+          "account director",
+          "practice lead",
+          "delivery manager",
+          "program manager",
+          "technical lead",
+          "staff engineer",
+          "staff developer",
+          "staff architect",
+          "enterprise sales",
+          "enterprise",
+          "business development manager",
+          "regional manager",
+          "area manager",
+          "territory manager",
+          "channel manager",
+          "partnership manager",
+          "strategic",
+          "solutions architect",
+          "systems architect",
+          "it specialist",
+          "technology specialist",
+          "renewal specialist",
+          "license specialist",
+          "managed services",
+          "cloud specialist",
+          "aws specialist",
+          "azure specialist",
+          "devops engineer",
+          "security specialist",
+          "infrastructure manager",
         ];
 
         const midKeywords = [
-          "analyst", "coordinator", "associate", "executive", "developer",
-          "engineer", "designer", "marketing", "sales rep", "officer",
-          "representative", "consultant", "advisor", "assistant manager",
-          "professional", "technician", "planner", "administrator", "operations",
-          "hr", "human resources", "account manager", "project manager",
-          "product manager", "brand manager", "community manager", "social media manager",
-          "business analyst", "data analyst", "software engineer", "web developer",
-          "qa engineer", "support engineer", "network administrator", "system administrator"
+          "analyst",
+          "coordinator",
+          "associate",
+          "executive",
+          "developer",
+          "engineer",
+          "designer",
+          "marketing",
+          "sales rep",
+          "officer",
+          "representative",
+          "consultant",
+          "advisor",
+          "assistant manager",
+          "professional",
+          "technician",
+          "planner",
+          "administrator",
+          "operations",
+          "hr",
+          "human resources",
+          "account manager",
+          "project manager",
+          "product manager",
+          "brand manager",
+          "community manager",
+          "social media manager",
+          "business analyst",
+          "data analyst",
+          "software engineer",
+          "web developer",
+          "qa engineer",
+          "support engineer",
+          "network administrator",
+          "system administrator",
         ];
 
         const juniorKeywords = [
-          "junior", "jr.", "entry", "trainee", "intern", "internship",
-          "graduate", "assistant", "fresher", "new grad", "recent graduate",
-          "apprentice", "volunteer", "student", "entry-level", "beginner",
-          "learner", "temporary", "contract", "freelance", "part-time",
-          "support", "aide", "helper", "staff", "crew", "associate developer",
-          "junior developer", "junior engineer", "junior analyst", "entry level"
+          "junior",
+          "jr.",
+          "entry",
+          "trainee",
+          "intern",
+          "internship",
+          "graduate",
+          "assistant",
+          "fresher",
+          "new grad",
+          "recent graduate",
+          "apprentice",
+          "volunteer",
+          "student",
+          "entry-level",
+          "beginner",
+          "learner",
+          "temporary",
+          "contract",
+          "freelance",
+          "part-time",
+          "support",
+          "aide",
+          "helper",
+          "staff",
+          "crew",
+          "associate developer",
+          "junior developer",
+          "junior engineer",
+          "junior analyst",
+          "entry level",
         ];
 
         // First check for experience patterns
@@ -1740,20 +1983,26 @@ commentsList.push(comment)
         }
 
         // PRIORITY CHECK 4: Manager positions (but not assistant manager)
-        if (containsKeyword(combinedText, "manager") &&
-          !containsKeyword(combinedText, "assistant manager")) {
+        if (
+          containsKeyword(combinedText, "manager") &&
+          !containsKeyword(combinedText, "assistant manager")
+        ) {
           return "Senior Level";
         }
 
         // PRIORITY CHECK 5: Director positions
-        if (containsKeyword(combinedText, "director") &&
-          !containsKeyword(combinedText, "assistant director")) {
+        if (
+          containsKeyword(combinedText, "director") &&
+          !containsKeyword(combinedText, "assistant director")
+        ) {
           return "Senior Level";
         }
 
         // PRIORITY CHECK 6: Lead positions
-        if (containsKeyword(combinedText, "lead") &&
-          !containsKeyword(combinedText, "assistant lead")) {
+        if (
+          containsKeyword(combinedText, "lead") &&
+          !containsKeyword(combinedText, "assistant lead")
+        ) {
           return "Senior Level";
         }
 
@@ -1790,13 +2039,19 @@ commentsList.push(comment)
         }
 
         // Enhanced fallback based on title complexity and keywords
-        if (positionLower.split(/\s+/).length > 3 &&
-          !/(assistant|associate|junior|jr\.?|intern)/i.test(positionLower)) {
+        if (
+          positionLower.split(/\s+/).length > 3 &&
+          !/(assistant|associate|junior|jr\.?|intern)/i.test(positionLower)
+        ) {
           return "Senior Level";
         }
 
         // Additional check for enterprise/business roles
-        if (/\b(enterprise|business|strategic|solutions|technology)\b/i.test(combinedText)) {
+        if (
+          /\b(enterprise|business|strategic|solutions|technology)\b/i.test(
+            combinedText
+          )
+        ) {
           return "Senior Level";
         }
 
@@ -2005,7 +2260,7 @@ commentsList.push(comment)
         const avgSentiment =
           sentimentValues.length > 0
             ? sentimentValues.reduce((sum, val) => sum + val, 0) /
-            sentimentValues.length
+              sentimentValues.length
             : 0;
 
         finalSeniorityStats[level] = {
@@ -2067,9 +2322,9 @@ commentsList.push(comment)
         const avgSentiment =
           sentimentValues.length > 0
             ? (
-              sentimentValues.reduce((sum, val) => sum + val, 0) /
-              sentimentValues.length
-            ).toFixed(2)
+                sentimentValues.reduce((sum, val) => sum + val, 0) /
+                sentimentValues.length
+              ).toFixed(2)
             : "0.00";
 
         topCommentersBySeniority[level].push({
@@ -2168,7 +2423,6 @@ commentsList.push(comment)
         );
       });
 
-
       const summary = {
         seniority_breakdown: seniorityBreakdown,
         top_commenters_by_seniority: topCommentersBySeniority,
@@ -2176,7 +2430,7 @@ commentsList.push(comment)
           most_active_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
               finalSeniorityStats[current].total_comments >
-                finalSeniorityStats[prev]?.total_comments
+              finalSeniorityStats[prev]?.total_comments
                 ? current
                 : prev,
             Object.keys(finalSeniorityStats)[0] || ""
@@ -2184,7 +2438,7 @@ commentsList.push(comment)
           highest_engagement_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
               finalSeniorityStats[current].unique_commenters >
-                finalSeniorityStats[prev]?.unique_commenters
+              finalSeniorityStats[prev]?.unique_commenters
                 ? current
                 : prev,
             Object.keys(finalSeniorityStats)[0] || ""
@@ -2192,7 +2446,7 @@ commentsList.push(comment)
           most_positive_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
               parseFloat(finalSeniorityStats[current].avg_sentiment) >
-                parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
+              parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
                 ? current
                 : prev,
             Object.keys(finalSeniorityStats)[0] || ""
@@ -2200,7 +2454,7 @@ commentsList.push(comment)
           most_negative_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
               parseFloat(finalSeniorityStats[current].avg_sentiment) <
-                parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
+              parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
                 ? current
                 : prev,
             Object.keys(finalSeniorityStats)[0] || ""
@@ -2231,7 +2485,7 @@ commentsList.push(comment)
         source = "All",
         topicId,
         categoryItems,
-        llm_mention_type
+        llm_mention_type,
       } = req.body;
 
       // Check if this is the special topicId
@@ -2240,7 +2494,11 @@ commentsList.push(comment)
       // Determine which category data to use
       let countryCategoryData = {};
 
-      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
         countryCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
@@ -2254,19 +2512,30 @@ commentsList.push(comment)
 
       // Handle category parameter - validate if provided
       let category = inputCategory;
-      if (category && category !== 'all' && category !== '' && category !== 'custom') {
-        const matchedKey = findMatchingCategoryKey(category, countryCategoryData);
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          category,
+          countryCategoryData
+        );
         if (!matchedKey) {
           return res.json({
             responseArray: [],
-            error: 'Category not found'
+            error: "Category not found",
           });
         }
         category = matchedKey;
       }
 
       // Build base query for filters processing
-      const baseQueryString = buildBaseQueryString(category, countryCategoryData);
+      const baseQueryString = buildBaseQueryString(
+        category,
+        countryCategoryData
+      );
 
       // Process filters (time slot, date range, sentiment)
       const filters = processFilters({
@@ -2339,7 +2608,6 @@ commentsList.push(comment)
       query.bool.must.push({ exists: { field: "u_country" } });
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
- 
 
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -2367,7 +2635,7 @@ commentsList.push(comment)
         if (Array.isArray(llm_mention_type)) {
           mentionTypesArray = llm_mention_type;
         } else if (typeof llm_mention_type === "string") {
-          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
         }
       }
 
@@ -2375,16 +2643,15 @@ commentsList.push(comment)
       if (mentionTypesArray.length > 0) {
         query.bool.must.push({
           bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
             })),
-            minimum_should_match: 1
-          }
+            minimum_should_match: 1,
+          },
         });
       }
-    
 
-      return res.send(params)
+      return res.send(params);
       const results = await elasticClient.search(params);
 
       let responseArray = [];
@@ -2444,8 +2711,7 @@ commentsList.push(comment)
   },
 
   getAudienceDistributionByCountryInUNDP: async (req, res) => {
-
-       try {
+    try {
       const {
         timeSlot,
         fromDate,
@@ -2455,13 +2721,17 @@ commentsList.push(comment)
         source = "All",
         topicId,
         categoryItems,
-        llm_mention_type
+        llm_mention_type,
       } = req.body;
 
       // Determine which category data to use
       let undpCategoryData = {};
 
-      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
         undpCategoryData = processCategoryItems(categoryItems);
       } else {
         // Fall back to middleware data
@@ -2470,7 +2740,12 @@ commentsList.push(comment)
 
       // Handle category parameter - validate if provided
       let selectedCategory = category;
-      if (category && category !== 'all' && category !== '' && category !== 'custom') {
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
         const matchedKey = findMatchingCategoryKey(category, undpCategoryData);
         if (!matchedKey) {
           return res.json([]);
@@ -2478,7 +2753,7 @@ commentsList.push(comment)
         selectedCategory = matchedKey;
       }
 
-   const filters = processFilters({
+      const filters = processFilters({
         sentimentType,
         timeSlot,
         fromDate,
@@ -2492,70 +2767,68 @@ commentsList.push(comment)
         lessThanTime: filters.lessThanTime,
       };
 
-  // Your existing code...
-  const categoryData = await prisma.topic_categories.findMany({
-    where: {
-      customer_topic_id: Number(topicId)
-    },
-    orderBy: [
-      { category_title: 'asc' },
-      { id: 'asc' }
-    ]
-  });
+      // Your existing code...
+      const categoryData = await prisma.topic_categories.findMany({
+        where: {
+          customer_topic_id: Number(topicId),
+        },
+        orderBy: [{ category_title: "asc" }, { id: "asc" }],
+      });
 
-  // Create country-wise aggregations
-  const countryAggs = createCountryWiseAggregations(categoryData);
-  
-  // Source filtering logic
-  const normalizedSources = normalizeSourceInput(source);
-  let sourceFilter = {};
+      // Create country-wise aggregations
+      const countryAggs = createCountryWiseAggregations(categoryData);
 
-  if (normalizedSources.length > 0) {
-    // Specific sources provided
-    sourceFilter = {
-      bool: {
-        should: normalizedSources.map(src => ({
-          match_phrase: { source: src }
-        })),
-        minimum_should_match: 1
+      // Source filtering logic
+      const normalizedSources = normalizeSourceInput(source);
+      let sourceFilter = {};
+
+      if (normalizedSources.length > 0) {
+        // Specific sources provided
+        sourceFilter = {
+          bool: {
+            should: normalizedSources.map((src) => ({
+              match_phrase: { source: src },
+            })),
+            minimum_should_match: 1,
+          },
+        };
+      } else {
+        // Default to Facebook and Twitter
+        sourceFilter = {
+          bool: {
+            should: [
+              { match_phrase: { source: "Facebook" } },
+              { match_phrase: { source: "Twitter" } },
+            ],
+            minimum_should_match: 1,
+          },
+        };
       }
-    };
-  } else {
-    // Default to Facebook and Twitter
-    sourceFilter = {
-      bool: {
-        should: [
-          { match_phrase: { source: "Facebook" } },
-          { match_phrase: { source: "Twitter" } }
-        ],
-        minimum_should_match: 1
-      }
-    };
-  }
 
-  // Your Elasticsearch query
-  const elasticQuery = {
-    "query":{
-    "bool": {
-        "must": [
-            sourceFilter,
-               {
-                    "range": {
-                        "p_created_time": {
-                            "gte":queryTimeRange.greaterThanTime,
-                            "lte": queryTimeRange.lessThanTime
-                        }
-                    }
-                }]
-              }},
-    "size": 0, // Only get aggregation results
-    "aggs": {
-      ...countryAggs, // Spread the country-wise aggregations
-      
-    }
-  };
+      // Your Elasticsearch query
+      const elasticQuery = {
+        query: {
+          bool: {
+            must: [
+              sourceFilter,
+              {
+                range: {
+                  p_created_time: {
+                    gte: queryTimeRange.greaterThanTime,
+                    lte: queryTimeRange.lessThanTime,
+                  },
+                },
+              },
+            ],
+          },
+        },
+        size: 0, // Only get aggregation results
+        aggs: {
+          ...countryAggs, // Spread the country-wise aggregations
+        },
+      };
 
-     if (
+      if (
         sentimentType &&
         sentimentType !== "undefined" &&
         sentimentType !== "null" &&
@@ -2581,7 +2854,6 @@ commentsList.push(comment)
         }
       }
 
-
       // LLM Mention Type filtering logic
       let mentionTypesArray = [];
 
@@ -2589,7 +2861,7 @@ commentsList.push(comment)
         if (Array.isArray(llm_mention_type)) {
           mentionTypesArray = llm_mention_type;
         } else if (typeof llm_mention_type === "string") {
-          mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
         }
       }
 
@@ -2597,17 +2869,15 @@ commentsList.push(comment)
       if (mentionTypesArray.length > 0) {
         elasticQuery.query.bool.must.push({
           bool: {
-            should: mentionTypesArray.map(type => ({
-              match: { llm_mention_type: type }
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
             })),
-            minimum_should_match: 1
-          }
+            minimum_should_match: 1,
+          },
         });
       }
-    
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-   
 
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -2616,43 +2886,41 @@ commentsList.push(comment)
 
       const results = await elasticClient.search(params);
 
-const responseArray = Object.entries(results.aggregations)
-  .map(([key, value]) => {
-    const originalCountry = key
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, char => char.toUpperCase());
-const posts =  value.top_posts.hits.hits.map((hit) => formatPostData(hit));
+      const responseArray = Object.entries(results.aggregations)
+        .map(([key, value]) => {
+          const originalCountry = key
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+          const posts = value.top_posts.hits.hits.map((hit) =>
+            formatPostData(hit)
+          );
 
-    // Extract posts from top_hits aggregation
-    // const posts = value.top_posts.hits.hits.map(hit => ({
-    //   id: hit._id,
-    //   ...hit._source
-    // }));
+          // Extract posts from top_hits aggregation
+          // const posts = value.top_posts.hits.hits.map(hit => ({
+          //   id: hit._id,
+          //   ...hit._source
+          // }));
 
-    return {
-      country_name: originalCountry || "Unknown",
-      key_count: value.doc_count,
-      posts: posts,  // Include the posts in the response
-      sentiments: {
-        Positive: 0,
-        Negative: 0,
-        Neutral: 0
-      }
-    };
-  })
-  .sort((a, b) => b.key_count - a.key_count);
+          return {
+            country_name: originalCountry || "Unknown",
+            key_count: value.doc_count,
+            posts: posts, // Include the posts in the response
+            sentiments: {
+              Positive: 0,
+              Negative: 0,
+              Neutral: 0,
+            },
+          };
+        })
+        .sort((a, b) => b.key_count - a.key_count);
 
-return res.status(200).json({responseArray});
-
-
-} catch (error) {
-  console.error('Error:', error);
-  // return next(error);
-}
-
-
-},
-}
+      return res.status(200).json({ responseArray });
+    } catch (error) {
+      console.error("Error:", error);
+      // return next(error);
+    }
+  },
+};
 
 /**
  * Format post data for the frontend
@@ -2679,8 +2947,8 @@ const formatPostData = (hit, allFilterTerms = []) => {
       ? source.rating >= 4
         ? "Supportive"
         : source.rating <= 2
-          ? "Frustrated"
-          : "Neutral"
+        ? "Frustrated"
+        : "Neutral"
       : "");
 
   // Clean up comments URL if available
@@ -2711,8 +2979,8 @@ const formatPostData = (hit, allFilterTerms = []) => {
       source.rating >= 4
         ? "Positive"
         : source.rating <= 2
-          ? "Negative"
-          : "Neutral";
+        ? "Negative"
+        : "Neutral";
   }
 
   if (source.predicted_category) predicted_category = source.predicted_category;
@@ -2764,15 +3032,22 @@ const formatPostData = (hit, allFilterTerms = []) => {
     source.hashtags,
     source.u_source,
     source.p_url,
-    source.u_fullname
+    source.u_fullname,
   ];
-  const matched_terms = allFilterTerms.filter(term =>
-    textFields.some(field => {
+  const matched_terms = allFilterTerms.filter((term) =>
+    textFields.some((field) => {
       if (!field) return false;
       if (Array.isArray(field)) {
-        return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+        return field.some(
+          (f) =>
+            typeof f === "string" &&
+            f.toLowerCase().includes(term.toLowerCase())
+        );
       }
-      return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+      return (
+        typeof field === "string" &&
+        field.toLowerCase().includes(term.toLowerCase())
+      );
     })
   );
 
@@ -2856,7 +3131,6 @@ function buildBaseQueryString(selectedCategory, categoryData) {
   return queryString;
 }
 
-
 /**
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
@@ -2899,7 +3173,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
   if (normalizedSources.length > 0) {
     query.bool.must.push({
       bool: {
-        should: normalizedSources.map(s => ({ match_phrase: { source: s } })),
+        should: normalizedSources.map((s) => ({ match_phrase: { source: s } })),
         minimum_should_match: 1,
       },
     });
@@ -2960,19 +3234,19 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
           ...Object.values(categoryData).flatMap((data) =>
             (data.keywords || []).flatMap((keyword) => [
               { match_phrase: { p_message_text: keyword } },
-              { match_phrase: { keywords: keyword } }
+              { match_phrase: { keywords: keyword } },
             ])
           ),
           ...Object.values(categoryData).flatMap((data) =>
             (data.hashtags || []).flatMap((hashtag) => [
               { match_phrase: { p_message_text: hashtag } },
-              { match_phrase: { hashtags: hashtag } }
+              { match_phrase: { hashtags: hashtag } },
             ])
           ),
           ...Object.values(categoryData).flatMap((data) =>
             (data.urls || []).flatMap((url) => [
               { match_phrase: { u_source: url } },
-              { match_phrase: { p_url: url } }
+              { match_phrase: { p_url: url } },
             ])
           ),
         ],
@@ -2996,15 +3270,15 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
           should: [
             ...(data.keywords || []).flatMap((keyword) => [
               { match_phrase: { p_message_text: keyword } },
-              { match_phrase: { keywords: keyword } }
+              { match_phrase: { keywords: keyword } },
             ]),
             ...(data.hashtags || []).flatMap((hashtag) => [
               { match_phrase: { p_message_text: hashtag } },
-              { match_phrase: { hashtags: hashtag } }
+              { match_phrase: { hashtags: hashtag } },
             ]),
             ...(data.urls || []).flatMap((url) => [
               { match_phrase: { u_source: url } },
-              { match_phrase: { p_url: url } }
+              { match_phrase: { p_url: url } },
             ]),
           ],
           minimum_should_match: 1,
@@ -3024,4 +3298,3 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
 }
 
 module.exports = audienceController;
-

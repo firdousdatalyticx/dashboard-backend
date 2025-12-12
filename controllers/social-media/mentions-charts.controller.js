@@ -445,7 +445,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
     return  'source:("Twitter" OR "Facebook" OR "Instagram")';
     } 
     else if(topicId===2646 || parseInt(topicId)===2650){
-      return  'source:("Twitter" OR "LinkedIn" OR "Linkedin")';
+      return  'source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web")';
     }
     else {
     return 'source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")';
@@ -2580,7 +2580,7 @@ const mentionsChartController = {
       } else if(topicId &&  parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ){        
         return  'AND source:("Twitter" OR "Facebook" OR "Instagram")';
       }  else if(topicId===2646 || parseInt(topicId)===2650 ){
-      return  'AND source:("Twitter" OR "LinkedIn" OR "Linkedin")';
+      return  'AND source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web")';
     }
        else {
         topicQueryString += ` AND source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web")`;

@@ -202,10 +202,12 @@ const reportsController = {
                 topicQueryString += ` AND predicted_sentiment_value:(${sentiStr})`;
             }
 
-                 if(parseInt(req.body.topicId)==2619 || parseInt(req.body.topicId)==2639 || parseInt(req.body.topicId)==2640 || parseInt(req.body.topicId)==2642){
+                 if(parseInt(req.body.topicId)==2619 || parseInt(req.body.topicId)==2639 || parseInt(req.body.topicId)==2640 || parseInt(req.body.topicId)==2642 || parseInt(req.body.topicId)==2647 || parseInt(req.body.topicId)==2648 || parseInt(req.body.topicId)==2649){
             topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin)`;
         }else if(parseInt(req.body.topicId)==2619){
                       topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin OR Twitter)`;
+        }else if(parseInt(req.body.topicId)==2646 || parseInt(req.body.topicId)==2650){
+          topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin OR Twitter OR Web)`;
         }
 
       // Build Elasticsearch query

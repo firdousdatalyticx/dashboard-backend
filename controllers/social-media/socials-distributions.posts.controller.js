@@ -130,6 +130,42 @@ const getDistributionPosts = async (req, res) => {
                                 };
                                 query.bool.must.push(categoryFilter);
                         }
+         const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text
+            )
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+
     if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
       if (sentimentType.includes(',')) {
         const sentimentArray = sentimentType.split(',');

@@ -221,6 +221,40 @@ const emotionsController = {
       // Add category filters
       addCategoryFilters(query, category, categoryData);
 
+                      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text
+            )
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
       // Add sentiment filter if provided
       if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
         if (sentiment.includes(',')) {
@@ -501,6 +535,7 @@ const emotionsController = {
               name: emotionName,
               count: posts.length, // Use actual posts count
               posts: posts, // Limited to MAX_POSTS_PER_EMOTION
+              
             });
           } catch (error) {
             console.error(
@@ -528,7 +563,7 @@ const emotionsController = {
         emotions,
         totalCount,
         timeIntervals: timeIntervalsWithPosts,
-        // query: params.query,
+      
       });
     } catch (error) {
       console.error("Error fetching emotions analysis data:", error);

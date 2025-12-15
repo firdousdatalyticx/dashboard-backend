@@ -833,6 +833,13 @@ const postsController = {
         }
       }
 
+      // For topicId 2646 and 2650, fetch more posts to ensure we have enough from each source
+      const requestedLimit = parseInt(limit, 10) || 50;
+      const parsedTopicId = topicId ? parseInt(topicId) : null;
+      const esLimit = (parsedTopicId === 2646 || parsedTopicId === 2650) 
+        ? Math.max(requestedLimit * 10, 500) // Fetch 10x the limit to ensure enough from each source (especially LinkedIn)
+        : requestedLimit;
+
       // Build the Elasticsearch query parameters.
       const queryParams = {
         topicQueryString,
@@ -849,7 +856,7 @@ const postsController = {
         isScadUser,
         selectedTab,
         parentAccountId,
-        limit: parseInt(limit, 10) || 50,
+        limit: esLimit,
         rating,
         googleUrls,
         click,
@@ -937,7 +944,7 @@ const postsController = {
       });
       // If rating filtering is active, filter hits accordingly.
       const hits = results?.hits?.hits || [];
-      const filteredHits = isRatingFilterActive
+      let filteredHits = isRatingFilterActive
         ? hits.filter((hit) => {
             const hitRating =
               hit._source.rating !== undefined
@@ -946,6 +953,11 @@ const postsController = {
             return hitRating === requestedRatingValue;
           })
         : hits;
+
+      // For topicId 2646 and 2650, redistribute posts equally across Twitter, LinkedIn, and Web
+      if (parsedTopicId === 2646 || parsedTopicId === 2650) {
+        filteredHits = redistributePostsBySource(filteredHits, requestedLimit);
+      }
 
       // Format results concurrently.
       const ratingsFound = new Set();
@@ -1105,6 +1117,124 @@ function hasMultiMatchWithFields(query) {
   }
 
   return false;
+}
+
+/**
+ * Redistribute posts equally across Twitter, LinkedIn, and Web sources
+ * @param {Array} hits - Array of Elasticsearch hits
+ * @param {number} limit - Maximum number of posts to return
+ * @returns {Array} Redistributed array of hits
+ */
+function redistributePostsBySource(hits, limit) {
+  // Group hits by source
+  const sourceGroups = {
+    Twitter: [],
+    LinkedIn: [],
+    Linkedin: [],
+    Web: []
+  };
+
+  // Categorize hits by source
+  hits.forEach(hit => {
+    const source = hit._source?.source || '';
+    if (source === 'Twitter') {
+      sourceGroups.Twitter.push(hit);
+    } else if (source === 'LinkedIn' || source === 'Linkedin') {
+      // Handle both LinkedIn and Linkedin variations
+      if (source === 'LinkedIn') {
+        sourceGroups.LinkedIn.push(hit);
+      } else {
+        sourceGroups.Linkedin.push(hit);
+      }
+    } else if (source === 'Web') {
+      sourceGroups.Web.push(hit);
+    }
+  });
+
+  // Merge LinkedIn and Linkedin (case variations)
+  const linkedInPosts = [...sourceGroups.LinkedIn, ...sourceGroups.Linkedin];
+  const twitterPosts = sourceGroups.Twitter;
+  const webPosts = sourceGroups.Web;
+
+  // Calculate target posts per source (equal distribution)
+  const postsPerSource = Math.floor(limit / 3);
+  const remainder = limit % 3;
+
+  // Determine how many posts we want from each source
+  // Distribute remainder: first to Twitter, then LinkedIn, then Web
+  const targetTwitterCount = postsPerSource + (remainder > 0 ? 1 : 0);
+  const targetLinkedInCount = postsPerSource + (remainder > 1 ? 1 : 0);
+  const targetWebCount = postsPerSource;
+
+  // Take posts from each source up to the target, but prioritize equal distribution
+  // If LinkedIn has fewer posts, we'll still take what we can and balance with others
+  const twitterSlice = twitterPosts.slice(0, Math.min(targetTwitterCount, twitterPosts.length));
+  const linkedInSlice = linkedInPosts.slice(0, Math.min(targetLinkedInCount, linkedInPosts.length));
+  const webSlice = webPosts.slice(0, Math.min(targetWebCount, webPosts.length));
+
+  // Find the actual minimum we can get from all sources
+  const actualMin = Math.min(twitterSlice.length, linkedInSlice.length, webSlice.length);
+  
+  // If we have enough from all sources, use the target counts
+  // Otherwise, use equal amounts based on the minimum available (to ensure balance)
+  let finalTwitterSlice, finalLinkedInSlice, finalWebSlice;
+  
+  if (actualMin >= postsPerSource) {
+    // We have enough from all sources, use target counts
+    finalTwitterSlice = twitterSlice.slice(0, Math.min(targetTwitterCount, twitterSlice.length));
+    finalLinkedInSlice = linkedInSlice.slice(0, Math.min(targetLinkedInCount, linkedInSlice.length));
+    finalWebSlice = webSlice.slice(0, Math.min(targetWebCount, webSlice.length));
+  } else {
+    // One source has fewer posts, use equal amounts from all (based on minimum)
+    finalTwitterSlice = twitterSlice.slice(0, actualMin);
+    finalLinkedInSlice = linkedInSlice.slice(0, actualMin);
+    finalWebSlice = webSlice.slice(0, actualMin);
+    
+    // Fill remaining slots from sources that have more posts, but try to keep balance
+    const remaining = limit - (actualMin * 3);
+    let remainingCount = remaining;
+    let twIdx = actualMin;
+    let liIdx = actualMin;
+    let webIdx = actualMin;
+    
+    // Round-robin fill from remaining posts
+    while (remainingCount > 0 && (twIdx < twitterSlice.length || liIdx < linkedInSlice.length || webIdx < webSlice.length)) {
+      if (twIdx < twitterSlice.length && remainingCount > 0) {
+        finalTwitterSlice.push(twitterSlice[twIdx++]);
+        remainingCount--;
+      }
+      if (liIdx < linkedInSlice.length && remainingCount > 0) {
+        finalLinkedInSlice.push(linkedInSlice[liIdx++]);
+        remainingCount--;
+      }
+      if (webIdx < webSlice.length && remainingCount > 0) {
+        finalWebSlice.push(webSlice[webIdx++]);
+        remainingCount--;
+      }
+    }
+  }
+
+  // Interleave posts from each source to ensure equal distribution
+  // This creates a round-robin pattern: Twitter, LinkedIn, Web, Twitter, LinkedIn, Web...
+  const redistributed = [];
+  const maxLength = Math.max(finalTwitterSlice.length, finalLinkedInSlice.length, finalWebSlice.length);
+
+  for (let i = 0; i < maxLength && redistributed.length < limit; i++) {
+    // Add from Twitter
+    if (i < finalTwitterSlice.length && redistributed.length < limit) {
+      redistributed.push(finalTwitterSlice[i]);
+    }
+    // Add from LinkedIn
+    if (i < finalLinkedInSlice.length && redistributed.length < limit) {
+      redistributed.push(finalLinkedInSlice[i]);
+    }
+    // Add from Web
+    if (i < finalWebSlice.length && redistributed.length < limit) {
+      redistributed.push(finalWebSlice[i]);
+    }
+  }
+
+  return redistributed;
 }
 
 module.exports = postsController;

@@ -73,9 +73,6 @@ const sentimentsController = {
                 sentiment
             } = req.body;
             
-            // Check if this is the special topicId
-            const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-            
             // Get category data from middleware
             let categoryData = {};
       

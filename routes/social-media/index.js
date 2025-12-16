@@ -42,7 +42,7 @@ const complaintsAcrossCustomerJourneyStagesbyAudience = require("./complaints-ac
 const undpRoutes = require("./UNDP.route")
 const undpKeywordRoutes = require("./UNDP.keyword.route")
 const migrationTopicsRoutes = require("./migration-topics.routes")
-
+const sentimentAnalysisEduRoute = require("./sentiment-analysis-edu.js")
 const trustDimensionsEducationSystemRoutes = require("./trust-dimensions-education-system.routes");
 const  benchMarkingPresenceSentimentRoutes  = require('./bench-marking-presence-sentiment.route');
 const eventTypePopularityRoute = require("./event-type-popularity.routes"); 
@@ -50,6 +50,7 @@ const llm_motivation_phase_route= require("./llm_motivation-phase.route")
 const llm_motivation_sentiment_route = require("./llm-motivation-sentiment.route")
 const mentionsOverTimeRoute = require("./mentions-over-time.route")
 const businessLocationRoutes = require("./business-locations.routes")
+
 /// migration-topics.routes.js
 /**
  * @swagger
@@ -108,5 +109,7 @@ router.use("/llm-motivation-phase",llm_motivation_phase_route);
 router.use("/llm-motivation-sentiment",llm_motivation_sentiment_route)
 router.use("/business-location",businessLocationRoutes)
 router.use("/health-check",healthCheckRoute)
+router.use('/sentiments',sentimentAnalysisEduRoute);
+
 
 module.exports = router; 

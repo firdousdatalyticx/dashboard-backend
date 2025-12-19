@@ -298,6 +298,7 @@ async function generateCategoryJson(topicId) {
                 let llmEmotionCount = 0;
                 let llmSubtopicCount = 0;
                 let validTimestampCount = 0;
+                let uCountryCount = 0;
 
                 posts.forEach(post => {
                     // Count predicted_sentiment_value (non-null, non-empty)
@@ -324,6 +325,11 @@ async function generateCategoryJson(topicId) {
                             validTimestampCount++;
                         }
                     }
+
+                    // Count u_country (non-null, non-empty)
+                    if (post.u_country && post.u_country.trim() !== '') {
+                        uCountryCount++;
+                    }
                 });
 
                 // Create the JSON structure
@@ -334,7 +340,8 @@ async function generateCategoryJson(topicId) {
                         predictedSentimentValue: predictedSentimentCount,
                         llmEmotion: llmEmotionCount,
                         llmSubtopic: llmSubtopicCount,
-                        validIsoTimestamps: validTimestampCount
+                        validIsoTimestamps: validTimestampCount,
+                        uCountry: uCountryCount
                     },
                     searchTermsUsed: allSearchTerms,
                     originalData: {
@@ -395,5 +402,4 @@ async function main() {
 }
 
 // Run the script
-main();
 main();

@@ -53,6 +53,8 @@ const engagementDistributionTrendRoutes = require("./engagement-distribution-tre
 const sentimentAnalysisEduRoute = require("./sentiment-analysis-edu.route")
 const subsidiaryDistributions = require("./subsidiary-distributions.route")
 const employeeEngagementLeaderboard = require("./employee-engagement-leaderboard.route")
+const geographicalDistributionRoutes = require("./geographical-distribution.route")
+const industryDistributionRoutes = require("./industry-distribution.route")
 /// migration-topics.routes.js
 /**
  * @swagger
@@ -114,4 +116,6 @@ router.use('/sentiments',sentimentAnalysisEduRoute);
 router.use("/engagement-distribution-trend",engagementDistributionTrendRoutes)
 router.use("/subsidiary-distributions",subsidiaryDistributions)
 router.use("/employee-engagement-leaderboard",employeeEngagementLeaderboard)
+router.use("/geographical-distribution",geographicalDistributionRoutes)
+router.use("/industry-distribution",industryDistributionRoutes)
 module.exports = router; 

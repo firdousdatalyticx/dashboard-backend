@@ -2,6 +2,28 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays, startOfMonth, endOfMonth, eachMonthOfInterval, eachWeekOfInterval, eachDayOfInterval } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 const themesOverTimeController = {
     /**
      * Get themes over time analysis data (counts only) using ES aggregations
@@ -9,7 +31,7 @@ const themesOverTimeController = {
     getThemesOverTimeAnalysis: async (req, res) => {
         try {
             const {
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 greaterThanTime,
@@ -47,10 +69,16 @@ const themesOverTimeController = {
                 effectiveLessThanTime = format(now, 'yyyy-MM-dd');
             }
 
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, req);
+            }, validatedSources, req);
 
             if (sentiment) {
                 if (sentiment.toLowerCase() === 'all') {
@@ -154,7 +182,7 @@ const themesOverTimeController = {
     getThemesOverTimePosts: async (req, res) => {
         try {
             const {
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 greaterThanTime,
@@ -192,7 +220,13 @@ const themesOverTimeController = {
                 effectiveLessThanTime = lessThanTime;
             }
 
-            const query = buildBaseQuery({ greaterThanTime: effectiveGreaterThanTime, lessThanTime: effectiveLessThanTime }, source, req);
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
+            const query = buildBaseQuery({ greaterThanTime: effectiveGreaterThanTime, lessThanTime: effectiveLessThanTime }, validatedSources, req);
 
             if (sentiment) {
                 if (sentiment.toLowerCase() === 'all') {
@@ -318,7 +352,7 @@ const formatPostData = (hit) => {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, sources, req) {
     const query = {
         bool: {
             must: [{ range: { p_created_time: { gte: dateRange.greaterThanTime, lte: dateRange.lessThanTime } } }]
@@ -329,9 +363,15 @@ function buildBaseQuery(dateRange, source, req) {
     const availableDataSources = req.processedDataSources || [];
 
     // Handle source filtering
-    if (source !== 'All') {
+    if (sources && sources.length > 0) {
+        // If validated sources provided, use those
         query.bool.must.push({
-            match_phrase: { source: source }
+            bool: {
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
         });
     } else {
         // Use middleware sources if available, otherwise use default sources

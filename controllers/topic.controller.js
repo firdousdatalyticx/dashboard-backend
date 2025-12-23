@@ -210,7 +210,7 @@ const topicController = {
                         // Validate that all provided graph IDs exist and are active
                         const validGraphs = await prisma.available_graphs.findMany({
                             where: {
-                                id: { in: parsedEnabledGraphs },
+                                id: { in: parsedEnabledGraphs.map(item => item.graphId || item.id || item) },
                                 is_active: true
                             }
                         });

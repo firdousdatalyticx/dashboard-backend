@@ -5,6 +5,28 @@ const { processFilters } = require("./filter.utils");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 const prisma = require("../../config/database");
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const INFLUENCER_TYPES = [
   { type: "Nano", from: 1000, to: 10000 },
   { type: "Micro", from: 10000, to: 50000 },
@@ -113,6 +135,7 @@ const influencersController = {
         fromDate,
         toDate,
         sentimentType,
+        sources,
         isScadUser = "false",
         topicId,
       } = req.body;
@@ -134,6 +157,12 @@ const influencersController = {
         });
       }
 
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+          availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       const topicQueryString = buildTopicQueryString(categoryData);
 
       // Process filters for time range and sentiment
@@ -150,12 +179,19 @@ const influencersController = {
       for (const followerType of INFLUENCER_TYPES) {
         const { type, from, to } = followerType;
 
-        // Get available data sources from middleware
-        const availableDataSources = req.processedDataSources || [];
-
-        // Build source filter based on special topic
+        // Build source filter based on validated sources and special topic
         let sourceFilterBool;
-        if (parseInt(topicId) === 2619) {
+        if (validatedSources && validatedSources.length > 0) {
+          // Use validated sources if provided
+          sourceFilterBool = {
+            bool: {
+              should: validatedSources.map(src => ({
+                match_phrase: { source: src }
+              })),
+              minimum_should_match: 1,
+            },
+          };
+        } else if (parseInt(topicId) === 2619) {
           sourceFilterBool = {
             bool: {
               should: [
@@ -327,6 +363,7 @@ const influencersController = {
         fromDate,
         toDate,
         sentimentType,
+        sources,
         isScadUser = "false",
         selectedTab = "",
         topicId,
@@ -336,7 +373,7 @@ const influencersController = {
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
       let categoryData = {};
-      
+
       if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
         categoryData = processCategoryItems(req.body.categoryItems);
       } else {
@@ -350,6 +387,12 @@ const influencersController = {
         });
       }
 
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+          availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       // Build initial topic query string
       let topicQueryString = buildTopicQueryString(categoryData);
 
@@ -362,12 +405,13 @@ const influencersController = {
         queryString: topicQueryString,
       });
 
-      // Get available data sources from middleware
-      const availableDataSources = req.processedDataSources || [];
-
-      // Handle source filtering based on user type and selected tab
+      // Handle source filtering based on validated sources and user type and selected tab
       let finalQueryString = filters.queryString;
-      if (parseInt(topicId) === 2619) {
+      if (validatedSources && validatedSources.length > 0) {
+        // Use validated sources if provided
+        const sourceStr = validatedSources.map(src => `"${src}"`).join(" OR ");
+        finalQueryString = `${finalQueryString} AND source:(${sourceStr})`;
+      } else if (parseInt(topicId) === 2619) {
         finalQueryString = `${finalQueryString} AND source:('"LinkedIn" OR "Linkedin"')`;
       } else if (isSpecialTopic) {
         // For special topic, only use Facebook and Twitter
@@ -427,6 +471,7 @@ const influencersController = {
         greaterThanTime,
         lessThanTime,
         sentiment,
+        sources,
         isScadUser = "false",
         selectedTab = "",
         type,
@@ -453,6 +498,12 @@ const influencersController = {
         });
       }
 
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+          availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       // Build initial topic query string
       let topicQueryString = buildTopicQueryString(categoryData);
 
@@ -465,12 +516,13 @@ const influencersController = {
         queryString: topicQueryString,
       });
 
-      // Get available data sources from middleware
-      const availableDataSources = req.processedDataSources || [];
-
-      // Handle source filtering based on user type and selected tab
+      // Handle source filtering based on validated sources and user type and selected tab
       let finalQueryString = filters.queryString;
-      if (parseInt(topicId) === 2619) {
+      if (validatedSources && validatedSources.length > 0) {
+        // Use validated sources if provided
+        const sourceStr = validatedSources.map(src => `"${src}"`).join(" OR ");
+        finalQueryString = `${finalQueryString} AND source:(${sourceStr})`;
+      } else if (parseInt(topicId) === 2619) {
         finalQueryString = `${finalQueryString} AND source:('"LinkedIn" OR "Linkedin"')`;
       } else if (isSpecialTopic) {
         // For special topic, only use Facebook and Twitter

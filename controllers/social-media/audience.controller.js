@@ -6,7 +6,29 @@ const { processFilters } = require("./filter.utils");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 const prisma = require('../../config/database');
 
- createCountryWiseAggregations = (categoryData) => {
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
+createCountryWiseAggregations = (categoryData) => {
   // Group data by country
   const countryGroups = {};
   
@@ -1445,7 +1467,7 @@ const audienceController = {
         toDate,
         sentimentType,
         category = "all",
-        source = "All",
+        sources,
         topicId,
         categoryItems
       } = req.body;
@@ -1504,10 +1526,15 @@ const audienceController = {
         };
       }
 
+      // Validate and filter sources against available data sources
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+          availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       // Build base query with special source handling
       const query = buildBaseQuery(
         queryTimeRange,
-        source,
+        validatedSources,
         isSpecialTopic,
         parseInt(topicId),
         availableDataSources
@@ -1632,7 +1659,7 @@ const audienceController = {
         toDate,
         sentimentType,
         category = "all",
-        source = "All",
+        sources,
         topicId,
         categoryItems
       } = req.body;
@@ -1662,31 +1689,47 @@ const audienceController = {
     ]
   });
 
+  // Get available data sources from middleware
+  const availableDataSources = req.processedDataSources || [];
+
+  // Validate and filter sources against available data sources
+  const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+      availableDataSources.includes(src) || availableDataSources.length === 0
+  ) : [];
+
   // Create country-wise aggregations
   const countryAggs = createCountryWiseAggregations(categoryData);
-  
+
+  // Build source filter based on validated sources
+  let sourceFilter;
+  if (validatedSources && validatedSources.length > 0) {
+    sourceFilter = {
+      bool: {
+        should: validatedSources.map(src => ({
+          match_phrase: { source: src }
+        })),
+        minimum_should_match: 1
+      }
+    };
+  } else {
+    // Default to Facebook and Twitter for UNDP method
+    sourceFilter = {
+      bool: {
+        should: [
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } }
+        ],
+        minimum_should_match: 1
+      }
+    };
+  }
+
   // Your Elasticsearch query
   const elasticQuery = {
     "query":{
     "bool": {
         "must": [
-            {
-                "bool": {
-                    "should": [
-                        {
-                            "match_phrase": {
-                                "source": "Facebook"
-                            }
-                        },
-                        {
-                            "match_phrase": {
-                                "source": "Twitter"
-                            }
-                        }
-                    ],
-                    "minimum_should_match": 1
-                }
-            },
+            sourceFilter,
                {
                     "range": {
                         "p_created_time": {
@@ -1980,13 +2023,13 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 /**
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
- * @param {string} source - Source to filter by
+ * @param {Array} sources - Array of validated sources to filter by
  * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @param {number} topicId - Topic ID
  * @param {Array} availableDataSources - Available data sources to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, availableDataSources = []) {
+function buildBaseQuery(dateRange, sources, isSpecialTopic = false, topicId, availableDataSources = []) {
   const query = {
     bool: {
       must: [
@@ -2017,37 +2060,28 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, avai
     },
   };
 
-  if (source !== "All") {
-    query.bool.must.push({
-      match_phrase: { source: source },
-    });
-  } else if (availableDataSources && availableDataSources.length > 0) {
-    // Use available data sources if present
+  // Apply explicit source filters if provided and validated
+  if (sources && sources.length > 0) {
     query.bool.must.push({
       bool: {
-        should: availableDataSources.map(source => ({
-          match_phrase: { source: source }
+        should: sources.map(src => ({
+          match_phrase: { source: src }
         })),
         minimum_should_match: 1
       }
     });
   } else {
-    // Fallback to default sources if no available sources
+    // Use available data sources if present, otherwise fallback to defaults
+    const sourcesToUse = availableDataSources && availableDataSources.length > 0 ? availableDataSources : [
+      "Facebook", "Twitter", "Instagram", "Youtube", "LinkedIn", "Pinterest", "Web", "Reddit", "TikTok"
+    ];
     query.bool.must.push({
       bool: {
-        should: [
-          { match_phrase: { source: "Facebook" } },
-          { match_phrase: { source: "Twitter" } },
-          { match_phrase: { source: "Instagram" } },
-          { match_phrase: { source: "Youtube" } },
-          { match_phrase: { source: "LinkedIn" } },
-          { match_phrase: { source: "Pinterest" } },
-          { match_phrase: { source: "Web" } },
-          { match_phrase: { source: "Reddit" } },
-          { match_phrase: { source: "TikTok" } },
-        ],
-        minimum_should_match: 1,
-      },
+        should: sourcesToUse.map(source => ({
+          match_phrase: { source: source }
+        })),
+        minimum_should_match: 1
+      }
     });
   }
   return query;

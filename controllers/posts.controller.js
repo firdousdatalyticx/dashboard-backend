@@ -4,6 +4,34 @@ const { buildQueryString } = require("../utils/query.utils");
 const { format } = require("date-fns");
 const prisma = new PrismaClient();
 const processCategoryItems = require('../helpers/processedCategoryItems');
+
+/**
+ * Normalize source input - handles various formats
+ * @param {string|string[]|undefined} source - Source parameter
+ * @returns {string[]} Array of normalized sources
+ */
+function normalizeSourceInput(sourceParam) {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+}
+
 /**
  * Safely format a date for Elasticsearch (yyyy-MM-dd)
  */
@@ -44,51 +72,34 @@ const buildElasticsearchQuery = (params) => {
     isSpecialTopic = false,
     llm_mention_type,
     topicId,
+    sources,
     req
   } = params;
 
   // Build query_string parts in an array
   const qsParts = [];
   if (topicQueryString) qsParts.push(topicQueryString);
-  if(topicId===2619){
- qsParts.push('source:("LinkedIn" OR "Linkedin")');
-  }else
-
-  // Source filtering - handle specific sources first
-  if (postTypeSource !== 'All' && postTypeSource !== undefined) {
-    switch (postTypeSource) {
-      case "News":
-        qsParts.push('source:("FakeNews" OR "News")');
-        break;
-      case "YouTube":
-      case "Videos":
-        qsParts.push('source:("Youtube" OR "Vimeo")');
-        break;
-      case "Web":
-        qsParts.push('source:("FakeNews" OR "News" OR "Blogs" OR "Web")');
-        break;
-      case "GoogleMyBusiness":
-        qsParts.push('source:("GoogleMyBusiness")');
-        break;
-      default:
-          qsParts.push(`source:("${postTypeSource}")`);
-    }
+  // Source filtering logic - prioritize sources parameter over defaults
+  if (sources && sources.length > 0) {
+    // Specific sources provided via sources parameter - use these (already validated)
+    const sourcesStr = sources.map(s => `"${s}"`).join(' OR ');
+    qsParts.push(`source:(${sourcesStr})`);
   } else {
-    // Get available data sources from middleware
-    const availableDataSources = req?.processedDataSources || [];
-    
-    // For special topic, only use Facebook and Twitter
-    if (isSpecialTopic) {
-      qsParts.push('source:("Facebook" OR "Twitter")');
-    } else if (isScadUser === "true" && selectedTab === "GOOGLE") {
-      qsParts.push('source:("GoogleMyBusiness")');
+    // Default logic based on topic when no sources specified
+    if (topicId === 2619 || topicId === 2639 || topicId === 2640 || topicId === 2642 || topicId === 2647 || topicId === 2648 || topicId === 2649) {
+      qsParts.push(`source:("LinkedIn" OR "Linkedin")`);
+    } else if (topicId === 2641 || topicId === 2643 || topicId === 2644) {
+      qsParts.push(`source:("Twitter" OR "Instagram" OR "Facebook")`);
+    } else if (topicId === 2646 || topicId === 2650) {
+      qsParts.push(`source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web")`);
     } else {
-      // Use exactly what's in the middleware, no fallback
+      // Get available data sources from middleware for default fallback
+      const availableDataSources = req?.processedDataSources || [];
       if (availableDataSources.length > 0) {
-        const sourceFilter = availableDataSources.map(source => `"${source}"`).join(' OR ');
-        qsParts.push(`source:(${sourceFilter})`);
+        const sourcesStr = availableDataSources.map(source => `"${source}"`).join(' OR ');
+        qsParts.push(`source:(${sourcesStr})`);
       } else {
-        console.log('Warning: No data sources available from middleware');
+        qsParts.push(`source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`);
       }
     }
   }
@@ -326,38 +337,43 @@ const buildElasticsearchQuery = (params) => {
     });
     must.push({ match_phrase: { "llm_entities.Organization": postType } });
 
-    // Handle special topic source filtering for entities
-    if (isSpecialTopic) {
-      must.push({
-        bool: {
-          should: [
-            { match_phrase: { source: "Facebook" } },
-            { match_phrase: { source: "Twitter" } },
-          ],
-          minimum_should_match: 1,
-        },
-      });
-    } else {
-      must.push({
-        bool: {
-          should: [
-            { match_phrase: { source: "Facebook" } },
-            { match_phrase: { source: "Twitter" } },
-            { match_phrase: { source: "Instagram" } },
-            { match_phrase: { source: "Youtube" } },
-            { match_phrase: { source: "Pinterest" } },
-            { match_phrase: { source: "Reddit" } },
-            { match_phrase: { source: "LinkedIn" } },
-            { match_phrase: { source: "Web" } },  
-            { match_phrase: { source: "TikTok" } },
-          ],
-          minimum_should_match: 1,
-        },
-      });
+    // Only add source filters if sources parameter is not provided
+    if (!sources || sources.length === 0) {
+      // Handle special topic source filtering for entities
+      if (isSpecialTopic) {
+        must.push({
+          bool: {
+            should: [
+              { match_phrase: { source: "Facebook" } },
+              { match_phrase: { source: "Twitter" } },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      } else {
+        must.push({
+          bool: {
+            should: [
+              { match_phrase: { source: "Facebook" } },
+              { match_phrase: { source: "Twitter" } },
+              { match_phrase: { source: "Instagram" } },
+              { match_phrase: { source: "Youtube" } },
+              { match_phrase: { source: "Pinterest" } },
+              { match_phrase: { source: "Reddit" } },
+              { match_phrase: { source: "LinkedIn" } },
+              { match_phrase: { source: "Web" } },
+              { match_phrase: { source: "TikTok" } },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      }
     }
   } else if (postType === "socialMediaSourcesPosts") {
-    // For social sources, force the source filter and a date range.
-    qsParts.push(`source:("${postTypeSource}")`);
+    // For social sources, only add source filter if sources parameter is not provided
+    if (!sources || sources.length === 0) {
+      qsParts.push(`source:("${postTypeSource}")`);
+    }
     must.push({ query_string: { query: qsParts.join(" AND ") } });
     must.push({ range: { p_created_time: { gte: "now-90d", lte: "now" } } });
   }
@@ -646,12 +662,19 @@ const postsController = {
         click = "false",
         llm_mention_type,
         type,
-        categoryItems
+        categoryItems,
+        sources
       } = req.query;
 
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       // Get googleUrls from middleware
       const googleUrls = req.googleUrls || [];
@@ -744,6 +767,7 @@ const postsController = {
         isSpecialTopic,
         llm_mention_type,
         topicId:parseInt(topicId),
+        sources: validatedSources,
         req
       };
 

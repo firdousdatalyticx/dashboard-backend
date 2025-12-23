@@ -4,6 +4,28 @@ const { format } = require('date-fns');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const entitiesController = {
     getEntities: async (req, res) => {
         try {
@@ -15,7 +37,7 @@ const entitiesController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                source = 'All',
+                sources,
                 category = 'all',
                 greaterThanTime: inputGreaterThanTime,
                 lessThanTime: inputLessThanTime,
@@ -90,12 +112,20 @@ const entitiesController = {
                     effectiveLessThanTime = `${effectiveLessThanTime}T23:59:59`;
                 }
             }
-            
+
+            // Get available data sources from middleware
+            const availableDataSources = req.processedDataSources || [];
+
+            // Validate and filter sources against available data sources
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             // Build base query
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, req);
+            }, validatedSources, req);
             
             // Add p_created_time range filter
             query.bool.must.push({
@@ -454,10 +484,11 @@ const formatPostData = async (hit) => {
 /**
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
- * @param {string} source - Source to filter by
+ * @param {Array} sources - Array of validated sources to filter by
+ * @param {Object} req - Request object for accessing middleware data
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, sources, req) {
     const query = {
         bool: {
             must: [
@@ -480,14 +511,16 @@ function buildBaseQuery(dateRange, source, req) {
         }
     };
 
-    // Get available data sources from middleware
-    const availableDataSources = req.processedDataSources || [];
-
     // Handle source filtering
-    if (source !== 'All') {
-        // If specific source selected, use that
+    if (sources && sources.length > 0) {
+        // If validated sources provided, use those
         query.bool.must.push({
-            match_phrase: { source: source }
+            bool: {
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
         });
     } else if (availableDataSources.length > 0) {
         // If middleware provides sources, use those

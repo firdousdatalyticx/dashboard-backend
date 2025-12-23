@@ -3,6 +3,28 @@ const { buildTopicQueryString } = require('../../utils/queryBuilder');
 const { processFilters } = require('./filter.utils');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 /**
  * Helper function to build Elasticsearch query template with performance optimizations
  * @param {string} queryString Topic query string
@@ -204,9 +226,9 @@ const engagementController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                comparisonStartDate, 
+                comparisonStartDate,
                 comparisonEndDate,
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 categoryItems
@@ -237,6 +259,11 @@ const engagementController = {
 
             let query = buildTopicQueryString(categoryData);
 
+            // Validate and filter sources against available data sources
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
              // Process filters for time range and sentiment
                 const filters = processFilters({
                     timeSlot,
@@ -255,7 +282,7 @@ const engagementController = {
               const queryRange = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic, parseInt(topicId), availableDataSources);
+            }, validatedSources, isSpecialTopic, parseInt(topicId), availableDataSources);
 
             
             // Add caching headers to the response
@@ -467,13 +494,13 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 /**
 * Build base query with date range and source filter
 * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
-* @param {string} source - Source to filter by
+* @param {Array} sources - Array of validated sources to filter by
 * @param {boolean} isSpecialTopic - Whether this is a special topic
 * @param {number} topicId - Topic ID
 * @param {Array} availableDataSources - Available data sources to filter by
 * @returns {Object} Elasticsearch query object
 */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, availableDataSources = []) {
+function buildBaseQuery(dateRange, sources, isSpecialTopic = false, topicId, availableDataSources = []) {
     const query = {
         bool: {
             must: [
@@ -504,10 +531,15 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, avai
         }
     };
   
-      // Add source filter if a specific source is selected
-      if (source !== 'All') {
+      // Apply explicit source filters if provided and validated
+      if (sources && sources.length > 0) {
         query.bool.must.push({
-            match_phrase: { source: source }
+            bool: {
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
         });
     } else if (availableDataSources && availableDataSources.length > 0) {
         // Use available data sources if present

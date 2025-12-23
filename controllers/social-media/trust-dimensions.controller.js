@@ -2,6 +2,28 @@ const prisma = require('../../config/database');
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 // Cap the number of posts we attach per theme in the word cloud to keep
 // processing and payload light without changing the response structure
 const WORDCLOUD_POSTS_CAP = 20;
@@ -15,7 +37,7 @@ const trustDimensionsController = {
     getTrustDimensionsAnalysis: async (req, res) => {
         try {
             const {
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 greaterThanTime,
@@ -57,13 +79,18 @@ const trustDimensionsController = {
                     effectiveGreaterThanTime = greaterThanTime;
                     effectiveLessThanTime = lessThanTime;
                 }
-            
+
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
 
             // Build base query
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, req);
+            }, validatedSources, req);
 
             // Add sentiment filter if provided
             if (sentiment) {
@@ -165,7 +192,7 @@ const trustDimensionsController = {
     try {
         const {
             interval = 'monthly',
-            source = 'All',
+            sources,
             category = 'all',
             timeSlot,
             fromDate,
@@ -477,7 +504,7 @@ getTrustDimensionsWordCloudPosts: async (req, res) => {
             text, // The word cloud text that was clicked
             tone, // The tone of the clicked item
             interval = 'monthly',
-            source = 'All',
+            sources,
             category = 'all',
             timeSlot,
             fromDate,
@@ -779,11 +806,11 @@ getTrustDimensionsWordCloudPosts: async (req, res) => {
 },
 
 // Optimized main word cloud controller (without posts in response)
-getTrustDimensionsAnalysisWordCloud: async (req, res) => {
+    getTrustDimensionsAnalysisWordCloud: async (req, res) => {
     try {
         const {
             interval = 'monthly',
-            source = 'All',
+            sources,
             category = 'all',
             timeSlot,
             fromDate,
@@ -1086,7 +1113,7 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
     getTrustDimensionsPosts: async (req, res) => {
         try {
             const {
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 greaterThanTime,
@@ -1128,11 +1155,17 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
                 effectiveLessThanTime = lessThanTime;
             }
 
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             // Base query
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, req);
+            }, validatedSources, req);
 
             // Sentiment filter (same as analysis)
             if (sentiment) {
@@ -1339,7 +1372,7 @@ const formatPostData = (hit) => {
  * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, sources, req) {
     const query = {
         bool: {
             must: [
@@ -1359,12 +1392,13 @@ function buildBaseQuery(dateRange, source, req) {
     const availableDataSources = req.processedDataSources || [];
 
     // Handle source filtering
-    if (source !== 'All') {
+    if (sources && sources.length > 0) {
+        // If validated sources provided, use those
         query.bool.must.push({
             bool: {
-                should: [
-                    { match_phrase: { source: source } }
-                ],
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
+                })),
                 minimum_should_match: 1
             }
         });
@@ -1372,7 +1406,7 @@ function buildBaseQuery(dateRange, source, req) {
         // Use middleware sources if available, otherwise use default sources
         const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
             "Facebook",
-            "Twitter", 
+            "Twitter",
             "Instagram",
             "Youtube",
             "Pinterest",

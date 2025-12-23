@@ -2,6 +2,28 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const inflationController = {
     /**
      * Get inflation analysis data for social media posts
@@ -13,7 +35,7 @@ const inflationController = {
         try {
             const {
                 interval = 'monthly',
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId
             } = req.body;
@@ -72,11 +94,17 @@ const inflationController = {
             const formattedMinDate = format(minDate, formatPattern);
             const formattedMaxDate = format(maxDate, formatPattern);
 
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             // Build base query
             const query = buildBaseQuery({
                 greaterThanTime,
                 lessThanTime
-            }, source, req);
+            }, validatedSources, req);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -442,11 +470,11 @@ const formatPostData = (hit) => {
 /**
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
- * @param {string} source - Source to filter by
- * @param {boolean} isSpecialTopic - Whether this is a special topic
+ * @param {Array} sources - Array of validated sources to filter by
+ * @param {Object} req - Request object for accessing middleware data
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, sources, req) {
     const query = {
         bool: {
             must: [
@@ -463,18 +491,24 @@ function buildBaseQuery(dateRange, source, req) {
     };
 
     // Handle source filtering
-    if (source !== 'All') {
+    if (sources && sources.length > 0) {
+        // If validated sources provided, use those
         query.bool.must.push({
-            match_phrase: { source: source }
+            bool: {
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
         });
     } else {
         // Get available data sources from middleware
         const availableDataSources = req.processedDataSources || [];
-        
+
         // Use middleware sources if available, otherwise use default sources
         const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
             "Facebook",
-            "Twitter", 
+            "Twitter",
             "Instagram",
             "Youtube",
             "LinkedIn",

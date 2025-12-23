@@ -4,6 +4,28 @@ const { processFilters } = require('./filter.utils');
 const prisma = require('../../config/database');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 
 const mentionsTrendController = {
     /**
@@ -16,14 +38,14 @@ const mentionsTrendController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                source = 'All',
+                sources,
                 unTopic = 'false',
                 topicId,
                 llm_mention_type,
                 categoryItems
             } = req.body;
             const availableDataSources = req.processedDataSources || [];
-
+            
             let category = req.body.category || 'all';
 
             // Check if this is the special topicId
@@ -74,11 +96,16 @@ const mentionsTrendController = {
                 };
             }
 
+            // Validate and filter sources against available data sources
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             // Build base query with available data sources
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic, availableDataSources);
+            }, validatedSources, availableDataSources);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -280,12 +307,14 @@ const mentionsTrendController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                source = 'All',
+                sources,
                 unTopic = 'false',
                 topicId,
                 llm_mention_type,
                 categoryItems
             } = req.body;
+
+            const availableDataSources = req.processedDataSources || [];
 
             let category = req.body.category || 'all';
 
@@ -340,11 +369,16 @@ const mentionsTrendController = {
                 };
             }
 
+            // Validate and filter sources against available data sources
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             // Build base query
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic, Number(req.body.topicId));
+            }, validatedSources, availableDataSources);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -475,11 +509,13 @@ const mentionsTrendController = {
                 fromDate,
                 toDate,
                 sentimentType,
-                source = 'All',
+                sources,
                 unTopic = 'false',
                 llm_mention_type,
                 categoryItems
             } = req.query;
+
+            const availableDataSources = req.processedDataSources || [];
 
             let category = req.query.category || 'all';
 
@@ -533,11 +569,16 @@ const mentionsTrendController = {
                 };
             }
 
+            // Validate and filter sources against available data sources
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             // Build base query
             const query = buildBaseQuery({
                 greaterThanTime: queryTimeRange.gte,
                 lessThanTime: queryTimeRange.lte
-            }, source, isSpecialTopic, Number(req.body.topicId));
+            }, validatedSources, availableDataSources);
 
             // Add category filters
             addCategoryFilters(query, category, categoryData);
@@ -836,10 +877,11 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 /**
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
- * @param {string} source - Source to filter by
+ * @param {Array} sources - Array of validated sources to filter by
+ * @param {Array} availableDataSources - Available data sources from middleware
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableDataSources = []) {
+function buildBaseQuery(dateRange, sources, availableDataSources = []) {
     const query = {
         bool: {
             must: [
@@ -861,37 +903,27 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableData
             ]
         }
     };
-     // Add source filter if a specific source is selected
-     if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else if (availableDataSources && availableDataSources.length > 0) {
-        // Use available data sources if present
+
+    // Apply explicit source filters if provided and validated
+    if (sources && sources.length > 0) {
         query.bool.must.push({
             bool: {
-                should: availableDataSources.map(source => ({
-                    match_phrase: { source: source }
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
                 })),
                 minimum_should_match: 1
             }
         });
     } else {
-        // Fallback to default sources if no available sources
+        // Use available data sources if present, otherwise fallback to defaults
+        const sourcesToUse = availableDataSources && availableDataSources.length > 0 ? availableDataSources : [
+            "Facebook", "Twitter", "Instagram", "Youtube", "LinkedIn", "Linkedin", "Pinterest", "Web", "Reddit", "TikTok"
+        ];
         query.bool.must.push({
             bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Linkedin" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } },
-                    { match_phrase: { source: "TikTok" } }
-                ],
+                should: sourcesToUse.map(source => ({
+                    match_phrase: { source: source }
+                })),
                 minimum_should_match: 1
             }
         });

@@ -1,6 +1,28 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays, eachMonthOfInterval } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 const trustDimensionsOverTimeController = {
     /**
      * Get trust dimensions analysis over time for line chart
@@ -11,7 +33,7 @@ const trustDimensionsOverTimeController = {
     getTrustDimensionsOverTime: async (req, res) => {
         try {
             const {
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 greaterThanTime,
@@ -43,10 +65,16 @@ const trustDimensionsOverTimeController = {
                 effectiveLessThanTime = lessThanTime;
             }
 
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, req);
+            }, validatedSources, req);
 
             if (sentiment) {
                 if (sentiment.toLowerCase() === "all") {
@@ -143,7 +171,7 @@ const trustDimensionsOverTimeController = {
     getTrustDimensionsOverTimePosts: async (req, res) => {
         try {
             const {
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 greaterThanTime,
@@ -182,7 +210,13 @@ const trustDimensionsOverTimeController = {
                 effectiveLessThanTime = lessThanTime;
             }
 
-            const query = buildBaseQuery({ greaterThanTime: effectiveGreaterThanTime, lessThanTime: effectiveLessThanTime }, source, req);
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
+            const query = buildBaseQuery({ greaterThanTime: effectiveGreaterThanTime, lessThanTime: effectiveLessThanTime }, validatedSources, req);
 
             if (sentiment) {
                 if (sentiment.toLowerCase() === 'all') {
@@ -292,7 +326,7 @@ const trustDimensionsOverTimeController = {
  * @param {boolean} isSpecialTopic - Whether this is a special topic
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, sources, req) {
     const query = {
         bool: {
             must: [
@@ -312,12 +346,13 @@ function buildBaseQuery(dateRange, source, req) {
     const availableDataSources = req.processedDataSources || [];
 
     // Handle source filtering
-    if (source !== 'All') {
+    if (sources && sources.length > 0) {
+        // If validated sources provided, use those
         query.bool.must.push({
             bool: {
-                should: [
-                    { match_phrase: { source: source } }
-                ],
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
+                })),
                 minimum_should_match: 1
             }
         });
@@ -325,7 +360,7 @@ function buildBaseQuery(dateRange, source, req) {
         // Use middleware sources if available, otherwise use default sources
         const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
             "Facebook",
-            "Twitter", 
+            "Twitter",
             "Instagram",
             "Youtube",
             "Pinterest",

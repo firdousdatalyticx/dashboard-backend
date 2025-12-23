@@ -4,6 +4,28 @@ const { buildTopicQueryString } = require("../../utils/queryBuilder");
 const { processFilters } = require("./filter.utils");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 //Benchmarking presence & sentiment - IGOs / NGOs / Countries
 const distributionbyCountryPostsController = {
     /**
@@ -30,7 +52,7 @@ const distributionbyCountryPostsController = {
           limit,
           rating,
           category="all",
-          source="All"
+          sources
         } = req.query;
         
         // Check if this is the special topicId
@@ -47,10 +69,13 @@ const distributionbyCountryPostsController = {
                           }
 
                           if (Object.keys(categoryData).length === 0) {
-                              return res.json({ 
+                              return res.json({
                                   responseArray: []
                               });
                           }
+
+                          // Get available data sources from middleware
+                          const availableDataSources = req.processedDataSources || [];
 
                         // Build base query for filters processing
                         const baseQueryString = buildBaseQueryString("all", categoryData);
@@ -78,12 +103,17 @@ const distributionbyCountryPostsController = {
                                 lte: '2023-04-30'
                             };
                         }
-            
+
+                        // Validate and filter sources against available data sources
+                        const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                            availableDataSources.includes(src) || availableDataSources.length === 0
+                        ) : [];
+
                         // Build base query
                         const query = buildBaseQuery({
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
-                        }, source, isSpecialTopic,parseInt(topicId));
+                        }, validatedSources, isSpecialTopic, availableDataSources);
             
                         // Add category filters
                         addCategoryFilters(query, "all", categoryData);
@@ -361,10 +391,11 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 /**
 * Build base query with date range and source filter
 * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
-* @param {string} source - Source to filter by
+* @param {Array} sources - Array of validated sources to filter by
+* @param {Array} availableDataSources - Available data sources from middleware
 * @returns {Object} Elasticsearch query object
 */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableDataSources = []) {
+function buildBaseQuery(dateRange, sources, availableDataSources = []) {
     const query = {
         bool: {
             must: [
@@ -395,35 +426,26 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, availableData
         }
     };
 
-    // Add source filter
-    if (source !== 'All') {
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else if (availableDataSources && availableDataSources.length > 0) {
-        // Use available data sources if present
+    // Apply explicit source filters if provided and validated
+    if (sources && sources.length > 0) {
         query.bool.must.push({
             bool: {
-                should: availableDataSources.map(source => ({
-                    match_phrase: { source: source }
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
                 })),
                 minimum_should_match: 1
             }
         });
     } else {
+        // Use available data sources if present, otherwise fallback to defaults
+        const sourcesToUse = availableDataSources && availableDataSources.length > 0 ? availableDataSources : [
+            "Facebook", "Twitter", "Instagram", "Youtube", "LinkedIn", "Pinterest", "Web", "Reddit", "TikTok"
+        ];
         query.bool.must.push({
             bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } },
-                    { match_phrase: { source: "TikTok" } }
-                ],
+                should: sourcesToUse.map(source => ({
+                    match_phrase: { source: source }
+                })),
                 minimum_should_match: 1
             }
         });

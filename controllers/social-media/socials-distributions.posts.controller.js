@@ -2,6 +2,28 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { processFilters } = require('./filter.utils');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const getDistributionPosts = async (req, res) => {
   try {
     const {
@@ -10,7 +32,7 @@ const getDistributionPosts = async (req, res) => {
       toDate,
       sentimentType,
       category = 'all',
-      source = 'All',
+      sources,
       topicId,
       llm_mention_type,
       sourceName,
@@ -32,6 +54,12 @@ const getDistributionPosts = async (req, res) => {
       return res.json({ posts: [] });
     }
 
+    // Validate and filter sources against available data sources
+    const availableDataSources = req.processedDataSources || [];
+    const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+    ) : [];
+
     // Build base query
     const baseQueryString = buildBaseQueryString(category, categoryData);
     const filters = processFilters({ sentimentType, timeSlot, fromDate, toDate, queryString: baseQueryString });
@@ -51,7 +79,7 @@ const getDistributionPosts = async (req, res) => {
 
     const query = buildBaseQuery(
       queryTimeRange ? { greaterThanTime: queryTimeRange.gte, lessThanTime: queryTimeRange.lte } : null,
-      source,
+      validatedSources,
       req
     );
 
@@ -120,7 +148,7 @@ function buildBaseQueryString(selectedCategory, categoryData) {
   return queryString;
 }
 
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, sources, req) {
   const query = { bool: { must: [], must_not: [ { term: { source: 'DM' } } ] } };
   if (dateRange && dateRange.greaterThanTime && dateRange.lessThanTime) {
     query.bool.must.push({ range: { p_created_time: { gte: dateRange.greaterThanTime, lte: dateRange.lessThanTime } } });
@@ -129,14 +157,22 @@ function buildBaseQuery(dateRange, source, req) {
   // Get available data sources from middleware
   const availableDataSources = req.processedDataSources || [];
 
-  if (req.body.topicId === 2619) {
+  if (sources && sources.length > 0) {
+    // Use validated sources if provided
+    query.bool.must.push({
+      bool: {
+        should: sources.map(src => ({
+          match_phrase: { source: src }
+        })),
+        minimum_should_match: 1
+      }
+    });
+  } else if (req.body.topicId === 2619) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
   } else if (req.body.topicId && parseInt(req.body.topicId) === 2600 || parseInt(req.body.topicId) === 2627) {
     query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'Facebook' } }, { match_phrase: { source: 'Twitter' } } ], minimum_should_match: 1 } });
   } else {
-    if (source !== 'All') {
-      query.bool.must.push({ match_phrase: { source: source } });
-    } else if (availableDataSources && availableDataSources.length > 0) {
+    if (availableDataSources && availableDataSources.length > 0) {
       // Use available data sources if present
       query.bool.must.push({
         bool: {

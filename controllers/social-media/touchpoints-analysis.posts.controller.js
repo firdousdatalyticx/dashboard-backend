@@ -2,10 +2,32 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const getTouchpointPosts = async (req, res) => {
   try {
     const {
-      source = 'All',
+      sources,
       category = 'all',
       topicId,
       greaterThanTime,
@@ -30,6 +52,12 @@ const getTouchpointPosts = async (req, res) => {
     if (Object.keys(categoryData).length === 0) {
       return res.json({ success: true, posts: [], total: 0, page: Number(page), limit: Number(limit) });
     }
+
+    // Validate and filter sources against available data sources
+    const availableDataSources = req.processedDataSources || [];
+    const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+    ) : [];
 
     // Date range
     const now = new Date();
@@ -60,6 +88,18 @@ const getTouchpointPosts = async (req, res) => {
     // Sentiment filter
     if (sentiment && sentiment !== '' && sentiment !== 'All') {
       query.bool.must.push({ term: { 'predicted_sentiment_value.keyword': sentiment } });
+    }
+
+    // Source filter
+    if (validatedSources && validatedSources.length > 0) {
+      query.bool.must.push({
+        bool: {
+          should: validatedSources.map(src => ({
+            match_phrase: { source: src }
+          })),
+          minimum_should_match: 1
+        }
+      });
     }
 
     // Category filters

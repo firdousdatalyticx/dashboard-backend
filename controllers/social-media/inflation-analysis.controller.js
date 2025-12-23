@@ -1,6 +1,28 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, parseISO, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 /**
  * Controller for analyzing inflation-related phrases from social media posts
  */
@@ -15,7 +37,7 @@ const inflationAnalysisController = {
         try {
             const {
                 interval = 'monthly',
-                source = 'All',
+                sources,
                 category = 'all',
                 timeSlot,
                 fromDate,
@@ -26,7 +48,7 @@ const inflationAnalysisController = {
 
             // Get category data from middleware
             let categoryData = {};
-      
+
             if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
               categoryData = processCategoryItems(req.body.categoryItems);
             } else {
@@ -39,6 +61,67 @@ const inflationAnalysisController = {
                     success: true,
                     inflationPhrases: [],
                     totalInflationPosts: 0
+                });
+            }
+
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
+            // Build base query
+            const query = {
+                bool: {
+                    must: [
+                        {
+                            exists: {
+                                field: 'llm_inflation'
+                            }
+                        }
+                    ]
+                }
+            };
+
+            // Add sentiment filter if provided
+            if (sentiment) {
+                if (sentiment.toLowerCase() === "all") {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: "Positive" } },
+                                { match: { predicted_sentiment_value: "positive" } },
+                                { match: { predicted_sentiment_value: "Negative" } },
+                                { match: { predicted_sentiment_value: "negative" } },
+                                { match: { predicted_sentiment_value: "Neutral" } },
+                                { match: { predicted_sentiment_value: "neutral" } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                } else if (sentiment !== "All") {
+                    query.bool.must.push({
+                        bool: {
+                            should: [
+                                { match: { predicted_sentiment_value: sentiment } },
+                                { match: { predicted_sentiment_value: sentiment.toLowerCase() } },
+                                { match: { predicted_sentiment_value: sentiment.charAt(0).toUpperCase() + sentiment.slice(1).toLowerCase() } }
+                            ],
+                            minimum_should_match: 1
+                        }
+                    });
+                }
+            }
+
+            // Add source filter if sources are provided and validated
+            if (validatedSources && validatedSources.length > 0) {
+                query.bool.must.push({
+                    bool: {
+                        should: validatedSources.map(src => ({
+                            match_phrase: { source: src }
+                        })),
+                        minimum_should_match: 1
+                    }
                 });
             }
 
@@ -86,18 +169,6 @@ const inflationAnalysisController = {
             const greaterThanTime = useTimeFilter ? format(startDate, 'yyyy-MM-dd') : null;
             const lessThanTime = useTimeFilter ? format(endDate, 'yyyy-MM-dd') : null;
 
-            // Build base query
-            const query = {
-                bool: {
-                    must: [
-                        {
-                            exists: {
-                                field: 'llm_inflation'
-                            }
-                        }
-                    ]
-                }
-            };
 
             // Add sentiment filter if provided
             if (sentiment) {
@@ -454,7 +525,7 @@ const inflationAnalysisController = {
         try {
             const {
                 interval = 'monthly',
-                source = 'All',
+                sources,
                 category = 'all',
                 timeSlot,
                 fromDate,
@@ -478,6 +549,12 @@ const inflationAnalysisController = {
                     totalInflationPosts: 0
                 });
             }
+
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
 
             // Handle date range based on timeSlot
             const now = new Date();
@@ -851,7 +928,7 @@ const inflationAnalysisController = {
         try {
             const {
                 interval = 'monthly',
-                source = 'All',
+                sources,
                 category = 'all',
                 timeSlot,
                 fromDate,
@@ -876,6 +953,12 @@ const inflationAnalysisController = {
                     totalInflationPosts: 0
                 });
             }
+
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
 
             // Handle date range based on timeSlot
             const now = new Date();

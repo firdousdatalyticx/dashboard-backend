@@ -439,6 +439,28 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const emotionPolarityController = {
     getEmotionPolarity: async (req, res) => {
         try {
@@ -461,12 +483,17 @@ const emotionPolarityController = {
                 topicId,
                 fromDate,
                 sentiment,
-                source,
+                sources,
                 timeSlot,
                 toDate
             } = params;
             
             const topicQueryString = buildTopicQueryString(categoryData);
+
+            // Validate and filter sources against available data sources
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
 
             // Build date range filter
             let dateRangeFilter = null;
@@ -511,11 +538,16 @@ const emotionPolarityController = {
                 };
             }
 
-            // Update source filter based on middleware data sources
+            // Update source filter based on validated sources
             let sourceFilter;
-            if (source !== 'All') {
+            if (validatedSources && validatedSources.length > 0) {
                 sourceFilter = {
-                    match_phrase: { source: source }
+                    bool: {
+                        should: validatedSources.map(src => ({
+                            match_phrase: { source: src }
+                        })),
+                        minimum_should_match: 1
+                    }
                 };
             } else if (availableDataSources && availableDataSources.length > 0) {
                 sourceFilter = {

@@ -2,6 +2,28 @@ const { elasticClient } = require("../../config/elasticsearch");
 const { format, parseISO, subDays } = require("date-fns");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
 const emotionsController = {
   /**
    * Get emotions analysis data for social media posts
@@ -13,7 +35,7 @@ const emotionsController = {
     try {
       const {
         interval = "monthly",
-        source = "All",
+        sources,
         category = "all",
         topicId,
         fromDate,
@@ -64,11 +86,19 @@ const emotionsController = {
       let calendarInterval = "month";
       let formatPattern = "yyyy-MM";
 
+      // Get available data sources from middleware
+      const availableDataSources = req.processedDataSources || [];
+
+      // Validate and filter sources against available data sources
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+          availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
             // Build base query with special topic source filtering
             const query = buildBaseQuery({
                 greaterThanTime,
                 lessThanTime
-            }, source, req);
+            }, validatedSources, req);
 
 
 
@@ -368,7 +398,7 @@ const emotionsController = {
   try {
     const {
       interval = "monthly",
-      source = "All",
+      sources,
       category = "all",
       topicId,
       fromDate,
@@ -381,6 +411,12 @@ const emotionsController = {
 
     // Check if this is the special topicId
     const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+    // Validate and filter sources against available data sources
+    const availableDataSources = req.processedDataSources || [];
+    const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+      availableDataSources.includes(src) || availableDataSources.length === 0
+    ) : [];
 
     // Get category data from middleware
     let categoryData = {};
@@ -423,9 +459,8 @@ const emotionsController = {
         greaterThanTime,
         lessThanTime,
       },
-      source,
-      isSpecialTopic,
-      parseInt(topicId)
+      validatedSources,
+      req
     );
 
     // Add category filters
@@ -663,10 +698,11 @@ const formatPostData = (hit) => {
 /**
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
- * @param {string} source - Source to filter by
+ * @param {Array} sources - Array of validated sources to filter by
+ * @param {Object} req - Request object for accessing middleware data
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, sources, req) {
     const query = {
         bool: {
             must: [
@@ -682,43 +718,49 @@ function buildBaseQuery(dateRange, source, req) {
         }
     };
 
-    // Get available data sources from middleware
-    const availableDataSources = req.processedDataSources || [];
-
     // Handle source filtering
-    if (source !== 'All') {
-        // If specific source selected, use that
-        query.bool.must.push({
-            match_phrase: { source: source }
-        });
-    } else if (availableDataSources.length > 0) {
-        // If middleware provides sources, use those
+    if (sources && sources.length > 0) {
+        // If validated sources provided, use those
         query.bool.must.push({
             bool: {
-                should: availableDataSources.map(source => ({
-                    match_phrase: { source: source }
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
                 })),
                 minimum_should_match: 1
             }
         });
     } else {
-        // Default to standard 9 sources if no middleware sources
-        query.bool.must.push({
-            bool: {
-                should: [
-                    { match_phrase: { source: "Facebook" } },
-                    { match_phrase: { source: "Twitter" } },
-                    { match_phrase: { source: "Instagram" } },
-                    { match_phrase: { source: "Youtube" } },
-                    { match_phrase: { source: "LinkedIn" } },
-                    { match_phrase: { source: "Pinterest" } },
-                    { match_phrase: { source: "Web" } },
-                    { match_phrase: { source: "Reddit" } },
-                    { match_phrase: { source: "TikTok" } }
-                ],
-                minimum_should_match: 1
-            }
-        });
+        // Get available data sources from middleware
+        const availableDataSources = req?.processedDataSources || [];
+        if (availableDataSources.length > 0) {
+            // If middleware provides sources, use those
+            query.bool.must.push({
+                bool: {
+                    should: availableDataSources.map(source => ({
+                        match_phrase: { source: source }
+                    })),
+                    minimum_should_match: 1
+                }
+            });
+        } else {
+            // Default to standard 9 sources if no middleware sources
+            query.bool.must.push({
+                bool: {
+                    should: [
+                        { match_phrase: { source: "Facebook" } },
+                        { match_phrase: { source: "Twitter" } },
+                        { match_phrase: { source: "Instagram" } },
+                        { match_phrase: { source: "Youtube" } },
+                        { match_phrase: { source: "LinkedIn" } },
+                        { match_phrase: { source: "Pinterest" } },
+                        { match_phrase: { source: "Web" } },
+                        { match_phrase: { source: "Reddit" } },
+                        { match_phrase: { source: "TikTok" } }
+                    ],
+                    minimum_should_match: 1
+                }
+            });
+        }
     }
    
 

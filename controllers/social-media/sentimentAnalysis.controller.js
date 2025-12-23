@@ -66,7 +66,7 @@ const sentimentAnalysisController = {
         fromDate,
         toDate,
         category = "all",
-        sources = "All",
+        sources,
         llm_mention_type,
         countries,
         keywords,
@@ -98,6 +98,12 @@ const sentimentAnalysisController = {
       if (Object.keys(categoryData).length === 0) {
         return res.json([]);
       }
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       // Handle category parameter - validate if provided
       let selectedCategory = category;
@@ -309,7 +315,7 @@ const sentimentAnalysisController = {
         fromDate,
         toDate,
         category = "all",
-        sources = "All",
+        sources,
         llm_mention_type,
         countries,
         keywords,
@@ -460,7 +466,7 @@ const sentimentAnalysisController = {
         fromDate,
         toDate,
         category = "all",
-        sources = "All",
+        sources,
         llm_mention_type,
         countries,
         keywords,
@@ -483,6 +489,12 @@ const sentimentAnalysisController = {
       if (Object.keys(categoryData).length === 0) {
         return res.json([]);
       }
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       // Handle category parameter - validate if provided
       let selectedCategory = category;
@@ -600,7 +612,7 @@ const sentimentAnalysisController = {
         fromDate,
         toDate,
         category = "all",
-        sources = "All",
+        sources,
         llm_mention_type,
         countries,
         keywords,
@@ -763,7 +775,7 @@ const sentimentAnalysisController = {
         fromDate,
         toDate,
         category = "all",
-        sources = "All",
+        sources,
         llm_mention_type,
         countries,
         keywords,
@@ -1024,7 +1036,7 @@ const sentimentAnalysisController = {
         fromDate,
         toDate,
         category = "all",
-        sources = "All",
+        sources,
         llm_mention_type,
         countries,
         keywords,
@@ -1041,7 +1053,14 @@ const sentimentAnalysisController = {
         return res.json([]);
       }
 
-       // Handle category parameter - validate if provided
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
+      // Handle category parameter - validate if provided
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
@@ -1174,7 +1193,7 @@ const sentimentAnalysisController = {
         fromDate,
         toDate,
         category = "all",
-        sources = "All",
+        sources,
         llm_mention_type,
         countries,
         keywords,
@@ -1198,7 +1217,14 @@ const sentimentAnalysisController = {
         return res.json([]);
       }
 
-         // Handle category parameter - validate if provided
+  
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
+      // Handle category parameter - validate if provided
       let selectedCategory = category;
       if (category && category !== 'all' && category !== '' && category !== 'custom') {
         const matchedKey = findMatchingCategoryKey(category, categoryData);
@@ -1365,16 +1391,16 @@ function buildAnalysisQuery(params) {
   addCategoryFilters(query, category, categoryData);
 
   // Add source filter using the same logic as other controllers
-  const normalizedSources = normalizeSourceInput(sources);
+  // sources parameter is now pre-validated and filtered
 
   // Get available data sources from middleware
   const availableDataSources = req?.processedDataSources || [];
 
-  if (normalizedSources.length > 0) {
-    // Specific sources provided via sources parameter
+  if (sources && sources.length > 0) {
+    // Specific sources provided via sources parameter (already validated)
     query.bool.must.push({
       bool: {
-        should: normalizedSources.map(src => ({
+        should: sources.map(src => ({
           match_phrase: { source: src }
         })),
         minimum_should_match: 1

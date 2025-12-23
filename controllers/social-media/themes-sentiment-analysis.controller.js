@@ -1,6 +1,28 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const { format, subDays } = require('date-fns');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 const themesSentimentAnalysisController = {
     /**
      * Get themes grouped by sentiment analysis for stacked bar chart
@@ -11,7 +33,7 @@ const themesSentimentAnalysisController = {
     getThemesSentimentAnalysis: async (req, res) => {
         try {
             const {
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 greaterThanTime,
@@ -211,7 +233,7 @@ return res.json({
     getThemePosts: async (req, res) => {
         try {
             const {
-                source = 'All',
+                sources,
                 category = 'all',
                 topicId,
                 greaterThanTime,
@@ -250,11 +272,17 @@ return res.json({
                 effectiveLessThanTime = lessThanTime;
             }
 
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
+
             // Build base query
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, req);
+            }, validatedSources, req);
 
             // Add theme filter synchronized with normalized aggregation (trim + lowercase)
             const normalizedTheme = String(theme || '').trim().toLowerCase();
@@ -474,7 +502,7 @@ const formatPostData = (hit) => {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, req) {
+function buildBaseQuery(dateRange, sources, req) {
     const query = {
         bool: {
             must: [
@@ -494,9 +522,15 @@ function buildBaseQuery(dateRange, source, req) {
     const availableDataSources = req.processedDataSources || [];
 
     // Handle source filtering
-    if (source !== 'All') {
+    if (sources && sources.length > 0) {
+        // If validated sources provided, use those
         query.bool.must.push({
-            match_phrase: { source: source }
+            bool: {
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
         });
     } else {
         // Use middleware sources if available, otherwise use default sources

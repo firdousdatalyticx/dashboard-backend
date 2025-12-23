@@ -2,16 +2,38 @@ const { elasticClient } = require('../../config/elasticsearch');
 const { processFilters } = require('./filter.utils');
 // Removed date-fns import as counts endpoint no longer needs date formatting
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 const socialsDistributionsController = {
     getDistributions: async (req, res) => {
         try {
-            const { 
+            const {
                 timeSlot,
                 fromDate,
                 toDate,
                 sentimentType,
                 category = 'all',
-                source = 'All',
+                sources,
                 topicId,
                 llm_mention_type
             } = req.body;
@@ -36,6 +58,11 @@ const socialsDistributionsController = {
             if (Object.keys(categoryData).length === 0) {
                 return res.json({});
             }
+
+            // Validate and filter sources against available data sources
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
 
               // Build base query for filters processing
                         const baseQueryString = buildBaseQueryString(category, categoryData);
@@ -76,7 +103,7 @@ const socialsDistributionsController = {
                         const query = buildBaseQuery({
                             greaterThanTime: queryTimeRange.gte,
                             lessThanTime: queryTimeRange.lte
-                        }, source, isSpecialTopic, parseInt(topicId), availableDataSources);
+                        }, validatedSources, isSpecialTopic, parseInt(topicId), availableDataSources);
             
                         // Add category filters
                         addCategoryFilters(query, category, categoryData);
@@ -229,10 +256,10 @@ function buildBaseQueryString(selectedCategory, categoryData) {
 /**
  * Build base query with date range and source filter
  * @param {Object} dateRange - Date range with greaterThanTime and lessThanTime
- * @param {string} source - Source to filter by
+ * @param {Array} sources - Array of validated sources to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, availableDataSources = []) {
+function buildBaseQuery(dateRange, sources, isSpecialTopic = false, topicId, availableDataSources = []) {
     const query = {
         bool: {
             must: [],
@@ -257,10 +284,15 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId, avai
         });
     }
    
-       // Add source filter if a specific source is selected
-       if (source !== 'All') {
+       // Add source filter if sources are provided and validated
+       if (sources && sources.length > 0) {
         query.bool.must.push({
-            match_phrase: { source: source }
+            bool: {
+                should: sources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
         });
     } else if (availableDataSources && availableDataSources.length > 0) {
         // Use available data sources if present

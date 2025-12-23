@@ -1,5 +1,27 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 // Helper function to merge trend arrays by date
 function mergeArraysByDate(arr1, arr2) {
     const mergedMap = new Map();
@@ -23,7 +45,7 @@ function mergeArraysByDate(arr1, arr2) {
 const leaderboardAnalysisController = {
     getLeaderboardAnalysis: async (req, res) => {
         try {
-            const { topicId,   source = "All",
+            const { topicId,   sources,
         category = "all",
         fromDate,
         toDate,
@@ -44,6 +66,12 @@ const leaderboardAnalysisController = {
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ leaderboard: [] });
             }
+
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
 
             // Calculate date filter - for special topic, use wider range
             let dateFilter;
@@ -66,20 +94,21 @@ const leaderboardAnalysisController = {
           lte: toDate,
         };
       }
-            // Define source filter based on source parameter
+            // Define source filter based on validated sources
             let sourceFilter;
-            if (source !== 'All') {
-                sourceFilter = [
-                    { match_phrase: { source: source } }
-                ];
+            if (validatedSources && validatedSources.length > 0) {
+                // Use validated sources if provided
+                sourceFilter = validatedSources.map(src => ({
+                    match_phrase: { source: src }
+                }));
             } else {
                 // Get available data sources from middleware
                 const availableDataSources = req.processedDataSources || [];
-                
+
                 // Use middleware sources if available, otherwise use default sources
                 const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
                     "Facebook",
-                    "Twitter", 
+                    "Twitter",
                     "Instagram",
                     "Youtube",
                     "Pinterest",

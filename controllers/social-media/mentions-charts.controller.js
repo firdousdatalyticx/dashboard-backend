@@ -4,10 +4,33 @@ const router = express.Router();
 const prisma = require("../../config/database");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 
-const buildSourceQueryString = (req, source = 'All', isSpecialTopic = false) => {
-  // If specific source is provided, use it
-  if (source && source !== 'All') {
-    return ` AND source:("${source}")`;
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
+
+const buildSourceQueryString = (req, sources = [], isSpecialTopic = false) => {
+  // If sources array is provided and not empty, use it
+  if (sources && Array.isArray(sources) && sources.length > 0) {
+    const sourceStr = sources.map(src => `"${src}"`).join(' OR ');
+    return ` AND source:(${sourceStr})`;
   }
 
   // Get available data sources from middleware
@@ -964,7 +987,7 @@ const formatPostDataForLanguage = (hit, req) => {
 const mentionsChartController = {
   actionRequiredMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -976,6 +999,13 @@ const mentionsChartController = {
 
       const isScadUser = false;
       const selectedTab = "Social";
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       let topicQueryString = await buildQueryString(
         topicId,
         isScadUser,
@@ -986,7 +1016,7 @@ const mentionsChartController = {
         return res.status(200).json({ responseOutput: {} });
       }
 
-      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+      topicQueryString = `${topicQueryString}${buildSourceQueryString(req, validatedSources)}`;
 
 
  
@@ -1008,7 +1038,7 @@ const mentionsChartController = {
 
   typeofMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1023,6 +1053,13 @@ const mentionsChartController = {
 
       const isScadUser = false;
       const selectedTab = "Social";
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       let topicQueryString = await buildQueryString(
         topicId,
         isScadUser,
@@ -1039,7 +1076,7 @@ const mentionsChartController = {
       else if (isSpecialTopic) {
         topicQueryString = `${topicQueryString} AND source:("Twitter" OR "Facebook")`;
       } else {
-        topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+        topicQueryString = `${topicQueryString}${buildSourceQueryString(req, validatedSources)}`;
       }
 
 
@@ -1197,7 +1234,7 @@ const mentionsChartController = {
         subtopicId,
         topicId,
         sentimentType,
-        sources = "All",
+        sources,
         categoryItems
       } = req.body;
 
@@ -1215,6 +1252,12 @@ const mentionsChartController = {
       const isScadUser = false;
       const selectedTab = "Social";
 
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       let topicQueryString = await buildQueryString(
         topicId,
         isScadUser,
@@ -1225,7 +1268,11 @@ const mentionsChartController = {
         // Apply special topic source filtering
       }
       // Apply special topic source filtering
-      topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+      else if (validatedSources && validatedSources.length > 0) {
+        topicQueryString = `${topicQueryString}${buildSourceQueryString(req, validatedSources)}`;
+      } else {
+        topicQueryString = `${topicQueryString}${buildSourceQueryString(req)}`;
+      }
 
 
       const params = {
@@ -1342,7 +1389,7 @@ const mentionsChartController = {
 
   recurrenceMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1354,6 +1401,12 @@ const mentionsChartController = {
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -1473,7 +1526,7 @@ const mentionsChartController = {
 
   urgencyMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1485,6 +1538,12 @@ const mentionsChartController = {
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -1610,7 +1669,7 @@ const mentionsChartController = {
 
   audienceMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1621,6 +1680,12 @@ const mentionsChartController = {
       }
 
       // Check if this is the special topicId
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -1739,7 +1804,7 @@ const mentionsChartController = {
   },
   audienceMentionsAcrossMentionType: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1912,7 +1977,7 @@ const mentionsChartController = {
 
   riskTypeAcrossCustomerJourney: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -2081,7 +2146,7 @@ const mentionsChartController = {
 
   complaintsAcrossCustomerJourneyStagesbyAudience: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -2314,7 +2379,7 @@ const mentionsChartController = {
 
   languageMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, sources } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -2337,6 +2402,12 @@ const mentionsChartController = {
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -2585,7 +2656,7 @@ const mentionsChartController = {
         lessThanTime,
         topicId,
         sentiment,
-        source,
+        sources,
         field,
         type,
         value,
@@ -2594,6 +2665,12 @@ const mentionsChartController = {
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -2634,8 +2711,14 @@ const mentionsChartController = {
   },
   typeofMentionsTo10: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, sources } = req.body;
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -2746,6 +2829,12 @@ const mentionsChartController = {
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -3636,6 +3725,12 @@ const mentionsChartController = {
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -3725,6 +3820,12 @@ const mentionsChartController = {
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -3895,6 +3996,12 @@ const mentionsChartController = {
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       const isScadUser = false;
       const selectedTab = "Social";
       let topicQueryString = await buildQueryString(
@@ -4061,6 +4168,12 @@ const mentionsChartController = {
       const isSpecialTopic = topicIdNum === 2600;
       const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
       const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -4386,6 +4499,12 @@ const mentionsChartController = {
       const isSpecialTopic = topicIdNum === 2600;
       const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
       const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -5327,6 +5446,12 @@ const mentionsChartController = {
   
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
+
       const isScadUser = false;
       const selectedTab = "Social";
       
@@ -5615,6 +5740,12 @@ const mentionsChartController = {
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      // Validate and filter sources against available data sources
+      const availableDataSources = req.processedDataSources || [];
+      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        availableDataSources.includes(src) || availableDataSources.length === 0
+      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";

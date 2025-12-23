@@ -1,10 +1,32 @@
 const { elasticClient } = require('../../config/elasticsearch');
 const processCategoryItems = require('../../helpers/processedCategoryItems');
+
+const normalizeSourceInput = (sourceParam) => {
+    if (!sourceParam || sourceParam === 'All') {
+        return [];
+    }
+
+    if (Array.isArray(sourceParam)) {
+        return sourceParam
+            .filter(Boolean)
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    if (typeof sourceParam === 'string') {
+        return sourceParam
+            .split(',')
+            .map(src => src.trim())
+            .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+    }
+
+    return [];
+};
 const poiSentimentDistributionController = {
     getDistribution: async (req, res) => {
         try {
-            const { topicId, 
-                 source = "All",
+            const { topicId,
+                 sources,
         category = "all",
           fromDate,
         toDate,
@@ -25,6 +47,12 @@ const poiSentimentDistributionController = {
             if (Object.keys(categoryData).length === 0) {
                 return res.json({ distribution: [] });
             }
+
+            // Validate and filter sources against available data sources
+            const availableDataSources = req.processedDataSources || [];
+            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+                availableDataSources.includes(src) || availableDataSources.length === 0
+            ) : [];
 
             // Calculate date filter based on special topic
            
@@ -59,18 +87,19 @@ const poiSentimentDistributionController = {
                 return res.json({ distribution: [] });
             }
             let sourceFilter = [];
-            if (source !== "All") {
-                sourceFilter = [
-                    { match_phrase: { source: source } }
-                ];
+            if (validatedSources && validatedSources.length > 0) {
+                // Use validated sources if provided
+                sourceFilter = validatedSources.map(src => ({
+                    match_phrase: { source: src }
+                }));
             } else {
                 // Get available data sources from middleware
                 const availableDataSources = req.processedDataSources || [];
-                
+
                 // Use middleware sources if available, otherwise use default sources
                 const sourcesToUse = availableDataSources.length > 0 ? availableDataSources : [
                     "Facebook",
-                    "Twitter", 
+                    "Twitter",
                     "Instagram",
                     "Youtube",
                     "Pinterest",

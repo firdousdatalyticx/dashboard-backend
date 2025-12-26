@@ -128,7 +128,7 @@ const trustDimensionsAnalysisController = {
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, validatedSources, isSpecialTopic);
+            }, validatedSources, isSpecialTopic,req);
 
             // Add sentiment filter if provided
             if (sentiment) {
@@ -511,7 +511,7 @@ const formatPostData = (hit) => {
  * @param {string} source - Source to filter by
  * @returns {Object} Elasticsearch query object
  */
-function buildBaseQuery(dateRange, sources, isSpecialTopic = false) {
+function buildBaseQuery(dateRange, sources, isSpecialTopic = false,req) {
     const query = {
         bool: {
             must: [

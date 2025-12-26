@@ -45,7 +45,7 @@ const swaggerSpec = swaggerJSDoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec)); 
 
 app.use((req, res, next) => {
-    console.log(req.headers);
+    // console.log(req.headers);
     next();
   });
   

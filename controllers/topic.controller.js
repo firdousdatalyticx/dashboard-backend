@@ -81,12 +81,12 @@ const topicController = {
         try {
             const { id } = req.params;
             const userId = req.user.id;
-            const { 
-                title, 
-                keywords, 
-                hashTags, 
-                urls, 
-                excludeWords, 
+            const {
+                title,
+                keywords,
+                hashTags,
+                urls,
+                excludeWords,
                 excludeAccounts,
                 region,
                 dataSources,
@@ -105,8 +105,14 @@ const topicController = {
                 // Archive configuration fields
                 topic_archive_start_date,
                 topic_archive_end_date,
-                topic_archive_interval_type
+                topic_archive_interval_type,
+                // Copilot configuration (accept both field names for compatibility)
+                isEnabledCopilot,
+                isCopilotEnabled
             } = req.body;
+
+            // Use isEnabledCopilot if provided, otherwise fall back to isCopilotEnabled
+            const isCopilotEnabledValue = isEnabledCopilot !== undefined ? isEnabledCopilot : isCopilotEnabled;
 
             // Validate topic ID
             if (!id || isNaN(parseInt(id))) {
@@ -180,6 +186,8 @@ const topicController = {
                     topic_archive_start_date: topic_archive_start_date !== undefined ? (topic_archive_start_date ? new Date(topic_archive_start_date) : null) : existingTopic.topic_archive_start_date,
                     topic_archive_end_date: topic_archive_end_date !== undefined ? (topic_archive_end_date ? new Date(topic_archive_end_date) : null) : existingTopic.topic_archive_end_date,
                     topic_archive_interval_type: topic_archive_interval_type !== undefined ? topic_archive_interval_type : existingTopic.topic_archive_interval_type,
+                    // Copilot configuration updates
+                    is_copilot_enabled: isCopilotEnabledValue !== undefined ? isCopilotEnabledValue : existingTopic.is_copilot_enabled,
                     topic_updated_at: new Date()
                 }
             });
@@ -410,7 +418,8 @@ const topicController = {
             // Add categoryCount to each topic
             const topicsWithCounts = customerTopics.map(topic => ({
                 ...topic,
-                categoryCount: countMap[topic.topic_id] || 0
+                categoryCount: countMap[topic.topic_id] || 0,
+                isCopilotEnabled: topic.is_copilot_enabled
             }));
     
             return res.json({

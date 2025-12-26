@@ -1,5 +1,7 @@
 const prisma = require('../../config/database');
 const { encrypt } = require('../../utils/password.util');
+const fs = require('fs');
+const path = require('path');
 
 const adminController = {
     // Get all customers with their topics
@@ -33,6 +35,7 @@ const adminController = {
                     customer_name: true,
                     customer_email: true,
                     customer_company_name: true,
+                    customer_company_logo: true,
                     customer_reg_time: true,
                     customer_reg_scope: true,
                     customer_account_type: true,
@@ -155,6 +158,49 @@ const adminController = {
             const { customerId } = req.params;
             const updateData = req.body;
 
+            // Get existing customer to check for existing logo
+            const existingCustomer = await prisma.customers.findUnique({
+                where: {
+                    customer_id: parseInt(customerId)
+                },
+                select: {
+                    customer_company_logo: true
+                }
+            });
+
+            if (!existingCustomer) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Customer not found'
+                });
+            }
+
+            // Handle company logo file upload
+            let company_logo_url = existingCustomer.customer_company_logo;
+            if (req.file) {
+                // Delete old logo file if it exists
+                if (existingCustomer.customer_company_logo && 
+                    existingCustomer.customer_company_logo !== 'NA') {
+                    try {
+                        let oldLogoFilename = existingCustomer.customer_company_logo;
+                        // Extract filename if it's a full path
+                        if (oldLogoFilename.startsWith('/public/images/company_logos/')) {
+                            oldLogoFilename = oldLogoFilename.replace('/public/images/company_logos/', '');
+                        }
+                        
+                        const oldLogoPath = path.join(process.cwd(), 'public', 'images', 'company_logos', oldLogoFilename);
+                        if (fs.existsSync(oldLogoPath)) {
+                            fs.unlinkSync(oldLogoPath);
+                        }
+                    } catch (error) {
+                        console.error('Error deleting old company logo file:', error);
+                    }
+                }
+                
+                // Set new logo URL
+                company_logo_url = `/public/images/company_logos/${req.file.filename}`;
+            }
+
             // Handle password update if provided
             let passwordUpdate = null;
             if (updateData.password && updateData.password.trim() !== '') {
@@ -174,6 +220,11 @@ const adminController = {
             if (updateData.phone !== undefined) transformedData.customer_phone = updateData.phone;
             if (updateData.accountParent !== undefined) transformedData.customer_account_parent = updateData.accountParent;
             if (updateData.allowedSources !== undefined) transformedData.customer_allowed_sources = updateData.allowedSources;
+            
+            // Handle company logo update
+            if (req.file) {
+                transformedData.customer_company_logo = company_logo_url;
+            }
 
             // Handle other fields that might be passed
             const allowedFields = [
@@ -227,6 +278,7 @@ const adminController = {
                     customer_name: true,
                     customer_email: true,
                     customer_company_name: true,
+                    customer_company_logo: true,
                     customer_reg_scope: true,
                     customer_account_type: true,
                     customer_allowed_topics: true,

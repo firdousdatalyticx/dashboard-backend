@@ -188,7 +188,9 @@ router.put('/:id', upload.single('topicLogo'), [
     body('dataSources').optional(),
     body('dataLocation').optional(),
     body('dataLanguage').optional(),
-    body('logo').optional()
+    body('logo').optional(),
+    body('isCopilotEnabled').optional().isBoolean().withMessage('isCopilotEnabled must be a boolean'),
+    body('isEnabledCopilot').optional().isBoolean().withMessage('isEnabledCopilot must be a boolean')
 ], validateRequest, topicController.updateTopic);
 
 /**

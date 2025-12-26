@@ -172,7 +172,10 @@ model customer_topics {
   
   // Archive data configuration
   enable_archive_data       Boolean?  @default(false)
-  
+
+  // Copilot configuration
+  is_copilot_enabled        Boolean?  @default(false)
+
   // Allowed sources configuration
   allowed_sources           Json?     // Array of strings for allowed data sources
   
@@ -190,6 +193,7 @@ model customers {
   customer_reg_scope              String    @db.Char(2)
   customer_acc_expiry             DateTime? @db.Date
   customer_company_name           String?   @db.VarChar(250)
+  customer_company_logo           String?   @db.VarChar(100)
   customer_phone                  String?   @db.VarChar(50)
   customer_reset_code             String?   @db.VarChar(100)
   customer_upgrade_date           DateTime? @db.DateTime(0)

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../../controllers/admin/admin.controller');
 const authMiddleware = require('../../middleware/auth.middleware');
+const uploadCompanyLogo = require('../../middleware/companyLogoUpload.middleware');
 // const adminAuthMiddleware = require('../../middleware/adminAuth.middleware');
 
 // Apply auth middleware to all admin routes
@@ -16,7 +17,7 @@ router.get('/customers/parent/:parentEmail', adminController.getCustomersByParen
 router.get('/customers', adminController.getAllCustomers);
 router.get('/customers/:customerId', adminController.getCustomerDetails);
 router.get('/customers/:customerId/topics', adminController.getCustomerTopics);
-router.put('/customers/:customerId', adminController.updateCustomer);
+router.put('/customers/:customerId', uploadCompanyLogo.single('companyLogo'), adminController.updateCustomer);
 router.delete('/customers/:customerId', adminController.deleteCustomer);
 
 // Topic management routes

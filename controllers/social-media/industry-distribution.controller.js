@@ -878,6 +878,8 @@ function buildAnalysisQuery(params) {
           { match_phrase: { source: "Linkedin" } },
           { match_phrase: { source: "Twitter" } },
           { match_phrase: { source: "Web" } },
+           { match_phrase: { source: 'Facebook' } },
+           { match_phrase: { source: 'Instagram' } },
         ],
         minimum_should_match: 1,
       },

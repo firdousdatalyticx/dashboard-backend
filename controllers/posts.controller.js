@@ -133,7 +133,7 @@ else {
         } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 ) {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);
         } else  if (topicId=== 2646 || topicId === 2650) {
-          qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web")`);
+          qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook")`);
         }
         else {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`);
@@ -1131,7 +1131,9 @@ function redistributePostsBySource(hits, limit) {
     Twitter: [],
     LinkedIn: [],
     Linkedin: [],
-    Web: []
+    Web: [],
+    Facebook:[],
+    Instagram:[]
   };
 
   // Categorize hits by source
@@ -1148,6 +1150,10 @@ function redistributePostsBySource(hits, limit) {
       }
     } else if (source === 'Web') {
       sourceGroups.Web.push(hit);
+    }else if (source === 'Facebook') {
+      sourceGroups.Facebook.push(hit);
+    }else if (source === 'Instagram') {
+      sourceGroups.Instagram.push(hit);
     }
   });
 
@@ -1155,50 +1161,62 @@ function redistributePostsBySource(hits, limit) {
   const linkedInPosts = [...sourceGroups.LinkedIn, ...sourceGroups.Linkedin];
   const twitterPosts = sourceGroups.Twitter;
   const webPosts = sourceGroups.Web;
-
+  const facebookPosts =sourceGroups.Facebook;
+  const instagramPosts = sourceGroups.Instagram;
   // Calculate target posts per source (equal distribution)
-  const postsPerSource = Math.floor(limit / 3);
-  const remainder = limit % 3;
+  const postsPerSource = Math.floor(limit / 5);
+  const remainder = limit % 5;
 
   // Determine how many posts we want from each source
   // Distribute remainder: first to Twitter, then LinkedIn, then Web
   const targetTwitterCount = postsPerSource + (remainder > 0 ? 1 : 0);
   const targetLinkedInCount = postsPerSource + (remainder > 1 ? 1 : 0);
   const targetWebCount = postsPerSource;
+   const targetFacebookCount = postsPerSource + (remainder > 0 ? 1 : 0);
+  const targetInstagramCount = postsPerSource + (remainder > 1 ? 1 : 0);
 
   // Take posts from each source up to the target, but prioritize equal distribution
   // If LinkedIn has fewer posts, we'll still take what we can and balance with others
   const twitterSlice = twitterPosts.slice(0, Math.min(targetTwitterCount, twitterPosts.length));
   const linkedInSlice = linkedInPosts.slice(0, Math.min(targetLinkedInCount, linkedInPosts.length));
+    const facebookSlice = twitterPosts.slice(0, Math.min(targetFacebookCount, facebookPosts.length));
+  const instagramSlice = linkedInPosts.slice(0, Math.min(targetInstagramCount, instagramPosts.length));
   const webSlice = webPosts.slice(0, Math.min(targetWebCount, webPosts.length));
 
   // Find the actual minimum we can get from all sources
-  const actualMin = Math.min(twitterSlice.length, linkedInSlice.length, webSlice.length);
+  const actualMin = Math.min(twitterSlice.length, linkedInSlice.length, webSlice.length, facebookSlice.length, instagramSlice.length);
   
   // If we have enough from all sources, use the target counts
   // Otherwise, use equal amounts based on the minimum available (to ensure balance)
-  let finalTwitterSlice, finalLinkedInSlice, finalWebSlice;
+  let finalTwitterSlice, finalLinkedInSlice, finalWebSlice, finalFacebookSlice,finalInstagramSlice;
   
   if (actualMin >= postsPerSource) {
     // We have enough from all sources, use target counts
     finalTwitterSlice = twitterSlice.slice(0, Math.min(targetTwitterCount, twitterSlice.length));
     finalLinkedInSlice = linkedInSlice.slice(0, Math.min(targetLinkedInCount, linkedInSlice.length));
     finalWebSlice = webSlice.slice(0, Math.min(targetWebCount, webSlice.length));
+    finalFacebookSlice = facebookSlice.slice(0, Math.min(targetFacebookCount, facebookSlice.length));
+    finalInstagramSlice = instagramSlice.slice(0, Math.min(targetInstagramCount, instagramSlice.length));
+
   } else {
     // One source has fewer posts, use equal amounts from all (based on minimum)
     finalTwitterSlice = twitterSlice.slice(0, actualMin);
     finalLinkedInSlice = linkedInSlice.slice(0, actualMin);
     finalWebSlice = webSlice.slice(0, actualMin);
-    
+    finalFacebookSlice = facebookSlice.slice(0, actualMin);
+    finalInstagramSlice = instagramSlice.slice(0, actualMin);
+
     // Fill remaining slots from sources that have more posts, but try to keep balance
-    const remaining = limit - (actualMin * 3);
+    const remaining = limit - (actualMin * 5);
     let remainingCount = remaining;
     let twIdx = actualMin;
     let liIdx = actualMin;
     let webIdx = actualMin;
-    
+    let facebookIdx = actualMin;
+    let instagramIdx = actualMin;
+
     // Round-robin fill from remaining posts
-    while (remainingCount > 0 && (twIdx < twitterSlice.length || liIdx < linkedInSlice.length || webIdx < webSlice.length)) {
+    while (remainingCount > 0 && (twIdx < twitterSlice.length || liIdx < linkedInSlice.length || webIdx < webSlice.length || facebookIdx < facebookSlice.length || instagramIdx < instagramSlice.length)) {
       if (twIdx < twitterSlice.length && remainingCount > 0) {
         finalTwitterSlice.push(twitterSlice[twIdx++]);
         remainingCount--;
@@ -1211,13 +1229,21 @@ function redistributePostsBySource(hits, limit) {
         finalWebSlice.push(webSlice[webIdx++]);
         remainingCount--;
       }
+      if (facebookIdx < facebookSlice.length && remainingCount > 0) {
+        finalFacebookSlice.push(facebookSlice[facebookIdx++]);
+        remainingCount--;
+      }
+      if (instagramIdx < instagramSlice.length && remainingCount > 0) {
+        finalInstagramSlice.push(instagramSlice[instagramIdx++]);
+        remainingCount--;
+      }
     }
   }
 
   // Interleave posts from each source to ensure equal distribution
-  // This creates a round-robin pattern: Twitter, LinkedIn, Web, Twitter, LinkedIn, Web...
+  // This creates a round-robin pattern: Twitter, LinkedIn, Web, Facebook, Instagram...
   const redistributed = [];
-  const maxLength = Math.max(finalTwitterSlice.length, finalLinkedInSlice.length, finalWebSlice.length);
+  const maxLength = Math.max(finalTwitterSlice.length, finalLinkedInSlice.length, finalWebSlice.length, finalFacebookSlice.length, finalInstagramSlice.length);
 
   for (let i = 0; i < maxLength && redistributed.length < limit; i++) {
     // Add from Twitter
@@ -1231,6 +1257,14 @@ function redistributePostsBySource(hits, limit) {
     // Add from Web
     if (i < finalWebSlice.length && redistributed.length < limit) {
       redistributed.push(finalWebSlice[i]);
+    }
+    // Add from Facebook
+    if (i < finalFacebookSlice.length && redistributed.length < limit) {
+      redistributed.push(finalFacebookSlice[i]);
+    }
+    // Add from Instagram
+    if (i < finalInstagramSlice.length && redistributed.length < limit) {
+      redistributed.push(finalInstagramSlice[i]);
     }
   }
 

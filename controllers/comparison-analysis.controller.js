@@ -375,6 +375,8 @@ const comparisonAnalysisController = {
             { match_phrase: { source: "LinkedIn" } },
             { match_phrase: { source: "Linkedin" } },
             { match_phrase: { source: "Web" } },
+            { match_phrase: { source: "Facebook" } },
+            { match_phrase: { source: "Instagram" } },
 
           ];
         }
@@ -765,6 +767,8 @@ const comparisonAnalysisController = {
           { match_phrase: { source: "LinkedIn" } },
           { match_phrase: { source: "Linkedin" } },
           { match_phrase: { source: "Web" } },
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Instagram" } },
         ];
       }
 

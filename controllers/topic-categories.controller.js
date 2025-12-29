@@ -364,7 +364,7 @@ const topicCategoriesController = {
             if (numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640) {
                 socialSources = ["LinkedIn", "Linkedin"];
             } else if (numericTopicId === 2646 || numericTopicId === 2650) {
-                socialSources = ["LinkedIn", "Linkedin", "Twitter", "Web"];
+                socialSources = ["LinkedIn", "Linkedin", "Twitter", "Web","Instagram","Facebook"];
             } 
             else if (numericTopicId === 2641) {
                 socialSources = ["Twitter", "Facebook", "Instagram"];

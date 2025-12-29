@@ -35,4 +35,16 @@ router.post('/', express.json(), authMiddleware, transformCategoryData, socialsD
 // New posts-only endpoint: same params plus "source" to fetch posts for a single source
 router.post('/posts', express.json(), authMiddleware, transformCategoryData, postsController.getDistributionPosts);
 
+// New sentiment by source endpoint: returns sentiment counts grouped by source
+router.post('/sentiment-by-source', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getSentimentBySource);
+
+// New popular sources endpoint: returns sources ordered by popularity with percentages
+router.post('/popular-sources', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getPopularSources);
+
+// New active users distribution endpoint: returns user activity metrics grouped by source
+router.post('/active-users-distribution', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getActiveUsersDistribution);
+
+// New dashboard metrics endpoint: returns total mentions, average sentiment, and active users
+router.post('/dashboard-metrics', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getDashboardMetrics);
+
 module.exports = router; 

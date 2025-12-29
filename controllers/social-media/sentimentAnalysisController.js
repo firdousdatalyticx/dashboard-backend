@@ -420,6 +420,14 @@ const sentimentAnalysisController = {
               field: "predicted_sentiment_value.keyword",
               size: 10,
             },
+            aggs: {
+              sources_by_sentiment: {
+                terms: {
+                  field: "source.keyword",
+                  size: 20,
+                },
+              },
+            },
           },
         },
       };
@@ -435,12 +443,21 @@ const sentimentAnalysisController = {
         negative: 0,
         neutral: 0,
         total: 0,
+        sourcesBySentiment: {},
       };
 
       buckets.forEach((bucket) => {
         const sentiment = bucket.key.toLowerCase();
         result[sentiment] = bucket.doc_count;
         result.total += bucket.doc_count;
+
+        // Add source breakdown for each sentiment
+        result.sourcesBySentiment[sentiment] = bucket.sources_by_sentiment.buckets.map(
+          (sourceBucket) => ({
+            source: sourceBucket.key,
+            count: sourceBucket.doc_count,
+          })
+        );
       });
 
       return res.json({ ...result, aggQuery });

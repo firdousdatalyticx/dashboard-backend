@@ -645,6 +645,297 @@ const socialsDistributionsController = {
     }
   },
 
+  getEmotionBySource: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        topicId,
+        llm_mention_type,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId)
+      );
+
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text
+            )
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Apply sentiment filter if provided (this filters the overall results)
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      // Create the aggregation query with nested aggregations
+      // First aggregate by source, then within each source aggregate by emotion
+      const aggQuery = {
+        query: query,
+        size: 0,
+        aggs: {
+          source_counts: {
+            terms: {
+              field: "source.keyword",
+              size: 20,
+            },
+            aggs: {
+              emotion_counts: {
+                terms: {
+                  field: "llm_emotion.keyword",
+                  size: 20,
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Execute the aggregation query
+      const aggResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: aggQuery,
+      });
+
+      // Extract the aggregation buckets
+      const sourceBuckets = aggResponse.aggregations.source_counts.buckets;
+
+      // Process the nested aggregations to create the final structure
+      const emotionBySource = {};
+
+      sourceBuckets.forEach((sourceBucket) => {
+        if (sourceBucket.doc_count > 0) {
+          // Normalize source key
+          const normalizedSourceKey = sourceBucket.key.toLowerCase();
+          let formattedSourceKey;
+          if (normalizedSourceKey === "linkedin") {
+            formattedSourceKey = "LinkedIn";
+          } else {
+            formattedSourceKey = normalizedSourceKey.charAt(0).toUpperCase() + normalizedSourceKey.slice(1);
+          }
+
+          // Initialize emotion counts for this source
+          emotionBySource[formattedSourceKey] = {};
+
+          // Process emotion sub-aggregations
+          const emotionBuckets = sourceBucket.emotion_counts.buckets;
+          emotionBuckets.forEach((emotionBucket) => {
+            if (emotionBucket.doc_count > 0) {
+              // Capitalize first letter of emotion
+              const formattedEmotionKey = emotionBucket.key.charAt(0).toUpperCase() + emotionBucket.key.slice(1);
+              emotionBySource[formattedSourceKey][formattedEmotionKey] = emotionBucket.doc_count;
+            }
+          });
+        }
+      });
+
+      return res.json(emotionBySource);
+    } catch (error) {
+      console.error("Error fetching emotion by source:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+
   getPopularSources: async (req, res) => {
     try {
       const {

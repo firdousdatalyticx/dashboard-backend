@@ -49,6 +49,7 @@ const getDistributionPosts = async (req, res) => {
       topicId,
       llm_mention_type,
       sourceName,
+      emotion,
       limit = 30
     } = req.body;
 
@@ -173,6 +174,24 @@ const getDistributionPosts = async (req, res) => {
         query.bool.must.push(sentimentFilter);
       } else {
         query.bool.must.push({ match: { predicted_sentiment_value: sentimentType.trim() } });
+      }
+    }
+
+    // Apply emotion filter if provided
+    if (emotion && emotion !== 'undefined' && emotion !== 'null' && emotion !== '') {
+      if (emotion.includes(',')) {
+        // Handle multiple emotions (comma-separated)
+        const emotionArray = emotion.split(',');
+        const emotionFilter = {
+          bool: {
+            should: emotionArray.map(e => ({ match: { llm_emotion: e.trim() } })),
+            minimum_should_match: 1
+          }
+        };
+        query.bool.must.push(emotionFilter);
+      } else {
+        // Handle single emotion
+        query.bool.must.push({ match: { llm_emotion: emotion.trim() } });
       }
     }
 

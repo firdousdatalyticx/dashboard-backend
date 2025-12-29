@@ -38,6 +38,9 @@ router.post('/posts', express.json(), authMiddleware, transformCategoryData, pos
 // New sentiment by source endpoint: returns sentiment counts grouped by source
 router.post('/sentiment-by-source', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getSentimentBySource);
 
+// New emotion by source endpoint: returns emotion counts grouped by source
+router.post('/emotion-by-source', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEmotionBySource);
+
 // New popular sources endpoint: returns sources ordered by popularity with percentages
 router.post('/popular-sources', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getPopularSources);
 

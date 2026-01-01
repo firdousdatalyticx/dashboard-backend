@@ -100,6 +100,125 @@ const reportsController = {
   }
 },
 
+  saveCompetitiveReport: async (req, res) => {
+    try {
+      const { 
+        report_data, 
+        dashboard_name_1, 
+        dashboard_name_2, 
+        topic_id_1, 
+        topic_id_2, 
+        user_id, 
+        start_date_1, 
+        end_date_1, 
+        start_date_2, 
+        end_date_2,
+        comparison_analysis_id,
+        status = false,
+      } = req.body;
+
+      if (!report_data || !user_id || !topic_id_1 || !topic_id_2) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: report_data, user_id, topic_id_1, or topic_id_2'
+        });
+      }
+
+      // Step 1: Insert competitive report
+      await prisma.$executeRaw`
+        INSERT INTO competitive_reports (
+          report_data, 
+          dashboard_name_1, 
+          dashboard_name_2, 
+          topic_id_1, 
+          topic_id_2, 
+          user_id, 
+          start_date_1, 
+          end_date_1, 
+          start_date_2, 
+          end_date_2, 
+          comparison_analysis_id,
+          status,
+          date_created
+        )
+        VALUES (
+          ${report_data}, 
+          ${dashboard_name_1 || null}, 
+          ${dashboard_name_2 || null}, 
+          ${topic_id_1}, 
+          ${topic_id_2}, 
+          ${user_id}, 
+          ${start_date_1 ? new Date(start_date_1) : null}, 
+          ${end_date_1 ? new Date(end_date_1) : null}, 
+          ${start_date_2 ? new Date(start_date_2) : null}, 
+          ${end_date_2 ? new Date(end_date_2) : null}, 
+          ${comparison_analysis_id || null},
+          ${status || false},
+          ${new Date()}
+        );
+      `;
+
+      // Step 2: Fetch the inserted report using LAST_INSERT_ID
+      const report = await prisma.$queryRaw`
+        SELECT * FROM competitive_reports WHERE id = LAST_INSERT_ID();
+      `;
+
+      return res.status(200).json({
+        success: true,
+        report: report[0] // $queryRaw returns an array
+      });
+
+    } catch (error) {
+      console.error('Error saving competitive report:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
+  },
+
+    /**
+     * Get competitive reports filtered by comparison_analysis_id
+     * @async
+     * @function getCompetitiveReports
+     * @param {Object} req - Express request object
+     * @param {Object} req.query - Query parameters
+     * @param {number} req.query.comparison_analysis_id - ID of the comparison analysis to filter by
+     * @param {Object} res - Express response object
+     * @returns {Object} JSON response with competitive reports or error
+     */
+    getCompetitiveReports: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const comparisonAnalysisId = req.query.comparison_analysis_id || req.body.comparison_analysis_id;
+
+            if (!comparisonAnalysisId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Missing required parameter: comparison_analysis_id'
+                });
+            }
+
+            const reports = await prisma.$queryRaw`
+                SELECT * FROM competitive_reports 
+                WHERE comparison_analysis_id = ${parseInt(comparisonAnalysisId)}
+                AND user_id = ${userId}
+                ORDER BY id DESC
+            `;
+
+            return res.status(200).json({
+                success: true,
+                reports
+            });
+        } catch (error) {
+            console.error('Error fetching competitive reports:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    },
+
     /**
      * Delete a report by ID
      * @async
@@ -129,6 +248,60 @@ const reportsController = {
             });
         } catch (error) {
             console.error('Error deleting report:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
+    },
+
+    /**
+     * Delete a competitive report by ID
+     * @async
+     * @function deleteCompetitiveReport
+     * @param {Object} req - Express request object
+     * @param {Object} req.params - Request parameters
+     * @param {string} req.params.id - ID of the competitive report to delete
+     * @param {Object} res - Express response object
+     * @returns {Object} JSON response with success status or error
+     */
+    deleteCompetitiveReport: async (req, res) => {
+        try {
+            const reportId = parseInt(req.params.id);
+            const userId = req.user.id;
+
+            if (isNaN(reportId)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid report ID'
+                });
+            }
+
+            // First, check if the report exists and belongs to the user
+            const report = await prisma.$queryRaw`
+                SELECT id FROM competitive_reports 
+                WHERE id = ${reportId} AND user_id = ${userId}
+            `;
+
+            if (!report || report.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Report not found or you do not have permission to delete it'
+                });
+            }
+
+            // Delete the report
+            await prisma.$executeRaw`
+                DELETE FROM competitive_reports 
+                WHERE id = ${reportId} AND user_id = ${userId}
+            `;
+
+            return res.status(200).json({
+                success: true,
+                message: `Competitive report with ID ${reportId} deleted successfully`
+            });
+        } catch (error) {
+            console.error('Error deleting competitive report:', error);
             return res.status(500).json({
                 success: false,
                 error: 'Internal server error'
@@ -196,7 +369,7 @@ const reportsController = {
             daysDifference = dateDifference(lessThanTime, greaterThanTime);
 
             // Handle sentiment filter
-            if (filtersDat?.sentimentType && filtersDat.sentimentType !== 'null') {
+            if (filtersDat?.sentimentType && filtersDat.sentimentType !== 'null' && filtersDat.sentimentType.toLowerCase() !== 'all') {
                 const sentiArray = filtersDat.sentimentType.split(',');
                 const sentiStr = sentiArray.map(s => `"${s}"`).join(' OR ');
                 topicQueryString += ` AND predicted_sentiment_value:(${sentiStr})`;

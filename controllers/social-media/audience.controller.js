@@ -1195,9 +1195,9 @@ const audienceController = {
      
           
       let firstUrl = Object.values(trendCategoryData)[0].urls;
-const linkedInUrl = firstUrl.find(url => url.includes("linkedin.com/company"));
+let linkedInUrl = firstUrl.find(url => url.includes("linkedin.com/company"));
 
-      // console.log("firstUrl",firstUrl);
+      console.log("linkedInUrl",linkedInUrl);
       // Optimized query to only get the fields we need
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1349,11 +1349,11 @@ const linkedInUrl = firstUrl.find(url => url.includes("linkedin.com/company"));
             Array.isArray(comment.author?.fullPositions)
           ) {
             const isMatch = comment.author.fullPositions?.some(
-              (pos) => pos.companyURL === linkedInUrl
+              (pos) => pos.companyURL === linkedInUrl && pos.end.year==0 && pos.end.month==0 && pos.end.day==0
             );
             if (isMatch) {
               const isMatchComment = comment.author.fullPositions?.filter(
-                (pos) => pos.companyURL === linkedInUrl
+                (pos) => pos.companyURL === linkedInUrl && pos.end.year==0 && pos.end.month==0 && pos.end.day==0
               );
               if (req.body?.needCommentsData) {
                 commentsList.push(comment);

@@ -925,3 +925,31 @@ model competitive_reports {
 
   @@index([comparison_analysis_id])
 }
+
+model employee_engagement_leaderboard {
+  id                     Int      @id @default(autoincrement())
+
+  topic_id               Int
+  name                   String   @db.VarChar(255)
+  position               String?  @db.VarChar(255)
+  profile_url             String?  @db.VarChar(500)
+
+  likes                  Int      @default(0)
+  comments               Int      @default(0)
+  reshares               Int      @default(0)
+
+  sum_quality             Decimal  @default(0.00) @db.Decimal(10, 2)
+  avg_quality             Decimal  @default(0.00) @db.Decimal(10, 2)
+  high_q                  Decimal  @default(0.00) @db.Decimal(10, 2)
+  low_q                   Decimal  @default(0.00) @db.Decimal(10, 2)
+
+  activity_score          Decimal  @default(0.00) @db.Decimal(10, 2)
+  quality_score           Decimal  @default(0.00) @db.Decimal(10, 2)
+  final_engagement_score  Decimal  @default(0.00) @db.Decimal(10, 2)
+
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  @@unique([topic_id, name], name: "uniq_topic_name")
+  @@map("employee_engagement_leaderboard")
+}

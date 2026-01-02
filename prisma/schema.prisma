@@ -537,7 +537,7 @@ model question {
   choice            choice[]
   survey            survey          @relation(fields: [survey_id], references: [survey_id], onDelete: Cascade, map: "question_ibfk_1")
   survey_answer     survey_answer[]
-
+  
   @@index([survey_id], map: "survey_id")
 }
 
@@ -903,4 +903,25 @@ model comparisonsanalysisreports {
   endDate          DateTime?
   startDate2       DateTime?
   endDate2         DateTime?
+  competitive_reports competitive_reports[]
+}
+
+model competitive_reports {
+  id                    Int                        @id @default(autoincrement())
+  report_data           String?                    @db.Text
+  dashboard_name_1      String?                    @db.VarChar(250)
+  dashboard_name_2      String?                    @db.VarChar(250)
+  topic_id_1            Int?
+  topic_id_2            Int?
+  user_id               Int?
+  start_date_1          DateTime?
+  end_date_1            DateTime?
+  start_date_2          DateTime?
+  end_date_2            DateTime?
+  date_created          DateTime                  @default(now())
+  comparison_analysis_id Int?
+  status                Boolean                   @default(false)
+  comparison_analysis   comparisonsanalysisreports? @relation(fields: [comparison_analysis_id], references: [id])
+
+  @@index([comparison_analysis_id])
 }

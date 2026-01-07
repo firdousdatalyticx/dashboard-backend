@@ -68,27 +68,33 @@ const googleLocationsController = {
             });
 
             // Build Elasticsearch query
+            const mustFilters = [
+                {
+                    terms: {
+                        'u_source.keyword': googleUrls
+                    }
+                }
+            ];
+
+            // Add date range filter only if dates are provided
+            if (startDate || endDate) {
+                const dateFilter = {
+                    range: {
+                        p_created_time: {
+                            ...(startDate && { gte: startDate }),
+                            ...(endDate && { lte: endDate }),
+                            format: 'strict_date_optional_time||epoch_millis||yyyy-MM-dd||yyyy-MM-dd\'T\'HH:mm:ss'
+                        }
+                    }
+                };
+                mustFilters.push(dateFilter);
+            }
+
             const params = {
                 size: 0,
                 query: {
                     bool: {
-                        must: [
-                            {
-                                terms: {
-                                    'u_source.keyword': googleUrls
-                                }
-                            },
-                            // Always include date range filter for consistency with other Google controllers
-                            {
-                                range: {
-                                    p_created_time: {
-                                        gte: startDate || '2020-01-01',  // Broad default to match data range
-                                        lte: endDate || '2026-12-31',
-                                        format: 'strict_date_optional_time||epoch_millis||yyyy-MM-dd||yyyy-MM-dd\'T\'HH:mm:ss'
-                                    }
-                                }
-                            }
-                        ]
+                        must: mustFilters
                     }
                 },
                 aggs: {
@@ -111,13 +117,14 @@ const googleLocationsController = {
                                 }
                             },
                             recent_reviews: {
-                                filter: {
+                                filter: startDate ? {
                                     range: {
                                         p_created_time: {
-                                            gte: startDate || '2020-01-01'
+                                            gte: startDate,
+                                            format: 'strict_date_optional_time||epoch_millis||yyyy-MM-dd||yyyy-MM-dd\'T\'HH:mm:ss'
                                         }
                                     }
-                                },
+                                } : { match_all: {} },
                                 aggs: {
                                     recent_count: {
                                         value_count: {

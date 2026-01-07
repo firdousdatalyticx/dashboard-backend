@@ -135,6 +135,9 @@ model customer_topics {
   topic_hash_tags           String?   @db.MediumText
   topic_urls                String?   @db.MediumText
   topic_keywords            String?   @db.MediumText
+  scad_topic_hash_tags      String?   @db.MediumText
+  scad_topic_urls           String?   @db.MediumText
+  scad_topic_keywords       String?   @db.MediumText
   topic_user_id             Int?
   topic_created_at          DateTime? @db.DateTime(0)
   topic_updated_at          DateTime? @db.DateTime(0)

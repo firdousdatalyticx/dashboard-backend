@@ -20,6 +20,17 @@ const transformCategoryData = async (req, res, next) => {
             ]
         });
 
+        // Fetch customer_topics to get SCAD fields
+        const customerTopic = await prisma.customer_topics.findUnique({
+            where: {
+                topic_id: Number(topicId)
+            },
+            select: {
+                scad_topic_hash_tags: true,
+                scad_topic_keywords: true
+            }
+        });
+
         // Helper function to normalize and sort arrays
         const normalizeArray = (str, delimiter = ', ') => {
             if (!str) return [];
@@ -76,10 +87,25 @@ const transformCategoryData = async (req, res, next) => {
 
             
 
+        // Process SCAD data if available
+        let processedScadData = null;
+        if (customerTopic && (customerTopic.scad_topic_hash_tags || customerTopic.scad_topic_keywords)) {
+            const scadKeywords = customerTopic.scad_topic_keywords ? normalizeArray(customerTopic.scad_topic_keywords) : [];
+            const scadHashtags = customerTopic.scad_topic_hash_tags ? normalizeArray(customerTopic.scad_topic_hash_tags) : [];
+
+            if (scadKeywords.length > 0 || scadHashtags.length > 0) {
+                processedScadData = {
+                    scad_keywords: scadKeywords,
+                    scad_hashtags: scadHashtags
+                };
+            }
+        }
+
         // Attach both formats to the request object
         req.processedCategories = processedData; // Object format (recommended)
         req.categoriesArray = categoriesData;    // Array format (for compatibility)
         req.rawCategories = categoryData;
+        req.processedScadData = processedScadData; // SCAD data for additional trend
         
         next();
     } catch (error) {

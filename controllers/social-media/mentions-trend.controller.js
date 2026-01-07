@@ -442,9 +442,285 @@ const mentionsTrendController = {
         });
       }
 
+      // Process SCAD trend if SCAD data exists
+      let scadTrend = null;
+      if (req.processedScadData) {
+        try {
+          // Build SCAD query string for filters processing
+          const scadQueryString = buildScadQueryString(req.processedScadData);
+
+          // Process filters for SCAD trend
+          const scadFilters = processFilters({
+            sentimentType,
+            timeSlot,
+            fromDate: effectiveFromDate,
+            toDate: effectiveToDate,
+            queryString: scadQueryString,
+          });
+
+          // Handle special case for unTopic
+          let scadQueryTimeRange = {
+            gte: scadFilters.greaterThanTime,
+            lte: scadFilters.lessThanTime,
+          };
+
+          if (Number(req.body.topicId) == 2473) {
+            scadQueryTimeRange = {
+              gte: "2023-01-01",
+              lte: "2023-04-30",
+            };
+          }
+
+          // Build base query for SCAD trend
+          const scadQuery = buildBaseQuery(
+            {
+              greaterThanTime: scadQueryTimeRange.gte,
+              lessThanTime: scadQueryTimeRange.lte,
+            },
+            source,
+            isSpecialTopic,
+            Number(req.body.topicId)
+          );
+
+          // Add SCAD filters
+          addScadFilters(scadQuery, req.processedScadData);
+
+          if (workingCategory == "all" && category !== "all") {
+            const categoryFilter = {
+              bool: {
+                should: [
+                  {
+                    multi_match: {
+                      query: category,
+                      fields: [
+                        "p_message_text",
+                        "p_message",
+                        "hashtags",
+                        "u_source",
+                        "p_url",
+                      ],
+                      type: "phrase",
+                    },
+                  },
+                ],
+                minimum_should_match: 1,
+              },
+            };
+            scadQuery.bool.must.push(categoryFilter);
+          }
+
+          // Apply sentiment filter if provided
+          if (
+            sentimentType &&
+            sentimentType !== "undefined" &&
+            sentimentType !== "null"
+          ) {
+            if (sentimentType.includes(",")) {
+              const sentimentArray = sentimentType.split(",");
+              const sentimentFilter = {
+                bool: {
+                  should: sentimentArray.map((sentiment) => ({
+                    match: { predicted_sentiment_value: sentiment.trim() },
+                  })),
+                  minimum_should_match: 1,
+                },
+              };
+              scadQuery.bool.must.push(sentimentFilter);
+            } else {
+              scadQuery.bool.must.push({
+                match: { predicted_sentiment_value: sentimentType.trim() },
+              });
+            }
+          }
+
+          // Apply LLM Mention Type filter if provided
+          if (
+            llm_mention_type != "" &&
+            llm_mention_type &&
+            Array.isArray(llm_mention_type) &&
+            llm_mention_type.length > 0
+          ) {
+            const mentionTypeFilter = {
+              bool: {
+                should: llm_mention_type.map((type) => ({
+                  match: { llm_mention_type: type },
+                })),
+                minimum_should_match: 1,
+              },
+            };
+            scadQuery.bool.must.push(mentionTypeFilter);
+          }
+
+          // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+          if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+            scadQuery.bool.must.push({
+              term: { is_public_opinion: true }
+            });
+          }
+
+          // Execute SCAD combined aggregation query with posts
+          const scadCombinedQuery = {
+            query: scadQuery,
+            size: 0,
+            aggs: {
+              daily_counts: {
+                date_histogram: {
+                  field: "p_created_time",
+                  fixed_interval: "1d",
+                  min_doc_count: 0,
+                  extended_bounds: {
+                    min: scadQueryTimeRange.gte,
+                    max: scadQueryTimeRange.lte,
+                  },
+                },
+                aggs: {
+                  top_posts: {
+                    top_hits: {
+                      size: 10,
+                          _source: {
+                            includes: [
+                              "u_profile_photo",
+                              "u_followers",
+                              "u_following",
+                              "u_posts",
+                              "p_likes",
+                              "llm_emotion",
+                              "llm_language",
+                              "u_country",
+                              "p_comments_text",
+                              "p_url",
+                              "p_comments",
+                              "p_shares",
+                              "p_engagement",
+                              "p_content",
+                              "p_picture_url",
+                              "predicted_sentiment_value",
+                              "predicted_category",
+                              "source",
+                              "rating",
+                              "u_fullname",
+                              "p_message_text",
+                              "comment",
+                              "business_response",
+                              "u_source",
+                              "name",
+                              "p_created_time",
+                              "created_at",
+                              "p_comments_data",
+                              "video_embed_url",
+                              "p_id",
+                              "p_picture",
+                            ],
+                          },
+                    },
+                  },
+                },
+              },
+            },
+          };
+
+          // Execute SCAD combined query
+          const scadResponse = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: scadCombinedQuery,
+          });
+
+          // Process SCAD results
+          let scadMaxDate = "";
+          let scadMaxMentions = 0;
+          const scadDatesWithPosts = [];
+          const scadBuckets = scadResponse?.aggregations?.daily_counts?.buckets || [];
+
+          for (const bucket of scadBuckets) {
+            const docCount = bucket.doc_count;
+            const keyAsString = new Date(bucket.key_as_string)
+              .toISOString()
+              .split("T")[0];
+
+            const bucketDate = new Date(keyAsString);
+            const startDate = new Date(scadQueryTimeRange.gte);
+            const endDate = new Date(scadQueryTimeRange.lte);
+
+            if (bucketDate >= startDate && bucketDate <= endDate) {
+              if (docCount > scadMaxMentions) {
+                scadMaxMentions = docCount;
+                scadMaxDate = keyAsString;
+              }
+
+              // Format posts for this bucket
+              const posts = bucket.top_posts.hits.hits.map((hit) =>
+                formatPostData(hit)
+              );
+
+              scadDatesWithPosts.push({
+                date: keyAsString,
+                count: docCount,
+                posts: posts,
+              });
+            }
+          }
+
+          // Sort SCAD dates in descending order
+          scadDatesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+          // Gather SCAD filter terms
+          let scadAllFilterTerms = [];
+          if (req.processedScadData.scad_keywords && req.processedScadData.scad_keywords.length > 0)
+            scadAllFilterTerms.push(...req.processedScadData.scad_keywords);
+          if (req.processedScadData.scad_hashtags && req.processedScadData.scad_hashtags.length > 0)
+            scadAllFilterTerms.push(...req.processedScadData.scad_hashtags);
+
+          // For each post in scadDatesWithPosts, add matched_terms
+          if (scadDatesWithPosts && Array.isArray(scadDatesWithPosts)) {
+            scadDatesWithPosts.forEach((dateObj) => {
+              if (dateObj.posts && Array.isArray(dateObj.posts)) {
+                dateObj.posts = dateObj.posts.map((post) => {
+                  const textFields = [
+                    post.message_text,
+                    post.content,
+                    post.keywords,
+                    post.title,
+                    post.hashtags,
+                    post.uSource,
+                    post.source,
+                    post.p_url,
+                    post.userFullname,
+                  ];
+                  return {
+                    ...post,
+                    matched_terms: scadAllFilterTerms.filter((term) =>
+                      textFields.some((field) => {
+                        if (!field) return false;
+                        if (Array.isArray(field)) {
+                          return field.some(
+                            (f) =>
+                              typeof f === "string" &&
+                              f.toLowerCase().includes(term.toLowerCase())
+                          );
+                        }
+                        return (
+                          typeof field === "string" &&
+                          field.toLowerCase().includes(term.toLowerCase())
+                        );
+                      })
+                    ),
+                  };
+                });
+              }
+            });
+          }
+
+          scadTrend = scadDatesWithPosts;
+        } catch (scadError) {
+          console.error("Error processing SCAD trend:", scadError);
+          // Continue with main trend even if SCAD fails
+        }
+      }
+
       return res.status(200).json({
         success: true,
         datesWithPosts: datesWithPosts,
+        scadTrend: scadTrend,
       });
     } catch (error) {
       console.error("Error fetching social media mentions trend data:", error);
@@ -1083,7 +1359,32 @@ const formatPostData = (hit) => {
 };
 
 /**
- * Build a base query string from category data for filters processing
+ * Build a base query string from SCAD data for filters processing
+ * @param {Object} scadData - SCAD data with keywords and hashtags
+ * @returns {string} Query string
+ */
+function buildScadQueryString(scadData) {
+  let queryString = "";
+  const allTerms = [];
+
+  if (scadData.scad_keywords && scadData.scad_keywords.length > 0) {
+    allTerms.push(...scadData.scad_keywords);
+  }
+  if (scadData.scad_hashtags && scadData.scad_hashtags.length > 0) {
+    allTerms.push(...scadData.scad_hashtags);
+  }
+
+  // Create a query string with all terms as ORs
+  if (allTerms.length > 0) {
+    const terms = allTerms.map((term) => `"${term}"`).join(" OR ");
+    queryString = `(p_message_text:(${terms}) OR u_fullname:(${terms}))`;
+  }
+
+  return queryString;
+}
+
+/**
+ * Build base query string from category data for filters processing
  * @param {string} selectedCategory - Category to filter by
  * @param {Object} categoryData - Category data
  * @returns {string} Query string
@@ -1237,6 +1538,44 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
   }
 
   return query;
+}
+
+/**
+ * Add SCAD filters to the query
+ * @param {Object} query - Elasticsearch query object
+ * @param {Object} scadData - SCAD data with keywords and hashtags
+ */
+function addScadFilters(query, scadData) {
+  const scadFilters = [];
+
+  // Add keywords matching
+  if (scadData.scad_keywords && scadData.scad_keywords.length > 0) {
+    scadData.scad_keywords.forEach(keyword => {
+      scadFilters.push(
+        { match_phrase: { p_message_text: keyword } },
+        { match_phrase: { keywords: keyword } }
+      );
+    });
+  }
+
+  // Add hashtags matching
+  if (scadData.scad_hashtags && scadData.scad_hashtags.length > 0) {
+    scadData.scad_hashtags.forEach(hashtag => {
+      scadFilters.push(
+        { match_phrase: { p_message_text: hashtag } },
+        { match_phrase: { hashtags: hashtag } }
+      );
+    });
+  }
+
+  if (scadFilters.length > 0) {
+    query.bool.must.push({
+      bool: {
+        should: scadFilters,
+        minimum_should_match: 1
+      }
+    });
+  }
 }
 
 /**

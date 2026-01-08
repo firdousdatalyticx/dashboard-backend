@@ -550,7 +550,15 @@ model reports {
   report_data  String?  @db.Text
   date_created DateTime @default(now())
   user_id       Int?
+  
+  status       Boolean?  @db.TinyInt  // tinyint(1), can be null
+  startDate    DateTime?             // nullable datetime
+  endDate      DateTime?             // nullable datetime
+  job_id       String?   @db.Char(36) // UUID stored as CHAR(36)
+  error        String?   @db.Text
 }
+
+
 
 model reports_data {
   data_id         Int      @id @default(autoincrement())

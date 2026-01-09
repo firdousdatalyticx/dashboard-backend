@@ -13,6 +13,138 @@ const formatSafeDate = (date) => {
     return isNaN(dateObj.getTime()) ? format(new Date(), 'yyyy-MM-dd') : format(dateObj, 'yyyy-MM-dd');
 };
 
+/**
+ * Format post data for GoogleMyBusiness posts
+ * @param {Object} hit - Elasticsearch hit object
+ * @param {Object} labelDataMap - Map of p_id -> labelData to avoid individual queries
+ */
+const formatPostData = async (hit, labelDataMap = {}) => {
+    const source = hit._source;
+
+    const profilePic =
+        source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    const followers = source.u_followers > 0 ? `${source.u_followers}` : "";
+    const following = source.u_following > 0 ? `${source.u_following}` : "";
+    const posts = source.u_posts > 0 ? `${source.u_posts}` : "";
+    const likes = source.p_likes > 0 ? `${source.p_likes}` : "";
+
+    const llm_emotion =
+        source.llm_emotion ||
+        (source.source === "GoogleMyBusiness" && source.rating
+            ? source.rating >= 4
+                ? "Supportive"
+                : source.rating <= 2
+                ? "Frustrated"
+                : "Neutral"
+            : "");
+
+    const commentsUrl =
+        source.p_comments_text && source.p_comments_text.trim() !== ""
+            ? source.p_url.trim().replace("https: // ", "https://")
+            : "";
+
+    const comments = `${source.p_comments}`;
+    const shares = source.p_shares > 0 ? `${source.p_shares}` : "";
+    const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : "";
+
+    const content =
+        source.p_content && source.p_content.trim() !== "" ? source.p_content : "";
+    const imageUrl =
+        source.p_picture_url && source.p_picture_url.trim() !== ""
+            ? source.p_picture_url
+            : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+
+    let predicted_sentiment = "";
+    let predicted_category = "";
+    
+    // Use labelData from map instead of making individual query
+    const labelData = labelDataMap[hit._id] || [];
+
+    if (labelData.length > 0 && labelData[0]?.predicted_sentiment_value_requested)
+        predicted_sentiment = `${labelData[0].predicted_sentiment_value_requested}`;
+    else if (source.predicted_sentiment_value)
+        predicted_sentiment = `${source.predicted_sentiment_value}`;
+    else if (source.source === "GoogleMyBusiness" && source.rating) {
+        predicted_sentiment =
+            source.rating >= 4
+                ? "Positive"
+                : source.rating <= 2
+                ? "Negative"
+                : "Neutral";
+    }
+
+    if (source.predicted_category) predicted_category = source.predicted_category;
+
+    let youtubeVideoUrl = "";
+    let profilePicture2 = "";
+    if (source.source === "Youtube") {
+        if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
+        else if (source.p_id)
+            youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+    } else {
+        profilePicture2 = source.p_picture ? source.p_picture : "";
+    }
+
+    let sourceIcon = "";
+    const userSource = source.source;
+    if (
+        ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
+            userSource
+        )
+    )
+        sourceIcon = "Blog";
+    else if (userSource === "Reddit") sourceIcon = "Reddit";
+    else if (["FakeNews", "News"].includes(userSource)) sourceIcon = "News";
+    else if (userSource === "Tumblr") sourceIcon = "Tumblr";
+    else if (userSource === "Vimeo") sourceIcon = "Vimeo";
+    else if (["Web", "DeepWeb"].includes(userSource)) sourceIcon = "Web";
+    else sourceIcon = userSource;
+
+    let message_text = "";
+    if (["GoogleMaps", "Tripadvisor"].includes(source.source)) {
+        const parts = source.p_message_text.split("***|||###");
+        message_text = parts[0].replace(/\n/g, "<br>");
+    } else {
+        message_text = source.p_message_text
+            ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
+            : "";
+    }
+
+    return {
+        profilePicture: profilePic,
+        profilePicture2,
+        userFullname: source.u_fullname,
+        user_data_string: "",
+        followers,
+        following,
+        posts,
+        likes,
+        llm_emotion,
+        llm_language: source.llm_language,
+        u_country: source.u_country,
+        commentsUrl,
+        comments,
+        shares,
+        engagements,
+        content,
+        image_url: imageUrl,
+        predicted_sentiment,
+        predicted_category,
+        youtube_video_url: youtubeVideoUrl,
+        source_icon: `${source.p_url},${sourceIcon}`,
+        message_text,
+        source: source.source,
+        rating: source.rating,
+        comment: source.comment,
+        businessResponse: source.business_response,
+        uSource: source.u_source,
+        googleName: source.name,
+        created_at: new Date(source.p_created_time).toLocaleString(),
+        p_comments_data: source.p_comments_data,
+    };
+};
+
 
 /**
  * Controller for Google review ratings data
@@ -193,18 +325,8 @@ const reviewRatingsController = {
                 lessThanTime = `${lessThanTime}T23:59:59`;
             }
 
-            const query = {
-                size: 1000,
-                _source: [
-                    'rating',
-                    'p_created_time',
-                    'p_message_text',
-                    'u_username',
-                    'u_fullname',
-                    'u_source',
-                    'predicted_sentiment_value',
-                    'place_url'
-                ],
+            // Build base query for counting and fetching
+            const baseQuery = {
                 query: {
                     bool: {
                         must: [
@@ -220,7 +342,42 @@ const reviewRatingsController = {
                             }
                         ]
                     }
-                },
+                }
+            };
+            
+            // Add Google URLs filter
+            if (googleUrls.length > 0) {
+                const urlTerms = googleUrls.map(url => `"${url}"`).join(' OR ');
+                baseQuery.query.bool.must.push({
+                    bool: {
+                        should: [
+                            { query_string: { query: `u_source:(${urlTerms})` } },
+                            { query_string: { query: `place_url:(${urlTerms})` } }
+                        ],
+                        minimum_should_match: 1
+                    }
+                });
+            }
+
+            // First, get total count to determine how many posts to fetch
+            const countQuery = {
+                ...baseQuery,
+                size: 0, // Don't fetch documents, just get count
+            };
+
+            const countResponse = await elasticClient.search({
+                index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                body: countQuery,
+                timeout: '30s'
+            });
+
+            const totalHits = countResponse?.hits?.total?.value || 0;
+
+            // Build query to fetch all posts (up to 10k limit) with aggregation
+            const query = {
+                ...baseQuery,
+                size: Math.min(totalHits, 10000), // Fetch all posts up to 10k limit
+                sort: [{ p_created_time: { order: "desc" } }],
                 aggs: {
                     rating_counts: {
                         terms: {
@@ -237,22 +394,6 @@ const reviewRatingsController = {
                     }
                 }
             };
-            
-            // Add Google URLs filter
-            if (googleUrls.length > 0) {
-                const urlTerms = googleUrls.map(url => `"${url}"`).join(' OR ');
-                query.query.bool.must.push({
-                    bool: {
-                        should: [
-                            { query_string: { query: `u_source:(${urlTerms})` } },
-                            { query_string: { query: `place_url:(${urlTerms})` } }
-                        ],
-                        minimum_should_match: 1
-                    }
-                });
-            }
-
-            
 
             const esData = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -260,10 +401,112 @@ const reviewRatingsController = {
                 timeout: '30s'
             });
 
+            // Format posts from the fetched hits
+            const hits = esData?.hits?.hits || [];
+            
+            // Batch fetch all label data to avoid connection pool exhaustion
+            const postIds = hits.map(hit => hit._id);
+            let labelDataMap = {};
+            
+            if (postIds.length > 0) {
+                try {
+                    // Fetch all label data in a single query
+                    const allLabelData = await prisma.customers_label_data.findMany({
+                        where: {
+                            p_id: { in: postIds }
+                        }
+                    });
+                    
+                    // Group by p_id and find the latest (highest label_id) for each post
+                    const labelDataByPostId = {};
+                    allLabelData.forEach(label => {
+                        if (!labelDataByPostId[label.p_id]) {
+                            labelDataByPostId[label.p_id] = label;
+                        } else {
+                            // Keep the one with the highest label_id
+                            if (label.label_id > labelDataByPostId[label.p_id].label_id) {
+                                labelDataByPostId[label.p_id] = label;
+                            }
+                        }
+                    });
+                    
+                    // Create map with latest label for each post
+                    postIds.forEach(pId => {
+                        if (labelDataByPostId[pId]) {
+                            labelDataMap[pId] = [labelDataByPostId[pId]];
+                        } else {
+                            labelDataMap[pId] = [];
+                        }
+                    });
+                } catch (labelError) {
+                    console.error('Error fetching label data:', labelError);
+                    // Continue with empty map if label data fetch fails
+                    labelDataMap = {};
+                }
+            }
+            
+            // Format posts using the batched label data
+            const formattedPosts = await Promise.all(
+                hits.map(async (hit) => await formatPostData(hit, labelDataMap))
+            );
+
+            // Calculate rating counts from actual posts returned to ensure synchronization
+            const ratingCountsFromPosts = {};
+            let missingRatingCount = 0;
+            
+            formattedPosts.forEach(post => {
+                const rating = post.rating;
+                if (rating !== null && rating !== undefined) {
+                    if (!ratingCountsFromPosts[rating]) {
+                        ratingCountsFromPosts[rating] = 0;
+                    }
+                    ratingCountsFromPosts[rating]++;
+                } else {
+                    // Count posts without ratings
+                    missingRatingCount++;
+                }
+            });
+
+            // Build synchronized aggregation response from actual posts
+            const synchronizedBuckets = [];
+            Object.keys(ratingCountsFromPosts).sort((a, b) => parseInt(a) - parseInt(b)).forEach(rating => {
+                synchronizedBuckets.push({
+                    key: parseInt(rating),
+                    doc_count: ratingCountsFromPosts[rating],
+                    missing_rating: {
+                        doc_count: 0 // No missing ratings in this bucket
+                    }
+                });
+            });
+
+            // Add missing_rating bucket if there are posts without ratings
+            if (missingRatingCount > 0) {
+                synchronizedBuckets.push({
+                    key: null,
+                    key_as_string: null,
+                    doc_count: missingRatingCount,
+                    missing_rating: {
+                        doc_count: missingRatingCount
+                    }
+                });
+            }
+
+            // Update esData aggregations with synchronized counts
+            const synchronizedEsData = {
+                ...esData,
+                aggregations: {
+                    rating_counts: {
+                        buckets: synchronizedBuckets
+                    }
+                }
+            };
+
             return res.status(200).json({
                 success: true,
-                esData,
+                esData: synchronizedEsData,
                 googleUrls: googleUrls.length,
+                posts: formattedPosts, // Return ALL posts, not just 50
+                totalPosts: formattedPosts.length // Total posts returned (matches counts)
             });
 
         } catch (error) {

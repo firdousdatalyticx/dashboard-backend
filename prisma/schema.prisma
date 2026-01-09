@@ -983,7 +983,6 @@ model available_graphs {
   component_enum      String?  @db.VarChar(100) // Component name for rendering
   api_endpoint        String?  @db.VarChar(255)
   supported_sources   String?  @db.Text // comma-separated source names
-  graph_message_prompt String? @db.LongText // Very long text for graph message prompts
   is_premium          Boolean  @default(false)
   is_active           Boolean  @default(true)
   is_default         Boolean  @default(false)
@@ -1003,6 +1002,13 @@ model topic_enabled_graphs {
   is_enabled            Boolean  @default(true)
   position_order        Int?     @default(0)
   custom_title          String?  @db.VarChar(200)
+  
+  // AI Prompt Configuration (moved from available_graphs)
+  graph_message_prompt  String?  @db.LongText // AI prompt for this graph
+  output_fields         Json?    // Array of field names to output
+  frequency             String?  @db.VarChar(20) // 'recurring' or 'once'
+  date_range            Json?    // { start: "2025-01-01", end: "2025-12-31" }
+  
   created_at            DateTime @default(now())
   updated_at            DateTime @updatedAt
   

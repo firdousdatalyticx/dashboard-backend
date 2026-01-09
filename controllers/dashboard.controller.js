@@ -518,6 +518,309 @@ const dashboardController = {
                 error: 'Failed to fetch dashboard configuration'
             });
         }
+    },
+
+    // Get all enabled graphs for a topic with AI configuration
+    getEnabledGraphs: async (req, res) => {
+        try {
+            const { topicId } = req.params;
+            const { customer_id } = req.query;
+            
+            // Use customer_id from query param if provided (for admin access), otherwise use authenticated user's id
+            const userId = customer_id ? Number(customer_id) : req.user.id;
+
+            // Verify topic ownership
+            const topic = await prisma.customer_topics.findFirst({
+                where: {
+                    topic_id: parseInt(topicId),
+                    topic_user_id: userId,
+                    topic_is_deleted: { not: 'Y' }
+                }
+            });
+
+            if (!topic) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Topic not found or access denied'
+                });
+            }
+
+            // Get all enabled graphs with complete details including AI configuration
+            const enabledGraphs = await prisma.topic_enabled_graphs.findMany({
+                where: {
+                    topic_id: parseInt(topicId),
+                    is_enabled: true
+                },
+                include: {
+                    graph: true
+                },
+                orderBy: {
+                    position_order: 'asc'
+                }
+            });
+
+            // Format the response with all fields
+            const formattedGraphs = enabledGraphs.map(eg => ({
+                id: eg.id,
+                topic_id: eg.topic_id,
+                graph_id: eg.graph_id,
+                is_enabled: eg.is_enabled,
+                position_order: eg.position_order,
+                custom_title: eg.custom_title,
+                graph_message_prompt: eg.graph_message_prompt,
+                output_fields: eg.output_fields,
+                frequency: eg.frequency,
+                date_range: eg.date_range,
+                created_at: eg.created_at,
+                updated_at: eg.updated_at,
+                graph: {
+                    id: eg.graph.id,
+                    name: eg.graph.name,
+                    display_name: eg.graph.display_name,
+                    description: eg.graph.description,
+                    sample_image_url: eg.graph.sample_image_url,
+                    category: eg.graph.category,
+                    graph_type: eg.graph.graph_type,
+                    component_enum: eg.graph.component_enum,
+                    api_endpoint: eg.graph.api_endpoint,
+                    supported_sources: eg.graph.supported_sources,
+                    is_premium: eg.graph.is_premium,
+                    is_default: eg.graph.is_default,
+                    sort_order: eg.graph.sort_order
+                }
+            }));
+
+            return res.json({
+                success: true,
+                data: formattedGraphs
+            });
+        } catch (error) {
+            console.error('Error fetching enabled graphs:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to fetch enabled graphs'
+            });
+        }
+    },
+
+    // Update AI configuration for a specific enabled graph (only new fields)
+   updateEnabledGraph: async (req, res) => {
+        try {
+            const { topicId, graphId } = req.params;
+            const { customer_id } = req.query;
+            const {
+                graph_message_prompt,
+                output_fields,
+                frequency,
+                date_range
+            } = req.body;
+
+            // Use customer_id from query param if provided (for admin access), otherwise use authenticated user's id
+            const userId = customer_id ? Number(customer_id) : req.user.id;
+
+            // Verify topic ownership
+            const topic = await prisma.customer_topics.findFirst({
+                where: {
+                    topic_id: parseInt(topicId),
+                    topic_user_id: userId,
+                    topic_is_deleted: { not: 'Y' }
+                }
+            });
+
+            if (!topic) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Topic not found or access denied'
+                });
+            }
+
+            // Validate frequency if provided
+            if (frequency && !['recurring', 'once'].includes(frequency)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Frequency must be either "recurring" or "once"'
+                });
+            }
+
+            // Validate date_range if frequency is "once"
+            if (frequency === 'once' && !date_range) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Date range is required when frequency is "once"'
+                });
+            }
+
+            // Check if the enabled graph exists
+            const enabledGraph = await prisma.topic_enabled_graphs.findFirst({
+                where: {
+                    topic_id: parseInt(topicId),
+                    graph_id: parseInt(graphId)
+                }
+            });
+
+            if (!enabledGraph) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Enabled graph not found for this topic'
+                });
+            }
+
+            // Build update data object (only include the new AI configuration fields)
+            const updateData = {};
+            if (graph_message_prompt !== undefined) updateData.graph_message_prompt = graph_message_prompt;
+            if (output_fields !== undefined) updateData.output_fields = output_fields;
+            if (frequency !== undefined) updateData.frequency = frequency;
+            if (date_range !== undefined) updateData.date_range = date_range;
+
+            // Update the enabled graph
+            const updatedGraph = await prisma.topic_enabled_graphs.update({
+                where: {
+                    id: enabledGraph.id
+                },
+                data: updateData,
+                include: {
+                    graph: true
+                }
+            });
+
+            return res.json({
+                success: true,
+                message: 'AI configuration updated successfully',
+                data: updatedGraph
+            });
+        } catch (error) {
+            console.error('Error updating enabled graph:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to update enabled graph'
+            });
+        }
+    },
+
+    // Bulk update enabled graphs with AI configuration
+    bulkUpdateEnabledGraphs: async (req, res) => {
+        try {
+            const { topicId } = req.params;
+            const { customer_id } = req.query;
+            const { graphs } = req.body; // Array of graph configurations
+
+            // Use customer_id from query param if provided (for admin access), otherwise use authenticated user's id
+            const userId = customer_id ? Number(customer_id) : req.user.id;
+
+            // Verify topic ownership
+            const topic = await prisma.customer_topics.findFirst({
+                where: {
+                    topic_id: parseInt(topicId),
+                    topic_user_id: userId,
+                    topic_is_deleted: { not: 'Y' }
+                }
+            });
+
+            if (!topic) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Topic not found or access denied'
+                });
+            }
+
+            if (!graphs || !Array.isArray(graphs) || graphs.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Graphs array is required and must not be empty'
+                });
+            }
+
+            // Update each graph
+            const updatePromises = graphs.map(async (graphConfig) => {
+                const {
+                    graph_id,
+                    graph_message_prompt,
+                    output_fields,
+                    frequency,
+                    date_range,
+                    custom_title,
+                    position_order,
+                    is_enabled
+                } = graphConfig;
+
+                if (!graph_id) {
+                    throw new Error('graph_id is required for each graph');
+                }
+
+                // Validate frequency if provided
+                if (frequency && !['recurring', 'once'].includes(frequency)) {
+                    throw new Error(`Invalid frequency for graph_id ${graph_id}: must be "recurring" or "once"`);
+                }
+
+                // Find existing enabled graph
+                const enabledGraph = await prisma.topic_enabled_graphs.findFirst({
+                    where: {
+                        topic_id: parseInt(topicId),
+                        graph_id: parseInt(graph_id)
+                    }
+                });
+
+                if (!enabledGraph) {
+                    // If not exists, create new enabled graph
+                    return prisma.topic_enabled_graphs.create({
+                        data: {
+                            topic_id: parseInt(topicId),
+                            graph_id: parseInt(graph_id),
+                            is_enabled: is_enabled !== undefined ? is_enabled : true,
+                            graph_message_prompt,
+                            output_fields,
+                            frequency,
+                            date_range,
+                            custom_title,
+                            position_order
+                        }
+                    });
+                } else {
+                    // Update existing enabled graph
+                    const updateData = {};
+                    if (graph_message_prompt !== undefined) updateData.graph_message_prompt = graph_message_prompt;
+                    if (output_fields !== undefined) updateData.output_fields = output_fields;
+                    if (frequency !== undefined) updateData.frequency = frequency;
+                    if (date_range !== undefined) updateData.date_range = date_range;
+                    if (custom_title !== undefined) updateData.custom_title = custom_title;
+                    if (position_order !== undefined) updateData.position_order = position_order;
+                    if (is_enabled !== undefined) updateData.is_enabled = is_enabled;
+
+                    return prisma.topic_enabled_graphs.update({
+                        where: { id: enabledGraph.id },
+                        data: updateData
+                    });
+                }
+            });
+
+            await Promise.all(updatePromises);
+
+            // Fetch updated enabled graphs
+            const updatedGraphs = await prisma.topic_enabled_graphs.findMany({
+                where: {
+                    topic_id: parseInt(topicId),
+                    is_enabled: true
+                },
+                include: {
+                    graph: true
+                },
+                orderBy: {
+                    position_order: 'asc'
+                }
+            });
+
+            return res.json({
+                success: true,
+                message: 'Enabled graphs updated successfully',
+                data: updatedGraphs
+            });
+        } catch (error) {
+            console.error('Error bulk updating enabled graphs:', error);
+            return res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to bulk update enabled graphs'
+            });
+        }
     }
 };
 

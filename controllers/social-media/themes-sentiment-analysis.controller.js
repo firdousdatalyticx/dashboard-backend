@@ -81,7 +81,7 @@ const themesSentimentAnalysisController = {
             const query = buildBaseQuery({
                 greaterThanTime: effectiveGreaterThanTime,
                 lessThanTime: effectiveLessThanTime
-            }, source, req);
+            }, sources, req);
 
             // Add sentiment filter if provided (this filters the overall post sentiment)
             if (sentiment) {
@@ -521,12 +521,13 @@ function buildBaseQuery(dateRange, sources, req) {
     // Get available data sources from middleware
     const availableDataSources = req.processedDataSources || [];
 
+    console.log("sources",sources)
     // Handle source filtering
-    if (sources && sources.length > 0) {
+    if (sources && Array.isArray(sources) && sources?.length > 0) {
         // If validated sources provided, use those
         query.bool.must.push({
             bool: {
-                should: sources.map(src => ({
+                should: sources?.map(src => ({
                     match_phrase: { source: src }
                 })),
                 minimum_should_match: 1

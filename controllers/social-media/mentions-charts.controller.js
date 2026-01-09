@@ -3805,7 +3805,7 @@ const mentionsChartController = {
 
   migrationTopicsSummary: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source,
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, sources,
         categoryItems
        } =
         req.body;
@@ -3990,7 +3990,8 @@ const mentionsChartController = {
 
   eventTypePopularity: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source } =
+      const { fromDate, toDate, subtopicId, topicId, sentimentType,   sources = []
+ } =
         req.body;
 
       // Check if this is the special topicId
@@ -4071,10 +4072,10 @@ const mentionsChartController = {
       }
 
       // Add source filter if provided
-      if (source && source !== "") {
+      if (sources && sources !== "") {
         query.query.bool.must.push({
           term: {
-            "source.keyword": source.trim(),
+            "source.keyword": sources.trim(),
           },
         });
       }
@@ -4161,7 +4162,7 @@ const mentionsChartController = {
 
   llmMotivationPhase: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentiment, source } =
+      const { fromDate, toDate, subtopicId, topicId, sentiment, sources } =
         req.body;
 
       const topicIdNum = parseInt(topicId);
@@ -4387,9 +4388,9 @@ const mentionsChartController = {
         });
       }
 
-      if (source?.trim()) {
+      if (sources?.trim()) {
         query.query.bool.must.push({
-          term: { "source.keyword": source.trim() },
+          term: { "source.keyword": sources.trim() },
         });
       }
 
@@ -4484,7 +4485,7 @@ const mentionsChartController = {
 
   llmMotivationSentimentTrend: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentiment, source, categoryItems } =
+      const { fromDate, toDate, subtopicId, topicId, sentiment, sources, categoryItems } =
         req.body;
 
       // Determine which category data to use
@@ -4674,8 +4675,8 @@ const mentionsChartController = {
         ...(sentiment?.trim()
           ? [{ match: { predicted_sentiment_value: sentiment.trim() } }]
           : []),
-        ...(source?.trim()
-          ? [{ term: { "source.keyword": source.trim() } }]
+        ...(sources?.trim()
+          ? [{ term: { "source.keyword": sources.trim() } }]
           : []),
         ...(subtopicId?.trim()
           ? [{ term: { subtopic_id: parseInt(subtopicId) } }]
@@ -5434,7 +5435,7 @@ const mentionsChartController = {
 
   trustDimensionsEducationSystem: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, source, categoryItems } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, sources, categoryItems } = req.body;
   
       // Determine which category data to use
       let categoryData = {};

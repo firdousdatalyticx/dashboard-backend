@@ -22,13 +22,16 @@ const themesSentimentAnalysisRoute = require('./themes-sentiment-analysis.route'
 const sectorDistributionRoute = require('./sector-distribution.route');
 const touchpointsAnalysisRoute = require('./touchpoints-analysis.route');
 const fieldCountsRoute = require('./field-counts.route');
-
+const subsidiaryDistributions = require("./subsidiary-distributions.route")
 const engagementRoute = require('./engagement.route');
 const mentionsTrendRoute = require('./mentions-trend.route');
 const sentimentsRoute = require('./sentiments-analysis.route');
 const emotionsRoute = require('./emotions-analysis.route');
 const inflationsRoute = require('./inflations-analysis.route');
 const aiSummaryRoute = require('./ai-summary.route');
+const engagementDistributionTrendRoutes = require("./engagement-distribution-trend.route")
+const employeeEngagementLeaderboard = require("./employee-engagement-leaderboard.route")
+
 const actionRequiredRoute = require("./actions-required.route")
 const typeOfMentions=require('./type-of-mentions.route');
 const recurrenceMentions =require('./recurrence-mentions.route');
@@ -72,6 +75,7 @@ router.use('/leaderboard-analysis', leaderboardAnalysisRoute);
 router.use('/poi-sentiment-distribution', poiSentimentDistributionRoute);
 router.use('/emotion-polarity', emotionPolarityRoute);
 router.use('/word-cloud', wordCloudRoute);
+router.use("/subsidiary-distributions",subsidiaryDistributions)
 router.use('/engagement', engagementRoute);
 router.use('/mentions-trend', mentionsTrendRoute);
 router.use('/mentions-over-time', mentionsOverTimeRoute);
@@ -110,6 +114,7 @@ router.use("/llm-motivation-sentiment",llm_motivation_sentiment_route)
 router.use("/business-location",businessLocationRoutes)
 router.use("/health-check",healthCheckRoute)
 router.use('/sentiments',sentimentAnalysisEduRoute);
-
+router.use("/engagement-distribution-trend",engagementDistributionTrendRoutes)
+router.use("/employee-engagement-leaderboard",employeeEngagementLeaderboard)
 
 module.exports = router; 

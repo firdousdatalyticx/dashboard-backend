@@ -1396,7 +1396,7 @@ function buildAnalysisQuery(params) {
   // Get available data sources from middleware
   const availableDataSources = req?.processedDataSources || [];
 
-  if (sources && sources.length > 0) {
+  if (sources && Array.isArray(sources) && sources.length > 0) {
     // Specific sources provided via sources parameter (already validated)
     query.bool.must.push({
       bool: {

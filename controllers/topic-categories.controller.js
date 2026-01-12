@@ -361,7 +361,7 @@ const topicCategoriesController = {
 
             // Determine social media sources based on topicId (same as socials-distributions.controller.js)
             let socialSources = [];
-            if (numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640) {
+            if (numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 || numericTopicId === 2647 || numericTopicId === 2648 || numericTopicId === 2649) {
                 socialSources = ["LinkedIn", "Linkedin"];
             } else if (numericTopicId === 2646 || numericTopicId === 2650) {
                 socialSources = ["LinkedIn", "Linkedin", "Twitter", "Web","Instagram","Facebook"];

@@ -575,9 +575,9 @@ const audienceController = {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else if (parseInt(topicId) === 2646 || parseInt(topicId) === 2650) {
           sourcesQuery = ` AND source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook")`;
-        }else {
+        } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
-        } 
+        }
       }
 
       // Process filters for time range
@@ -1159,7 +1159,9 @@ const audienceController = {
           parseInt(topicId) === 2642 ||
           parseInt(topicId) === 2649 ||
           parseInt(topicId) == 2647 ||
-          parseInt(topicId) == 2648 || parseInt(topicId) == 2650 || parseInt(topicId) == 2646
+          parseInt(topicId) == 2648 ||
+          parseInt(topicId) == 2650 ||
+          parseInt(topicId) == 2646
         ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin" OR "Instagram" OR "Facebook" OR "Twitter" OR "Web",)`;
         } else {
@@ -1191,13 +1193,13 @@ const audienceController = {
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
-    
-     
-          
-      let firstUrl = Object.values(trendCategoryData)[0].urls;
-let linkedInUrl = firstUrl.find(url => url.includes("linkedin.com/company"));
 
-      console.log("linkedInUrl",linkedInUrl);
+      let firstUrl = Object.values(trendCategoryData)[0].urls;
+      let linkedInUrl = firstUrl.find((url) =>
+        url.includes("linkedin.com/company")
+      );
+
+      console.log("linkedInUrl", linkedInUrl);
       // Optimized query to only get the fields we need
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -1341,7 +1343,6 @@ let linkedInUrl = firstUrl.find(url => url.includes("linkedin.com/company"));
           linkedInUrl = req.body.companyURL;
         }
 
-      
         for (const comment of commentsData) {
           // commentsList.push(comment)
           if (
@@ -1349,11 +1350,19 @@ let linkedInUrl = firstUrl.find(url => url.includes("linkedin.com/company"));
             Array.isArray(comment.author?.fullPositions)
           ) {
             const isMatch = comment.author.fullPositions?.some(
-              (pos) => pos.companyURL === linkedInUrl && pos.end.year==0 && pos.end.month==0 && pos.end.day==0
+              (pos) =>
+                pos.companyURL === linkedInUrl &&
+                pos.end.year == 0 &&
+                pos.end.month == 0 &&
+                pos.end.day == 0
             );
             if (isMatch) {
               const isMatchComment = comment.author.fullPositions?.filter(
-                (pos) => pos.companyURL === linkedInUrl && pos.end.year==0 && pos.end.month==0 && pos.end.day==0
+                (pos) =>
+                  pos.companyURL === linkedInUrl &&
+                  pos.end.year == 0 &&
+                  pos.end.month == 0 &&
+                  pos.end.day == 0
               );
               if (req.body?.needCommentsData) {
                 commentsList.push(comment);
@@ -1390,6 +1399,521 @@ let linkedInUrl = firstUrl.find(url => url.includes("linkedin.com/company"));
       }
       console.log(req.body?.isCSV);
 
+      if (req.body.isCSV == false || req.body?.needCommentsData) {
+        return res.status(200).json(commentsList);
+      }
+
+      // return res.status(200).json(commentsList);
+
+      // Helper function to flatten nested objects
+      const flattenObject = (obj, prefix = "") => {
+        const flattened = {};
+
+        for (const key in obj) {
+          if (obj[key] === null || obj[key] === undefined) {
+            flattened[prefix + key] = "";
+            continue;
+          }
+
+          if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
+            Object.assign(
+              flattened,
+              flattenObject(obj[key], `${prefix}${key}.`)
+            );
+          } else if (Array.isArray(obj[key])) {
+            // Handle arrays by converting to JSON string or processing first element
+            if (obj[key].length > 0 && typeof obj[key][0] === "object") {
+              Object.assign(
+                flattened,
+                flattenObject(obj[key][0], `${prefix}${key}.`)
+              );
+            } else {
+              flattened[prefix + key] = obj[key].join("; ");
+            }
+          } else {
+            flattened[prefix + key] = obj[key];
+          }
+        }
+
+        return flattened;
+      };
+
+      // Flatten all comments to get all possible keys
+      const flattenedComments = commentsList.map((comment) =>
+        flattenObject(comment)
+      );
+
+      // Get all unique headers from all comments
+      const allHeaders = new Set();
+      flattenedComments.forEach((comment) => {
+        Object.keys(comment).forEach((key) => allHeaders.add(key));
+      });
+
+      const csvHeaders = Array.from(allHeaders);
+
+      // Helper function to escape CSV values
+      const escapeCsvValue = (value) => {
+        if (value === null || value === undefined) return "";
+
+        const stringValue = String(value);
+        // Escape double quotes and wrap in quotes if contains comma, newline, or quote
+        if (
+          stringValue.includes(",") ||
+          stringValue.includes("\n") ||
+          stringValue.includes('"')
+        ) {
+          return `"${stringValue.replace(/"/g, '""').replace(/\n/g, " ")}"`;
+        }
+        return stringValue;
+      };
+
+      // Convert commentsList to CSV rows
+      const csvRows = flattenedComments.map((comment) => {
+        return csvHeaders
+          .map((header) => escapeCsvValue(comment[header]))
+          .join(",");
+      });
+
+      // Combine headers and rows
+      const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
+
+      // Store CSV file to disk
+      const exportsDir = path.join(__dirname, "../../exports");
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/:/g, "-")
+        .split(".")[0];
+      const filename = `comments-export-${timestamp}.csv`;
+      const filePath = path.join(exportsDir, filename);
+
+      // Create exports directory if it doesn't exist
+      await fs.mkdir(exportsDir, { recursive: true });
+
+      // Write CSV file
+      await fs.writeFile(filePath, csvContent, "utf8");
+
+      return res.json({
+        success: true,
+        message: "CSV file stored successfully",
+        filePath: filePath,
+        filename: filename,
+      });
+    } catch (error) {
+      console.error("Error fetching comment audience trend:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+  getCommentAudienceLeaderBoardEmployeeData: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        records = 20,
+        topicId,
+        categoryItems,
+        source = "All",
+        category = "all",
+        llm_mention_type,
+      } = req.body;
+
+      // Determine which category data to use
+      let trendCategoryData = {};
+
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
+        trendCategoryData = processCategoryItems(categoryItems);
+      } else {
+        // Fall back to middleware data
+        trendCategoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(trendCategoryData).length === 0) {
+        return res.json({
+          dates: [],
+          maxTrendData: "0,0",
+        });
+      }
+
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(category, trendCategoryData);
+        if (!matchedKey) {
+          return res.json({
+            dates: [],
+            maxTrendData: "0,0",
+            error: "Category not found",
+          });
+        }
+        selectedCategory = matchedKey;
+      }
+
+      const topicQueryString = buildTopicQueryString(trendCategoryData);
+
+      // Source filtering logic
+      const normalizedSources = normalizeSourceInput(source);
+      let sourcesQuery = "";
+
+      if (normalizedSources.length > 0) {
+        // Specific sources provided
+        const sourcesStr = normalizedSources.map((s) => `"${s}"`).join(" OR ");
+        sourcesQuery = ` AND source:(${sourcesStr})`;
+      } else {
+        // Default logic based on topic
+        if (
+          parseInt(topicId) === 2619 ||
+          parseInt(topicId) === 2639 ||
+          parseInt(topicId) === 2640 ||
+          parseInt(topicId) === 2642 ||
+          parseInt(topicId) === 2649 ||
+          parseInt(topicId) == 2647 ||
+          parseInt(topicId) == 2648 ||
+          parseInt(topicId) == 2650 ||
+          parseInt(topicId) == 2646
+        ) {
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin" OR "Instagram" OR "Facebook" OR "Twitter" OR "Web",)`;
+        } else {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        }
+      }
+
+      // Process filters for time range
+      const filters = processFilters({
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        queryString: topicQueryString,
+      });
+
+      // Gather all filter terms
+      let allFilterTerms = [];
+      if (trendCategoryData) {
+        Object.values(trendCategoryData).forEach((data) => {
+          if (data.keywords && data.keywords.length > 0)
+            allFilterTerms.push(...data.keywords);
+          if (data.hashtags && data.hashtags.length > 0)
+            allFilterTerms.push(...data.hashtags);
+          if (data.urls && data.urls.length > 0)
+            allFilterTerms.push(...data.urls);
+        });
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      let isPublicOpinionFilter = null;
+
+      let firstUrl = Object.values(trendCategoryData)[0].urls;
+      let linkedInUrl = firstUrl.find((url) =>
+        url.includes("linkedin.com/company")
+      );
+
+      console.log("linkedInUrl", linkedInUrl);
+      // Optimized query to only get the fields we need
+      let params = {
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          size: 10000, // Increased slightly to ensure we get all relevant posts
+          _source: [
+            "u_profile_photo",
+            "u_followers",
+            "u_following",
+            "u_posts",
+            "p_likes",
+            "llm_emotion",
+            "p_comments_text",
+            "p_url",
+            "p_comments",
+            "p_shares",
+            "p_engagement",
+            "p_content",
+            "p_picture_url",
+            "predicted_sentiment_value",
+            "predicted_category",
+            "source",
+            "rating",
+            "u_fullname",
+            "p_message_text",
+            "comment",
+            "business_response",
+            "u_source",
+            "name",
+            "p_created_time",
+            "created_at",
+            "p_comments_data",
+            "video_embed_url",
+            "p_id",
+            "p_picture",
+          ],
+          query: {
+            bool: {
+              must: [
+                {
+                  query_string: {
+                    query: `${"(p_company_name:(\"CPX\")"} ${sourcesQuery}`,
+                    analyze_wildcard: true,
+                    default_operator: "AND",
+                  }, //OR \"https://www.linkedin.com/company/cpxholding/\". OR \"https://www.linkedin.com/company/cpxholding/\" OR \"https://www.linkedin.com/company/cpxholding/\"
+                },
+                { exists: { field: "p_comments_data" } },
+                {
+                  range: {
+                    p_created_time: {
+                      gte: filters.greaterThanTime,
+                      lte: filters.lessThanTime,
+                    },
+                  },
+                },
+                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
+              ],
+              must_not: [
+                { term: { "p_comments_data.keyword": "" } },
+                { term: { "p_comments_data.keyword": "[]" } },
+                {
+                  term: {
+                    u_source:
+                      "https://www.linkedin.com/company/cpxholding/posts",
+                  },
+                },
+                {
+                  term: {
+                    u_source:
+                      "https://www.linkedin.com/company/cpxholding/",
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        params.body.query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null" &&
+        sentimentType != ""
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          params.body.query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          params.body.query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+// Initial search with scroll
+params = {
+    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+    scroll: '2m',
+    body: {
+        _source: [
+            "p_comments_text",
+            "p_message_text",
+            "comment",
+            "u_source",
+            "name",
+            "p_created_time",
+            "p_comments_data",
+            "p_id"
+        ],
+        size: 1000,
+        query: {
+            bool: {
+                must: [
+                    {
+                        match: {
+                            "p_company_name": "CPX"
+                        }
+                    }
+                ],
+                must_not: [
+                    {
+                        wildcard: {
+                            "u_source.keyword": "https://www.linkedin.com/company/cpxholding*"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+};
+
+// Get all results
+let allResults = [];
+let response = await elasticClient.search(params);
+let scrollId = response._scroll_id;
+
+allResults.push(...response.hits.hits);
+console.log(`Total records retrieved: ${allResults.length}`);
+
+while (response.hits.hits.length > 0) {
+    response = await elasticClient.scroll({
+        scroll_id: scrollId,
+        scroll: '2m'
+    });
+    
+    scrollId = response._scroll_id;
+    allResults.push(...response.hits.hits);
+    console.log(`Total records retrieved: ${allResults.length}`);
+
+    if (response.hits.hits.length === 0) {
+        break;
+    }
+}
+
+await elasticClient.clearScroll({
+    scroll_id: scrollId
+});
+
+console.log(`Total records retrieved: ${allResults.length}`);
+
+// Split into batches of 1000 and process
+// const batchSize = 1000;
+// for (let i = 0; i < allResults.length; i += batchSize) {
+//     const batch = allResults.slice(i, i + batchSize);
+//     console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} records`);
+    
+//     // Process your batch here
+//     // await processData(batch);
+// }
+
+
+    //  return res.send(params)
+      // const results = await elasticClient.search(params);
+      // const posts = results.hits.hits.map((hit) =>
+      //   formatPostData(hit, allFilterTerms)
+      // );
+
+      const commentsList = [];
+      for (const post of allResults) {
+        if (!post._source.p_comments_data) continue;
+
+        let commentsData;
+        try {
+          commentsData =
+            typeof post._source.p_comments_data === "string"
+              ? JSON.parse(post._source.p_comments_data)
+              : post._source.p_comments_data;
+        } catch (e) {
+          console.error("Error parsing comments data:", e);
+          continue;
+        }
+
+        if (!Array.isArray(commentsData)) continue;
+
+                  // commentsList.push(commentsData)
+
+        // To avoid counting the same post multiple times for the same date
+
+        if (req.body.companyURL) {
+          linkedInUrl = req.body.companyURL;
+        }
+
+        for (const comment of commentsData) {
+          // commentsList.push(comment)
+          if (
+            comment.author?.fullPositions &&
+            Array.isArray(comment.author?.fullPositions)
+          ) {
+            const isMatch = comment.author.fullPositions?.some(
+              (pos) =>
+                pos.companyURL === linkedInUrl 
+              &&
+                pos.end.year == 0 &&
+                pos.end.month == 0 &&
+                pos.end.day == 0
+            );
+            if (isMatch) {
+              const isMatchComment = comment.author.fullPositions?.filter(
+                (pos) =>
+                  pos.companyURL === linkedInUrl 
+                &&
+                  pos.end.year == 0 &&
+                  pos.end.month == 0 &&
+                  pos.end.day == 0
+              );
+              if (req.body?.needCommentsData) {
+                commentsList.push(comment);
+              } else {
+                commentsList.push({
+                  name:
+                    comment?.author?.name ||
+                    comment?.author?.firstName +
+                      " " +
+                      comment?.author?.lastName,
+                  text: comment.text,
+                  profile_url: comment?.author?.profilePicture,
+                  position: isMatchComment[0].title,
+                  commentsCount: comment.totalSocialActivityCounts.numComments,
+                  likeCount: comment.totalSocialActivityCounts.likeCount,
+                  sharesCount: comment.totalSocialActivityCounts.numShares,
+                  ReactionCount:
+                    comment.totalSocialActivityCounts.totalReactionCount,
+                });
+              }
+            }
+          }
+          // return res.status(200).json(isMatchComment);
+          continue;
+        }
+      }
+
+      // Generate CSV from commentsList
+      if (commentsList.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No comments found",
+        });
+      }
+      // console.log(req.body?.isCSV);
+  // return res.status(200).json(commentsList);
       if (req.body.isCSV == false || req.body?.needCommentsData) {
         return res.status(200).json(commentsList);
       }

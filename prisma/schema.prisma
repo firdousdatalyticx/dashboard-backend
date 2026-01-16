@@ -957,10 +957,9 @@ model employee_engagement_leaderboard {
   activity_score          Decimal  @default(0.00) @db.Decimal(10, 2)
   quality_score           Decimal  @default(0.00) @db.Decimal(10, 2)
   final_engagement_score  Decimal  @default(0.00) @db.Decimal(10, 2)
-
+  isPublic               Boolean  @default(false)
   created_at             DateTime @default(now())
   updated_at             DateTime @updatedAt
 
-  @@unique([topic_id, name], name: "uniq_topic_name")
   @@map("employee_engagement_leaderboard")
-}
+} 

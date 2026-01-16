@@ -7,6 +7,10 @@ const employee_engagement_leaderboardController= require("../../controllers/soci
 
 
 router.post('/get', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceLeaderBoard);
+
+
+router.post('/getEmployeeData', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceLeaderBoardEmployeeData);
+
 /**
  * API Endpoint: Create Employee Engagement Leaderboard by Topic
  * POST /api/employee-engagement-leaderboard/create

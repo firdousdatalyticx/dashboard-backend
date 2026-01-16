@@ -92,7 +92,7 @@ const employee_engagement_leaderboardController = {
   GET: async (req, res) => {
     try {
       const topicId = parseInt(req.params.topicId); // Parse to integer
-      const { limit = 100, offset = 0 } = req.query;
+      const { limit = 100, offset = 0,isPublic="false" } = req.query;
 
       // Validate topicId
       if (isNaN(topicId)) {
@@ -105,11 +105,13 @@ const employee_engagement_leaderboardController = {
       // Parse limit and offset
       const parsedLimit = parseInt(limit);
       const parsedOffset = parseInt(offset);
+      console.log("isPublic",isPublic)
 
       // Fetch leaderboard data
       const rows = await prisma.employee_engagement_leaderboard.findMany({
         where: {
-          topic_id: topicId
+          topic_id: topicId,
+          isPublic:isPublic=="false"?false:true
         },
         orderBy: {
           final_engagement_score: 'desc'
@@ -121,7 +123,8 @@ const employee_engagement_leaderboardController = {
       // Get total count
       const total = await prisma.employee_engagement_leaderboard.count({
         where: {
-          topic_id: topicId
+          topic_id: topicId,
+          isPublic:isPublic=="false"?false:true
         }
       });
 

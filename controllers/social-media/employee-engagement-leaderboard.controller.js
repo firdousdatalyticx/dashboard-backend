@@ -89,65 +89,74 @@ const employee_engagement_leaderboardController = {
    * Get Employee Engagement Leaderboard by Topic
    * GET /api/employee-engagement-leaderboard/:topicId
    */
-  GET: async (req, res) => {
-    try {
-      const topicId = parseInt(req.params.topicId); // Parse to integer
-      const { limit = 100, offset = 0,isPublic="false" } = req.query;
+ GET: async (req, res) => {
+  try {
+    const topicId = parseInt(req.params.topicId);
+    const { limit = 100, offset = 0, isPublic = "false", sortBy = "comments" } = req.query;
 
-      // Validate topicId
-      if (isNaN(topicId)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid topicId. Must be a valid integer.'
-        });
-      }
-
-      // Parse limit and offset
-      const parsedLimit = parseInt(limit);
-      const parsedOffset = parseInt(offset);
-      console.log("isPublic",isPublic)
-
-      // Fetch leaderboard data
-      const rows = await prisma.employee_engagement_leaderboard.findMany({
-        where: {
-          topic_id: topicId,
-          isPublic:isPublic=="false"?false:true
-        },
-        orderBy: {
-          final_engagement_score: 'desc'
-        },
-        take: parsedLimit,
-        skip: parsedOffset
-      });
-
-      // Get total count
-      const total = await prisma.employee_engagement_leaderboard.count({
-        where: {
-          topic_id: topicId,
-          isPublic:isPublic=="false"?false:true
-        }
-      });
-
-      return res.status(200).json({
-        success: true,
-        data: rows,
-        pagination: {
-          total: total,
-          limit: parsedLimit,
-          offset: parsedOffset,
-          hasMore: parsedOffset + parsedLimit < total
-        }
-      });
-
-    } catch (error) {
-      console.error('Error fetching employee engagement data:', error);
-      return res.status(500).json({
+    // Validate topicId
+    if (isNaN(topicId)) {
+      return res.status(400).json({
         success: false,
-        message: 'Failed to fetch employee engagement data',
-        error: error.message
+        message: 'Invalid topicId. Must be a valid integer.'
       });
     }
-  },
+
+    // Parse limit and offset
+    const parsedLimit = parseInt(limit);
+    const parsedOffset = parseInt(offset);
+
+    // Determine orderBy based on sortBy parameter
+    let orderBy = {};
+    
+    if (sortBy === 'comments') {
+      orderBy = { comments: 'desc' }; // Highest comments first
+    } else if (sortBy === 'engagement') {
+      orderBy = { final_engagement_score: 'desc' }; // Default behavior
+    } else {
+      orderBy = { final_engagement_score: 'desc' }; // Default
+    }
+
+    // Fetch leaderboard data
+    const rows = await prisma.employee_engagement_leaderboard.findMany({
+      where: {
+        topic_id: topicId,
+        isPublic: isPublic == "false" ? false : true
+      },
+      orderBy: orderBy, // Use dynamic ordering
+      take: parsedLimit,
+      skip: parsedOffset
+    });
+
+    // Get total count
+    const total = await prisma.employee_engagement_leaderboard.count({
+      where: {
+        topic_id: topicId,
+        isPublic: isPublic == "false" ? false : true
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: rows,
+      pagination: {
+        total: total,
+        limit: parsedLimit,
+        offset: parsedOffset,
+        hasMore: parsedOffset + parsedLimit < total,
+         orderBy: orderBy,
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching employee engagement data:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch employee engagement data',
+      error: error.message
+    });
+  }
+},
 
   /**
    * Delete Employee Engagement Data by Topic

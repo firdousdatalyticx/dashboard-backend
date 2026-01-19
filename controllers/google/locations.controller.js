@@ -90,6 +90,99 @@ const googleLocationsController = {
                 mustFilters.push(dateFilter);
             }
 
+            // Special filters for topicIds 2641, 2651, 2652
+            if (parseInt(topicId) === 2641) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            } else if (parseInt(topicId) === 2651) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            } else if (parseInt(topicId) === 2652) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+
             const params = {
                 size: 0,
                 query: {

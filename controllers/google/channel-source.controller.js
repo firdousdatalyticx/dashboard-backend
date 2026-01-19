@@ -262,7 +262,100 @@ const channelSourceController = {
                             });
                         }
                     }
-                    
+
+                    // Special coordinate filters for topicIds 2641, 2651, 2652
+                    if (parseInt(topicId) === 2641) {
+                        queryTemplate.query.bool.must.push({
+                            bool: {
+                                should: [
+                                    {
+                                        bool: {
+                                            must: [
+                                                {
+                                                    range: {
+                                                        lat: {
+                                                            gte: 24.2,
+                                                            lte: 24.8,
+                                                        },
+                                                    },
+                                                },
+                                                {
+                                                    range: {
+                                                        long: {
+                                                            gte: 54.1,
+                                                            lte: 54.8,
+                                                        },
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ],
+                                minimum_should_match: 1,
+                            },
+                        });
+                    } else if (parseInt(topicId) === 2651) {
+                        queryTemplate.query.bool.must.push({
+                            bool: {
+                                should: [
+                                    {
+                                        bool: {
+                                            must: [
+                                                {
+                                                    range: {
+                                                        lat: {
+                                                            gte: 24.2,
+                                                            lte: 24.8,
+                                                        },
+                                                    },
+                                                },
+                                                {
+                                                    range: {
+                                                        long: {
+                                                            gte: 54.1,
+                                                            lte: 54.8,
+                                                        },
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ],
+                                minimum_should_match: 1,
+                            },
+                        });
+                    } else if (parseInt(topicId) === 2652) {
+                        queryTemplate.query.bool.must.push({
+                            bool: {
+                                should: [
+                                    {
+                                        bool: {
+                                            must: [
+                                                {
+                                                    range: {
+                                                        lat: {
+                                                            gte: 24.2,
+                                                            lte: 24.8,
+                                                        },
+                                                    },
+                                                },
+                                                {
+                                                    range: {
+                                                        long: {
+                                                            gte: 54.1,
+                                                            lte: 54.8,
+                                                        },
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ],
+                                minimum_should_match: 1,
+                            },
+                        });
+                    }
+
                     // Apply any additional filters from the filter processor (if not already handled by sentimentType)
                     if (filters.sentimentFilter && !sentimentType) {
                         queryTemplate.query.bool.must.push(filters.sentimentFilter);
@@ -362,6 +455,99 @@ const channelSourceController = {
                 } else if (filters.sentimentFilter) {
                     // Apply filter from processor if sentimentType not provided
                     basePostsQuery.query.bool.must.push(filters.sentimentFilter);
+                }
+
+                // Special coordinate filters for topicIds 2641, 2651, 2652
+                if (parseInt(topicId) === 2641) {
+                    basePostsQuery.query.bool.must.push({
+                        bool: {
+                            should: [
+                                {
+                                    bool: {
+                                        must: [
+                                            {
+                                                range: {
+                                                    lat: {
+                                                        gte: 24.2,
+                                                        lte: 24.8,
+                                                    },
+                                                },
+                                            },
+                                            {
+                                                range: {
+                                                    long: {
+                                                        gte: 54.1,
+                                                        lte: 54.8,
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                            minimum_should_match: 1,
+                        },
+                    });
+                } else if (parseInt(topicId) === 2651) {
+                    basePostsQuery.query.bool.must.push({
+                        bool: {
+                            should: [
+                                {
+                                    bool: {
+                                        must: [
+                                            {
+                                                range: {
+                                                    lat: {
+                                                        gte: 24.2,
+                                                        lte: 24.8,
+                                                    },
+                                                },
+                                            },
+                                            {
+                                                range: {
+                                                    long: {
+                                                        gte: 54.1,
+                                                        lte: 54.8,
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                            minimum_should_match: 1,
+                        },
+                    });
+                } else if (parseInt(topicId) === 2652) {
+                    basePostsQuery.query.bool.must.push({
+                        bool: {
+                            should: [
+                                {
+                                    bool: {
+                                        must: [
+                                            {
+                                                range: {
+                                                    lat: {
+                                                        gte: 24.2,
+                                                        lte: 24.8,
+                                                    },
+                                                },
+                                            },
+                                            {
+                                                range: {
+                                                    long: {
+                                                        gte: 54.1,
+                                                        lte: 54.8,
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                            minimum_should_match: 1,
+                        },
+                    });
                 }
 
                 // First, get total count with sentiment filter applied

@@ -79,6 +79,10 @@ const wordCloudController = {
                 });
             }
 
+            // Special coordinate filters for topicIds 2641, 2651, 2652
+            // Note: This controller doesn't have topicId in its parameters, so this won't apply
+            // But keeping the structure for consistency
+
             // Execute Elasticsearch query
             const response = await elasticClient.search({
                 index: process.env.ELASTICSEARCH_DEFAULTINDEX,

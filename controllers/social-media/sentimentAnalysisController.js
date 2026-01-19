@@ -1408,7 +1408,7 @@ function buildAnalysisQuery(params) {
         minimum_should_match: 1
       }
     });
-  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644) {        
+  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644 || topicIdNum === 2651 || topicIdNum === 2652) {        
         query.bool.must.push({
             bool: {
                 should: [
@@ -1442,6 +1442,20 @@ function buildAnalysisQuery(params) {
   if (topicIdNum === 2643 || topicIdNum === 2644 ) {
     query.bool.must.push({
       term: { is_public_opinion: true }
+    });
+  }
+
+  // Special filter for topicId 2651 - only fetch Healthcare results
+  if (topicIdNum === 2651) {
+    query.bool.must.push({
+      term: { "p_tag_cat.keyword": "Healthcare" }
+    });
+  }
+
+  // Special filter for topicId 2652 - only fetch Food and Beverages results
+  if (topicIdNum === 2652) {
+    query.bool.must.push({
+      term: { "p_tag_cat.keyword": "Food and Beverages" }
     });
   }
 

@@ -131,7 +131,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
   } 
    else if (isSpecialTopic) {
     return `source:("Facebook" OR "Twitter")`;
-  }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+  }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652) {
     return `source:("Facebook" OR "Twitter" OR "Instagram")`;
   } else {
     return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
@@ -173,6 +173,20 @@ const createElasticQuery = (
   if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     queryBody.body.query.bool.must.push({
       term: { is_public_opinion: true }
+    });
+  }
+
+  // Special filter for topicId 2651 - only fetch Healthcare results
+  if (parseInt(topicId) === 2651) {
+    queryBody.body.query.bool.must.push({
+      term: { "p_tag_cat.keyword": "Healthcare" }
+    });
+  }
+
+  // Special filter for topicId 2652 - only fetch Food and Beverages results
+  if (parseInt(topicId) === 2652) {
+    queryBody.body.query.bool.must.push({
+      term: { "p_tag_cat.keyword": "Food and Beverages" }
     });
   }
 
@@ -230,6 +244,20 @@ const createElasticQueryPost = (
     if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
       queryBody.body.query.bool.must.push({
         term: { is_public_opinion: true }
+      });
+    }
+
+    // Special filter for topicId 2651 - only fetch Healthcare results
+    if (parseInt(topicId) === 2651) {
+      queryBody.body.query.bool.must.push({
+        term: { "p_tag_cat.keyword": "Healthcare" }
+      });
+    }
+
+    // Special filter for topicId 2652 - only fetch Food and Beverages results
+    if (parseInt(topicId) === 2652) {
+      queryBody.body.query.bool.must.push({
+        term: { "p_tag_cat.keyword": "Food and Beverages" }
       });
     }
 
@@ -361,7 +389,7 @@ const influencersController = {
               minimum_should_match: 1,
             },
           };
-        } else if ( parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+        } else if ( parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652) {
           sourceFilterBool = {
             bool: {
               should: [

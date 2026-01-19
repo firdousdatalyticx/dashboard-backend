@@ -668,7 +668,7 @@ const emotionPolarityController = {
                         ],
                         minimum_should_match: 1
                     }
-                } : parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ? {
+                } : parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 ? {
 
                       bool: {
                         should: [
@@ -740,6 +740,20 @@ const emotionPolarityController = {
             if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
                 queryFilters.push({
                     term: { is_public_opinion: true }
+                });
+            }
+
+            // Special filter for topicId 2651 - only fetch Healthcare results
+            if (parseInt(topicId) === 2651) {
+                queryFilters.push({
+                    term: { "p_tag_cat.keyword": "Healthcare" }
+                });
+            }
+
+            // Special filter for topicId 2652 - only fetch Food and Beverages results
+            if (parseInt(topicId) === 2652) {
+                queryFilters.push({
+                    term: { "p_tag_cat.keyword": "Food and Beverages" }
                 });
             }
 

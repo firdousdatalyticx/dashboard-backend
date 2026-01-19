@@ -441,7 +441,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
     return 'source:("LinkedIn" OR "Linkedin")';
   } else if (isSpecialTopic) {
     return 'source:("Twitter" OR "Facebook")';
-  } else if(topicId && topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ){        
+  } else if(topicId && topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652){        
     return  'source:("Twitter" OR "Facebook" OR "Instagram")';
     } 
     else if(topicId===2646 || parseInt(topicId)===2650){
@@ -609,6 +609,20 @@ const getActionRequired = async (
   if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
     query.query.bool.must.push({
       term: { is_public_opinion: true }
+    });
+  }
+
+  // Special filter for topicId 2651 - only fetch Healthcare results
+  if (parseInt(topicId) === 2651) {
+    query.query.bool.must.push({
+      term: { "p_tag_cat.keyword": "Healthcare" }
+    });
+  }
+
+  // Special filter for topicId 2652 - only fetch Food and Beverages results
+  if (parseInt(topicId) === 2652) {
+    query.query.bool.must.push({
+      term: { "p_tag_cat.keyword": "Food and Beverages" }
     });
   }
 
@@ -3587,6 +3601,13 @@ const mentionsChartController = {
         },
       };
 
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (parseInt(topicId) === 2651) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
       // if (sentimentType && sentimentType != "") {
       //   query.query.bool.must.push({
       //     match: {
@@ -3739,6 +3760,19 @@ const mentionsChartController = {
         });
       }
 
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (parseInt(topicId) === 2651) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (parseInt(topicId) === 2652) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
       // Execute query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -3828,13 +3862,24 @@ const mentionsChartController = {
           let query = "";
 
           query = `${topicQueryString} AND source:('"Twitter" OR "Facebook" OR "Instagram"')  AND llm_mention_type:("Customer Complaint") AND llm_mention_touchpoint:("${sourcesArray[i]}")`;
+
+          // Build the query template
+          const queryTemplate = elasticMentionQueryTemplate(
+            query,
+            greaterThanTime,
+            lessThanTime
+          );
+
+          // Special filter for topicId 2651 - only fetch Healthcare results
+          if (parseInt(topicId) === 2651) {
+            queryTemplate.query.bool.must.push({
+              term: { "p_tag_cat.keyword": "Healthcare" }
+            });
+          }
+
           complaintContent = await elasticClient.count({
             index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: elasticMentionQueryTemplate(
-              query,
-              greaterThanTime,
-              lessThanTime
-            ),
+            body: queryTemplate,
           });
 
           // console.log(query, 'complaintContents here')
@@ -5273,6 +5318,20 @@ const mentionsChartController = {
         });
       }
 
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (parseInt(topicId) === 2651) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (parseInt(topicId) === 2652) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
       // Execute the query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -5836,6 +5895,20 @@ const mentionsChartController = {
         }
       };
 
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (parseInt(topicId) === 2651) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (parseInt(topicId) === 2652) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
       // Execute the main aggregation query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -6321,7 +6394,20 @@ const mentionsChartController = {
         track_total_hits: true,
         timeout: '30s' // Increased timeout to be safe
       };
-  
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (parseInt(topicId) === 2651) {
+        aggQuery.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (parseInt(topicId) === 2652) {
+        aggQuery.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
       // Execute single aggregation query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -6451,6 +6537,19 @@ const mentionsChartController = {
       }
       if (categoryFilters.length > 0) {
         must.push({ bool: { should: categoryFilters, minimum_should_match: 1 } });
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (parseInt(topicId) === 2651) {
+        must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (parseInt(topicId) === 2652) {
+        must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
       }
 
       const searchBody = {

@@ -366,7 +366,7 @@ const topicCategoriesController = {
             } else if (numericTopicId === 2646 || numericTopicId === 2650) {
                 socialSources = ["LinkedIn", "Linkedin", "Twitter", "Web","Instagram","Facebook"];
             } 
-            else if (numericTopicId === 2641) {
+            else if (numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644 || numericTopicId === 2651 || numericTopicId === 2652) {
                 socialSources = ["Twitter", "Facebook", "Instagram"];
             } 
             
@@ -472,6 +472,20 @@ const topicCategoriesController = {
                         ]
                     },
                 };
+
+                // Special filter for topicId 2651 - only fetch Healthcare results
+                if (parseInt(numericTopicId) === 2651) {
+                    query.bool.must.push({
+                        term: { "p_tag_cat.keyword": "Healthcare" }
+                    });
+                }
+
+                // Special filter for topicId 2652 - only fetch Food and Beverages results
+                if (parseInt(numericTopicId) === 2652) {
+                    query.bool.must.push({
+                        term: { "p_tag_cat.keyword": "Food and Beverages" }
+                    });
+                }
 
                 return query;
             };

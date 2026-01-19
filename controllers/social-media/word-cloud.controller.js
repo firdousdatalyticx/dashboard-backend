@@ -29,7 +29,7 @@ const buildWordCloudParams = (options) => {
   const [sortField, sortOrder] = sort.split(":");
 
   const sourceData =   source != "All" ? source : topicId && parseInt(topicId)===2646 || parseInt(topicId)===2650?'"LinkedIn" OR "Linkedin" OR "linkedin" OR "Twitter" OR "Web" OR "Facebook" OR "Instagram"':
-   topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 || parseInt(topicId)===2647 || parseInt(topicId)===2648 || parseInt(topicId)===2649 )?'"LinkedIn" OR "Linkedin" OR "linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook" OR "twitter" OR "facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ? '"Twitter" OR "Facebook" OR "Instagram" OR "twitter" OR "facebook" OR "instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok" OR "twitter" OR "facebook" OR "instagram" OR "youtube" OR "pinterest" OR "reddit" OR "linkedin" OR "web" OR "tiktok"'
+   topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 || parseInt(topicId)===2647 || parseInt(topicId)===2648 || parseInt(topicId)===2649 )?'"LinkedIn" OR "Linkedin" OR "linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook" OR "twitter" OR "facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 ? '"Twitter" OR "Facebook" OR "Instagram" OR "twitter" OR "facebook" OR "instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok" OR "twitter" OR "facebook" OR "instagram" OR "youtube" OR "pinterest" OR "reddit" OR "linkedin" OR "web" OR "tiktok"'
 
   // Base query structure
   const baseQuery = {
@@ -69,6 +69,20 @@ if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.leng
     };
     baseQuery.bool.must.push(mentionTypeFilter);
 }
+
+          // Special filter for topicId 2651 - only fetch Healthcare results
+          if (parseInt(topicId) === 2651) {
+            baseQuery.bool.must.push({
+              term: { "p_tag_cat.keyword": "Healthcare" }
+            });
+          }
+
+          // Special filter for topicId 2652 - only fetch Food and Beverages results
+          if (parseInt(topicId) === 2652) {
+            baseQuery.bool.must.push({
+              term: { "p_tag_cat.keyword": "Food and Beverages" }
+            });
+          }
   // Add sentiment specific conditions
   if (sentimentType === "positive") {
     baseQuery.bool.must[0].query_string.query +=
@@ -143,7 +157,7 @@ const buildPostsByPhraseParams = (options) => {
       ? "llm_positive_points.keyword"
       : "llm_negative_points.keyword";
 
-    const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 || parseInt(topicId)===2647 || parseInt(topicId)===2648 || parseInt(topicId)===2649 )?'"LinkedIn" OR "Linkedin" OR "linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook" OR "twitter" OR "facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644  ? '"Twitter" OR "Facebook" OR "Instagram" OR "twitter" OR "facebook" OR "instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok" OR "twitter" OR "facebook" OR "instagram" OR "youtube" OR "pinterest" OR "reddit" OR "linkedin" OR "web" OR "tiktok"'
+    const sourceData =   source != "All" ? source : topicId && (parseInt(topicId)===2619 || parseInt(topicId)===2639|| parseInt(topicId)===2640 || parseInt(topicId)===2647 || parseInt(topicId)===2648 || parseInt(topicId)===2649 )?'"LinkedIn" OR "Linkedin" OR "linkedin"':topicId && parseInt(topicId)===2600?'"Twitter" OR "Facebook" OR "twitter" OR "facebook"': parseInt(topicId)===2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 ? '"Twitter" OR "Facebook" OR "Instagram" OR "twitter" OR "facebook" OR "instagram"':'"Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok" OR "twitter" OR "facebook" OR "instagram" OR "youtube" OR "pinterest" OR "reddit" OR "linkedin" OR "web" OR "tiktok"'
 
   // Base query structure
   const baseQuery = {
@@ -182,6 +196,20 @@ const buildPostsByPhraseParams = (options) => {
           }
       };
       baseQuery.bool.must.push(mentionTypeFilter);
+  }
+
+  // Special filter for topicId 2651 - only fetch Healthcare results
+  if (parseInt(topicId) === 2651) {
+    baseQuery.bool.must.push({
+      term: { "p_tag_cat.keyword": "Healthcare" }
+    });
+  }
+
+  // Special filter for topicId 2652 - only fetch Food and Beverages results
+  if (parseInt(topicId) === 2652) {
+    baseQuery.bool.must.push({
+      term: { "p_tag_cat.keyword": "Food and Beverages" }
+    });
   }
 
   // Add sentiment specific conditions

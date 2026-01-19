@@ -858,7 +858,9 @@ function buildAnalysisQuery(params) {
   } else if (
     topicIdNum === 2641 ||
     topicIdNum === 2643 ||
-    topicIdNum === 2644
+    topicIdNum === 2644 ||
+    topicIdNum === 2651 ||
+    topicIdNum === 2652
   ) {
     query.bool.must.push({
       bool: {

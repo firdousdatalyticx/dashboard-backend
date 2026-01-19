@@ -1438,7 +1438,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
         minimum_should_match: 1,
       },
     });
-  } else if (topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2645 ) {
+  } else if (topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2645 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652) {
     query.bool.must.push({
       bool: {
         should: [

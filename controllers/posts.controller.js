@@ -130,13 +130,23 @@ else {
         // Default logic based on topic
         if (topicId=== 2619 || topicId=== 2639 || topicId=== 2640 || topicId===2642 || topicId===2647  || topicId===2648  || topicId===2649 ) {
           qsParts.push(` source:("LinkedIn" OR "Linkedin")`);
-        } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 ) {
+        } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 || topicId=== 2651 || topicId=== 2652) {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);
         } else  if (topicId=== 2646 || topicId === 2650) {
           qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook")`);
         }
         else {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`);
+        }
+
+        // Special filter for topicId 2651 - only fetch Healthcare results
+        if (parseInt(topicId) === 2651) {
+          qsParts.push(' p_tag_cat.keyword:"Healthcare"');
+        }
+
+        // Special filter for topicId 2652 - only fetch Food and Beverages results
+        if (parseInt(topicId) === 2652) {
+          qsParts.push(' p_tag_cat.keyword:"Food and Beverages"');
         }
       }
   // Post type filtering – use a mapping for common cases.
@@ -385,7 +395,7 @@ else {
             minimum_should_match: 1,
           },
         });
-      } else if (topicId==2641 || topicId === 2643 || topicId === 2644) {
+      } else if (topicId==2641 || topicId === 2643 || topicId === 2644 || topicId === 2651 || topicId === 2652) {
         must.push({
           bool: {
             should: [

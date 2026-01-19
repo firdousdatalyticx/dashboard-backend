@@ -307,7 +307,7 @@ const audienceController = {
           parseInt(topicId) === 2640
         ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
-        } else if (parseInt(topicId) === 2641) {
+        } else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652) {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
@@ -323,7 +323,7 @@ const audienceController = {
         queryString: topicQueryString,
       });
 
-      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      // Special filter for topicId 2641, 2643, 2644, 2651, 2652 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
 
       const params = {
@@ -2214,7 +2214,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if (Number(topicId) == 2641) {
+      else if (Number(topicId) == 2641 || Number(topicId) == 2643 || Number(topicId) == 2644 || Number(topicId) == 2651 || Number(topicId) == 2652) {
         params.body.query.bool.must.push({
           bool: {
             must_not: [

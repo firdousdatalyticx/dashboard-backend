@@ -303,6 +303,21 @@ const sentimentsController = {
           });
         }
       }
+
+        // Special filter for topicId 2651 - only fetch Healthcare results
+        if (topic === 2651) {
+          query.bool.must.push({
+            term: { "p_tag_cat.keyword": "Healthcare" }
+          });
+        }
+
+        // Special filter for topicId 2652 - only fetch Food and Beverages results
+        if (topic === 2652) {
+          query.bool.must.push({
+            term: { "p_tag_cat.keyword": "Food and Beverages" }
+          });
+        }
+
             if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
                 if (sentiment.includes(',')) {
                     // Handle multiple sentiment types

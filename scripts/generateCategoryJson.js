@@ -275,6 +275,20 @@ async function generateCategoryJson(topicId) {
                 }
             };
 
+            // Special filter for topicId 2651 - only fetch Healthcare results
+            if (topicIdNum === 2651) {
+                query.query.bool.must.push({
+                    term: { "p_tag_cat.keyword": "Healthcare" }
+                });
+            }
+
+            // Special filter for topicId 2652 - only fetch Food and Beverages results
+            if (topicIdNum === 2652) {
+                query.query.bool.must.push({
+                    term: { "p_tag_cat.keyword": "Food and Beverages" }
+                });
+            }
+
             try {
               
                 

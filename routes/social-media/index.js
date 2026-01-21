@@ -55,6 +55,7 @@ const subsidiaryDistributions = require("./subsidiary-distributions.route")
 const employeeEngagementLeaderboard = require("./employee-engagement-leaderboard.route")
 const geographicalDistributionRoutes = require("./geographical-distribution.route")
 const industryDistributionRoutes = require("./industry-distribution.route")
+const keywordLookupRoute = require("./keyword-lookup.route")
 /// migration-topics.routes.js
 /**
  * @swagger
@@ -118,4 +119,5 @@ router.use("/subsidiary-distributions",subsidiaryDistributions)
 router.use("/employee-engagement-leaderboard",employeeEngagementLeaderboard)
 router.use("/geographical-distribution",geographicalDistributionRoutes)
 router.use("/industry-distribution",industryDistributionRoutes)
+router.use("/keyword-lookup", keywordLookupRoute)
 module.exports = router; 

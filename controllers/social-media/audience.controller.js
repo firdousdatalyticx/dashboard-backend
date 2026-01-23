@@ -1763,7 +1763,7 @@ params = {
             "p_comments_data",
             "p_id"
         ],
-        size: 10000,
+        size: 1000,
         query: {
             bool: {
                 must: [

@@ -1711,6 +1711,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
                           { match_phrase: { source: "Web" } },
                           { match_phrase: { source: 'Facebook' } },
                  { match_phrase: { source: 'Instagram' } },
+                 { match_phrase: { source: 'Youtube' } },
                   ],
                   minimum_should_match: 1
               }

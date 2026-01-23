@@ -2,6 +2,18 @@ const { createPartFromUri, GoogleGenAI } = require("@google/genai");
 const axios = require("axios");
 const dotenv = require("dotenv");
 const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { pipeline } = require("stream/promises");
+
+// Try to load YouTube downloader, but make it optional
+let ytdl = null;
+try {
+  ytdl = require("@distube/ytdl-core");
+} catch (error) {
+  console.warn("YouTube downloader not available. YouTube URLs will use direct URL approach (may be slower).");
+  console.warn("To enable faster YouTube processing, install: npm install @distube/ytdl-core");
+}
 
 dotenv.config();
 
@@ -74,30 +86,99 @@ async function uploadFileWithProgress(filePath, uploadUrl, fileSize) {
   console.log("\nUpload complete!");
 }
 
+function isYouTubeUrl(url) {
+  if (!url || !ytdl) return false;
+  try {
+    return ytdl.validateURL(url);
+  } catch {
+    return false;
+  }
+}
+
+async function downloadYouTubeToTempFile(videoUrl) {
+  if (!ytdl) {
+    throw new Error("YouTube downloader not available");
+  }
+
+  // Write to temp so we can upload to Gemini like a normal file (fast subsequent chats)
+  const tmpFilePath = path.join(os.tmpdir(), `yt-${Date.now()}-${Math.random().toString(16).slice(2)}.mp4`);
+
+  try {
+    // Get video info first to validate URL
+    const info = await ytdl.getInfo(videoUrl);
+    
+    // Prefer a format that includes both audio+video in mp4 container when possible.
+    // If YouTube only provides separate streams, ytdl-core will still download the chosen stream;
+    // Gemini can still analyze video content even without audio for many cases, but audio may be missing.
+    const stream = ytdl.downloadFromInfo(info, {
+      quality: "highest",
+      filter: (format) => format.hasVideo && format.container === "mp4"
+    });
+
+    await pipeline(stream, fs.createWriteStream(tmpFilePath));
+    return tmpFilePath;
+  } catch (error) {
+    // Clean up temp file if it was created
+    if (fs.existsSync(tmpFilePath)) {
+      fs.unlinkSync(tmpFilePath);
+    }
+    throw error;
+  }
+}
+
 // Create Chat
 const createChat = async (videoUrl = null, videoMetadata = null, isFile = false, mimeType = "video/mp4") => {
   console.log("Now in gemini create chat");
 
   let fileData;
 
-  if (isFile) {
+  // If it's a YouTube URL, download once and upload to Gemini so chat stays fast.
+  // This makes URL flow behave like file-upload flow.
+  let tempDownloadedPath = null;
+  let effectiveIsFile = isFile;
+  let effectivePathOrUrl = videoUrl;
+  let effectiveMimeType = mimeType;
+
+  if (!isFile && isYouTubeUrl(videoUrl)) {
+    console.log("Detected YouTube URL. Downloading to temp file for faster chat...");
+    try {
+      tempDownloadedPath = await downloadYouTubeToTempFile(videoUrl);
+      effectiveIsFile = true;
+      effectivePathOrUrl = tempDownloadedPath;
+      effectiveMimeType = "video/mp4";
+      console.log("YouTube video downloaded successfully. Will upload to Gemini for faster chat.");
+    } catch (error) {
+      console.error("Failed to download YouTube video:", error.message);
+      console.log("Falling back to direct URL approach (may be slower for chat)...");
+      // Fallback: use URL directly (slower but works)
+      // Don't set effectiveIsFile, keep using URL approach
+    }
+  }
+
+  if (effectiveIsFile) {
     try {
       // Upload the file to Gemini
       const uploadedFile = await ai.files.upload({
-        file: videoUrl,
-        config: { mimeType: mimeType },
+        file: effectivePathOrUrl,
+        config: { mimeType: effectiveMimeType },
       });
       console.log("File Uploaded to gemini");
       fileData = createPartFromUri(uploadedFile.uri, uploadedFile.mimeType);
     } catch (e) {
       console.log("Error in uploading file, falling back to URL approach", e);
       // Fallback: use the file path as URL (for local files)
-      fileData = createPartFromUri(`file://${videoUrl}`, mimeType);
+      fileData = createPartFromUri(`file://${effectivePathOrUrl}`, effectiveMimeType);
     } finally {
       // Clean up the uploaded file
-      fs.unlink(videoUrl, (err) => {
-        if (err) console.error("Failed to delete temp file:", err);
-      });
+      if (tempDownloadedPath) {
+        fs.unlink(tempDownloadedPath, (err) => {
+          if (err) console.error("Failed to delete temp YouTube file:", err);
+        });
+      } else if (isFile) {
+        fs.unlink(videoUrl, (err) => {
+          if (err) console.error("Failed to delete temp file:", err);
+        });
+      }
     }
   } else {
     // For URL-based videos, pass the URL directly
@@ -128,17 +209,98 @@ const createChat = async (videoUrl = null, videoMetadata = null, isFile = false,
   return chat;
 };
 
-// Send Message for specific chat
-const sendChatMessage = async (chat, message) => {
+/**
+ * Extract retry delay from Gemini API rate limit error
+ */
+function extractRetryDelay(error) {
   try {
-    const response = await chat.sendMessageStream({
-      message,
-    });
-    return response;
-  } catch (e) {
-    console.log("Error in generating response from gemini api", e);
-    throw new Error("Something went wrong while generating response. Please try again");
+    if (error.status === 429 || error.code === 429) {
+      // Try to parse the error message which contains JSON
+      const errorMessage = error.message || JSON.stringify(error);
+      
+      // Pattern 1: Look for "Please retry in X.XXXXXXs" in the message
+      const retryInMatch = errorMessage.match(/Please retry in ([\d.]+)s/i);
+      if (retryInMatch) {
+        const delaySeconds = parseFloat(retryInMatch[1]);
+        return Math.ceil(delaySeconds * 1000); // Convert to milliseconds
+      }
+      
+      // Pattern 2: Look for retryDelay in JSON structure
+      const retryDelayMatch = errorMessage.match(/"retryDelay":\s*"([\d.]+)s"/);
+      if (retryDelayMatch) {
+        const delaySeconds = parseFloat(retryDelayMatch[1]);
+        return Math.ceil(delaySeconds * 1000);
+      }
+      
+      // Pattern 3: Try to parse the full JSON error structure
+      try {
+        const jsonMatch = errorMessage.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          const retryInfo = parsed?.error?.details?.find(d => d["@type"] === "type.googleapis.com/google.rpc.RetryInfo");
+          if (retryInfo?.retryDelay) {
+            // retryDelay might be in seconds as string "18s" or as number
+            const delay = typeof retryInfo.retryDelay === 'string' 
+              ? parseFloat(retryInfo.retryDelay.replace('s', ''))
+              : retryInfo.retryDelay;
+            return Math.ceil(delay * 1000);
+          }
+        }
+      } catch (jsonParseError) {
+        // Continue to fallback
+      }
+    }
+  } catch (parseError) {
+    console.error("Error parsing retry delay:", parseError);
   }
+  
+  // Default retry delay: 20 seconds
+  return 20000;
+}
+
+/**
+ * Sleep utility function
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Send Message for specific chat with rate limit retry logic
+const sendChatMessage = async (chat, message, maxRetries = 3) => {
+  let lastError = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await chat.sendMessageStream({
+        message,
+      });
+      return response;
+    } catch (e) {
+      lastError = e;
+      
+      // Check if it's a rate limit error (429)
+      if (e.status === 429 || e.code === 429) {
+        const retryDelay = extractRetryDelay(e);
+        
+        if (attempt < maxRetries) {
+          console.log(`Rate limit exceeded. Retrying after ${retryDelay / 1000}s (attempt ${attempt + 1}/${maxRetries + 1})...`);
+          await sleep(retryDelay);
+          continue; // Retry
+        } else {
+          // Max retries reached
+          console.error("Rate limit error after max retries:", e);
+          throw new Error(`Rate limit exceeded. Please wait a moment and try again. The API quota has been reached.`);
+        }
+      } else {
+        // Not a rate limit error, throw immediately
+        console.error("Error in generating response from gemini api", e);
+        throw new Error("Something went wrong while generating response. Please try again");
+      }
+    }
+  }
+  
+  // Should never reach here, but just in case
+  throw lastError || new Error("Failed to send message after retries");
 };
 
 const analyzeVideo = async (videoUrl, message) => {

@@ -574,7 +574,7 @@ const audienceController = {
         ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else if (parseInt(topicId) === 2646 || parseInt(topicId) === 2650) {
-          sourcesQuery = ` AND source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook")`;
+          sourcesQuery = ` AND source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook" OR "Youtube")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }
@@ -1163,7 +1163,7 @@ const audienceController = {
           parseInt(topicId) == 2650 ||
           parseInt(topicId) == 2646
         ) {
-          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin" OR "Instagram" OR "Facebook" OR "Twitter" OR "Web",)`;
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin" OR "Instagram" OR "Facebook" OR "Twitter" OR "Web" OR "Youtube")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }
@@ -1584,7 +1584,7 @@ const audienceController = {
           parseInt(topicId) == 2650 ||
           parseInt(topicId) == 2646
         ) {
-          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin" OR "Instagram" OR "Facebook" OR "Twitter" OR "Web",)`;
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin" OR "Instagram" OR "Facebook" OR "Twitter" OR "Web" OR "Youtube")`;
         } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }

@@ -133,7 +133,7 @@ else {
         } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 || topicId=== 2651 || topicId=== 2652) {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);
         } else  if (topicId=== 2646 || topicId === 2650) {
-          qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook")`);
+          qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook" OR "Youtube")`);
         }
         else {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`);

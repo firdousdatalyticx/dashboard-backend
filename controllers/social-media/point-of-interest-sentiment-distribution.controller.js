@@ -159,6 +159,7 @@ const poiSentimentDistributionController = {
             { match_phrase: { source: 'Web' } },
                { match_phrase: { source: 'Facebook' } },
                  { match_phrase: { source: 'Instagram' } },
+                 { match_phrase: { source: 'Youtube' } },
             ];
         } else if (isSpecialTopic){
              sourceFilter = [

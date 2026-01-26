@@ -47,7 +47,9 @@ const adminController = {
                     customer_dashboard_expiry: true,
                     customer_show_in_list: true,
                     customer_account_parent: true,
-                    customer_allowed_sources: true
+                    customer_allowed_sources: true,
+                    enabled_video_analyzer: true,
+                    is_copilot_enabled: true
                 },
                 orderBy: {
                     customer_reg_time: 'desc'
@@ -253,7 +255,9 @@ const adminController = {
                 'customer_layout_settings',
                 'customer_reviews_key',
                 'customer_topics_access',
-                'customer_subtopics_access'
+                'customer_subtopics_access',
+                'enabled_video_analyzer',
+                'is_copilot_enabled'
             ];
 
             // Copy any remaining valid fields

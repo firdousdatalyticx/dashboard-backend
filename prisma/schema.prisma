@@ -173,9 +173,6 @@ model customer_topics {
   // Archive data configuration
   enable_archive_data       Boolean?  @default(false)
 
-  // Copilot configuration
-  is_copilot_enabled        Boolean?  @default(false)
-
   // Allowed sources configuration
   allowed_sources           Json?     // Array of strings for allowed data sources
   
@@ -226,6 +223,8 @@ model customers {
   customer_reviews_key            String?   @db.VarChar(100)
   customer_topics_access          String?   @db.VarChar(200)
   customer_subtopics_access       String?   @db.VarChar(200)
+  enabled_video_analyzer          Boolean   @default(false)
+  is_copilot_enabled              Boolean?  @default(false)
 
   // Allowed sources configuration - array of strings for allowed data sources
   customer_allowed_sources        Json?

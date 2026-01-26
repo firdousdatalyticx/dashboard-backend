@@ -74,7 +74,9 @@ const authController = {
                     accountType: userData.customer_account_type,
                     allowedTopics: userData.customer_allowed_topics,
                     allowedInvitations: userData.customer_allowed_invitations,
-                    layoutSettings: userData.customer_layout_settings
+                    layoutSettings: userData.customer_layout_settings,
+                    enabledVideoAnalyzer: userData.enabled_video_analyzer || false,
+                    isCopilotEnabled: userData.is_copilot_enabled || false
                 }
             });
         } catch (error) {

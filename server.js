@@ -13,6 +13,7 @@
     const { Server } = require('socket.io');
     const setupChatSocket = require('./socket/chat.socket');
     const connectDB = require('./config/mongodb'); // MongoDB connection
+    const videoRoutes = require('./routes/video.routes');
 
     const app = express();
     const httpServer = createServer(app);
@@ -75,6 +76,8 @@
     app.use('/api', routes);
     app.use('/api/topic-categories', topicCategoriesRoutes);
     app.use('/api/chat', chatRoutes);
+    app.use('/api/video', videoRoutes);
+
 
     // Initialize Swagger
     swaggerDocs(app);

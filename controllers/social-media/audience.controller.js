@@ -1342,6 +1342,8 @@ const audienceController = {
         if (req.body.companyURL) {
           linkedInUrl = req.body.companyURL;
         }
+        const normalizeUrl = (url = "") =>
+  url.replace(/\/$/, "").toLowerCase();
 
         for (const comment of commentsData) {
           // commentsList.push(comment)
@@ -1351,7 +1353,7 @@ const audienceController = {
           ) {
             const isMatch = comment.author.fullPositions?.some(
               (pos) =>
-                pos.companyURL === linkedInUrl &&
+                 normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl) &&
                 pos.end.year == 0 &&
                 pos.end.month == 0 &&
                 pos.end.day == 0
@@ -1359,7 +1361,7 @@ const audienceController = {
             if (isMatch) {
               const isMatchComment = comment.author.fullPositions?.filter(
                 (pos) =>
-                  pos.companyURL === linkedInUrl &&
+                   normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl) &&
                   pos.end.year == 0 &&
                   pos.end.month == 0 &&
                   pos.end.day == 0
@@ -1380,13 +1382,13 @@ const audienceController = {
                   likeCount: comment.totalSocialActivityCounts.likeCount,
                   sharesCount: comment.totalSocialActivityCounts.numShares,
                   ReactionCount:
-                    comment.totalSocialActivityCounts.totalReactionCount,
+                    comment.totalSocialActivityCounts.totalReactionCount
                 });
               }
             }
           }
           // return res.status(200).json(isMatchComment);
-          continue;
+          // continue;
         }
       }
 

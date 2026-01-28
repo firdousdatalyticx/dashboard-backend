@@ -5,6 +5,7 @@
   "license": "MIT",
   "dependencies": {
     "@elastic/elasticsearch": "^8.17.1",
+    "@google/genai": "^1.37.0",
     "@prisma/client": "^6.4.1",
     "@sendgrid/mail": "^8.1.4",
     "axios": "^1.8.4",
@@ -28,6 +29,7 @@
     "socket.io-client": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "@distube/ytdl-core": "^4.14.4",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

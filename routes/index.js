@@ -21,6 +21,7 @@ const aiSummaryRoutes = require('./social-media/ai-summary.route');
 const googleLocationReviewsRoutes = require('./google/location-reviews.route');
 const elasticRoutes= require("./elastic.route");
 const scheduleDataRoutes = require('./schedule-data.route');
+const videoRoutes = require('./video.route');
 
 // Mount routes
 router.use('/auth', authRoutes);
@@ -42,6 +43,7 @@ router.use('/social-media/ai-summary', aiSummaryRoutes);
 router.use('/google/location-reviews', googleLocationReviewsRoutes);
 router.use('/elastic-search', elasticRoutes);
 router.use('/schedule-data', scheduleDataRoutes);
+router.use('/video', videoRoutes);
 // Base route for API health check
 router.get('/', (req, res) => {
     res.json({

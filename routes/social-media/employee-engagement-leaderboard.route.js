@@ -11,6 +11,8 @@ router.post('/get', express.json(), authMiddleware, transformCategoryData, audie
 
 router.post('/getEmployeeData', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceLeaderBoardEmployeeData);
 
+router.post('/getEmployeeDataOIA', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceLeaderBoardEmployeeDataOIA);
+
 /**
  * API Endpoint: Create Employee Engagement Leaderboard by Topic
  * POST /api/employee-engagement-leaderboard/create

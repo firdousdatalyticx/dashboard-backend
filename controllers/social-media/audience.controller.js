@@ -2022,6 +2022,276 @@ console.log(`Total records retrieved: ${allResults.length}`);
     }
   },
 
+    getCommentAudienceLeaderBoardEmployeeDataOIA: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        records = 20,
+        topicId,
+        categoryItems,
+        source = "All",
+        category = "all",
+        llm_mention_type,
+      } = req.body;
+
+
+// Initial search with scroll
+const params = {
+    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+    scroll: '2m',
+    body: {
+        _source: [
+            "p_comments_text",
+            "p_message_text",
+            "comment",
+            "u_source",
+            "name",
+            "p_created_time",
+            "p_comments_data",
+            "p_id"
+        ],
+        size: 1000,
+        query: {
+            bool: {
+                must: [
+                    {
+                        match: {
+                            "p_company_name": "OIA"
+                        }
+                    }
+                ],
+                must_not: [
+                    {
+                        wildcard: {
+
+                            "u_source.keyword":"https://www.linkedin.com/company/oman-investment-authority*"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+};
+
+// Get all results
+let allResults = [];
+let response = await elasticClient.search(params);
+let scrollId = response._scroll_id;
+
+allResults.push(...response.hits.hits);
+console.log(`Total records retrieved: ${allResults.length}`);
+
+while (response.hits.hits.length > 0) {
+    response = await elasticClient.scroll({
+        scroll_id: scrollId,
+        scroll: '2m'
+    });
+    
+    scrollId = response._scroll_id;
+    allResults.push(...response.hits.hits);
+    console.log(`Total records retrieved: ${allResults.length}`);
+
+    if (response.hits.hits.length === 0) {
+        break;
+    }
+}
+
+await elasticClient.clearScroll({
+    scroll_id: scrollId
+});
+
+console.log(`Total records retrieved: ${allResults.length}`);
+
+// Split into batches of 1000 and process
+// const batchSize = 1000;
+// for (let i = 0; i < allResults.length; i += batchSize) {
+//     const batch = allResults.slice(i, i + batchSize);
+//     console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} records`);
+    
+//     // Process your batch here
+//     // await processData(batch);
+// }
+
+
+    //  return res.send(params)
+      // const results = await elasticClient.search(params);
+      // const posts = results.hits.hits.map((hit) =>
+      //   formatPostData(hit, allFilterTerms)
+      // );
+
+      const commentsList = [];
+      for (const post of allResults) {
+        if (!post._source.p_comments_data) continue;
+
+        let commentsData;
+        try {
+          commentsData =
+            typeof post._source.p_comments_data === "string"
+              ? JSON.parse(post._source.p_comments_data)
+              : post._source.p_comments_data;
+        } catch (e) {
+          console.error("Error parsing comments data:", e);
+          continue;
+        }
+
+        if (!Array.isArray(commentsData)) continue;
+
+                  // commentsList.push(commentsData)
+
+        // To avoid counting the same post multiple times for the same date
+
+        if (req.body.companyURL) {
+          linkedInUrl = req.body.companyURL;
+        }
+
+        for (const comment of commentsData) {
+          // commentsList.push(comment)
+         
+              if (req.body?.needCommentsData) {
+                commentsList.push(comment);
+              } else {
+                commentsList.push({
+                  name:
+                    comment?.author?.name ||
+                    comment?.author?.firstName +
+                      " " +
+                      comment?.author?.lastName,
+                  // text: comment.text,
+                  profile_url: comment?.author?.profilePicture,
+                  position: comment?.author?.title,
+                  commentsCount: comment.totalSocialActivityCounts.numComments,
+                  likeCount: comment.totalSocialActivityCounts.likeCount,
+                  sharesCount: comment.totalSocialActivityCounts.numShares,
+                  ReactionCount:
+                    comment.totalSocialActivityCounts.totalReactionCount,
+                });
+              }
+       
+          // return res.status(200).json(isMatchComment);
+          continue;
+        }
+      }
+
+      // Generate CSV from commentsList
+      if (commentsList.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No comments found",
+        });
+      }
+      // console.log(req.body?.isCSV);
+  // return res.status(200).json(commentsList);
+      if (req.body.isCSV == false || req.body?.needCommentsData) {
+        return res.status(200).json(commentsList);
+      }
+
+      // return res.status(200).json(commentsList);
+
+      // Helper function to flatten nested objects
+      const flattenObject = (obj, prefix = "") => {
+        const flattened = {};
+
+        for (const key in obj) {
+          if (obj[key] === null || obj[key] === undefined) {
+            flattened[prefix + key] = "";
+            continue;
+          }
+
+          if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
+            Object.assign(
+              flattened,
+              flattenObject(obj[key], `${prefix}${key}.`)
+            );
+          } else if (Array.isArray(obj[key])) {
+            // Handle arrays by converting to JSON string or processing first element
+            if (obj[key].length > 0 && typeof obj[key][0] === "object") {
+              Object.assign(
+                flattened,
+                flattenObject(obj[key][0], `${prefix}${key}.`)
+              );
+            } else {
+              flattened[prefix + key] = obj[key].join("; ");
+            }
+          } else {
+            flattened[prefix + key] = obj[key];
+          }
+        }
+
+        return flattened;
+      };
+
+      // Flatten all comments to get all possible keys
+      const flattenedComments = commentsList.map((comment) =>
+        flattenObject(comment)
+      );
+
+      // Get all unique headers from all comments
+      const allHeaders = new Set();
+      flattenedComments.forEach((comment) => {
+        Object.keys(comment).forEach((key) => allHeaders.add(key));
+      });
+
+      const csvHeaders = Array.from(allHeaders);
+
+      // Helper function to escape CSV values
+      const escapeCsvValue = (value) => {
+        if (value === null || value === undefined) return "";
+
+        const stringValue = String(value);
+        // Escape double quotes and wrap in quotes if contains comma, newline, or quote
+        if (
+          stringValue.includes(",") ||
+          stringValue.includes("\n") ||
+          stringValue.includes('"')
+        ) {
+          return `"${stringValue.replace(/"/g, '""').replace(/\n/g, " ")}"`;
+        }
+        return stringValue;
+      };
+
+      // Convert commentsList to CSV rows
+      const csvRows = flattenedComments.map((comment) => {
+        return csvHeaders
+          .map((header) => escapeCsvValue(comment[header]))
+          .join(",");
+      });
+
+      // Combine headers and rows
+      const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
+
+      // Store CSV file to disk
+      const exportsDir = path.join(__dirname, "../../exports");
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/:/g, "-")
+        .split(".")[0];
+      const filename = `comments-export-${timestamp}.csv`;
+      const filePath = path.join(exportsDir, filename);
+
+      // Create exports directory if it doesn't exist
+      await fs.mkdir(exportsDir, { recursive: true });
+
+      // Write CSV file
+      await fs.writeFile(filePath, csvContent, "utf8");
+
+      return res.json({
+        success: true,
+        message: "CSV file stored successfully",
+        filePath: filePath,
+        filename: filename,
+      });
+    } catch (error) {
+      console.error("Error fetching comment audience trend:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+
   getCommenterEngagementBySeniority: async (req, res) => {
     try {
       const {

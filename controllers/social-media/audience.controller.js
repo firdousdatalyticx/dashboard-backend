@@ -1858,6 +1858,9 @@ console.log(`Total records retrieved: ${allResults.length}`);
           linkedInUrl = req.body.companyURL;
         }
 
+                const normalizeUrl = (url = "") =>
+  url.replace(/\/$/, "").toLowerCase();
+
         for (const comment of commentsData) {
           // commentsList.push(comment)
           if (
@@ -1866,7 +1869,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
           ) {
             const isMatch = comment.author.fullPositions?.some(
               (pos) =>
-                pos.companyURL === linkedInUrl 
+                 normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl)
               &&
                 pos.end.year == 0 &&
                 pos.end.month == 0 &&
@@ -1875,7 +1878,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
             if (isMatch) {
               const isMatchComment = comment.author.fullPositions?.filter(
                 (pos) =>
-                  pos.companyURL === linkedInUrl 
+                   normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl)
                 &&
                   pos.end.year == 0 &&
                   pos.end.month == 0 &&

@@ -43,7 +43,10 @@ const authenticateUserToken = async (req, res, next) => {
                 customer_allowed_topics: true,
                 customer_allowed_invitations: true,
                 customer_layout_settings: true,
-                customer_account_parent: true
+                customer_account_parent: true,
+                customer_token_mode: true,
+                customer_token_balance: true,
+                enabled_video_analyzer: true
             }
         });
 
@@ -57,6 +60,7 @@ const authenticateUserToken = async (req, res, next) => {
         // Attach user to request
         req.user = {
             id: decoded.parentId || user.customer_id,
+            customerId: user.customer_id, // Keep original customer_id for token updates
             name: user.customer_name,
             email: user.customer_email,
             company: user.customer_company_name,
@@ -64,7 +68,10 @@ const authenticateUserToken = async (req, res, next) => {
             accountType: user.customer_account_type,
             allowedTopics: user.customer_allowed_topics,
             allowedInvitations: user.customer_allowed_invitations,
-            layoutSettings: user.customer_layout_settings
+            layoutSettings: user.customer_layout_settings,
+            tokenMode: user.customer_token_mode,
+            tokenBalance: user.customer_token_balance,
+            enabledVideoAnalyzer: user.enabled_video_analyzer
         };
 
         next();

@@ -226,6 +226,10 @@ model customers {
   enabled_video_analyzer          Boolean   @default(false)
   is_copilot_enabled              Boolean?  @default(false)
 
+  // Global AI token system (used by all AI features)
+  customer_token_mode             String    @default("LIMITED") @db.VarChar(20)
+  customer_token_balance          Int?
+
   // Allowed sources configuration - array of strings for allowed data sources
   customer_allowed_sources        Json?
 }

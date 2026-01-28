@@ -49,7 +49,9 @@ const adminController = {
                     customer_account_parent: true,
                     customer_allowed_sources: true,
                     enabled_video_analyzer: true,
-                    is_copilot_enabled: true
+                    is_copilot_enabled: true,
+                    customer_token_mode: true,
+                    customer_token_balance: true
                 },
                 orderBy: {
                     customer_reg_time: 'desc'
@@ -257,7 +259,9 @@ const adminController = {
                 'customer_topics_access',
                 'customer_subtopics_access',
                 'enabled_video_analyzer',
-                'is_copilot_enabled'
+                'is_copilot_enabled',
+                'customer_token_mode',
+                'customer_token_balance'
             ];
 
             // Copy any remaining valid fields
@@ -292,7 +296,11 @@ const adminController = {
                     customer_acc_expiry: true,
                     customer_dashboard_expiry: true,
                     customer_account_parent: true,
-                    customer_allowed_sources: true
+                    customer_allowed_sources: true,
+                    enabled_video_analyzer: true,
+                    is_copilot_enabled: true,
+                    customer_token_mode: true,
+                    customer_token_balance: true
                 }
             });
 

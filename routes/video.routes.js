@@ -85,6 +85,6 @@ router.post('/analyze', authenticateUserToken, upload.single('file'), videoContr
  *       500:
  *         description: Internal server error
  */
-router.get('/chat', videoController.chatWithVideo);
+router.get('/chat', authenticateUserToken, videoController.chatWithVideo);
 
 module.exports = router;

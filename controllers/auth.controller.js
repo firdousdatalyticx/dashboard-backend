@@ -76,7 +76,9 @@ const authController = {
                     allowedInvitations: userData.customer_allowed_invitations,
                     layoutSettings: userData.customer_layout_settings,
                     enabledVideoAnalyzer: userData.enabled_video_analyzer || false,
-                    isCopilotEnabled: userData.is_copilot_enabled || false
+                    isCopilotEnabled: userData.is_copilot_enabled || false,
+                    tokenMode: userData.customer_token_mode || "LIMITED",
+                    tokenBalance: userData.customer_token_balance || 0
                 }
             });
         } catch (error) {

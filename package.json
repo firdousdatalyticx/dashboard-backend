@@ -5,6 +5,7 @@
   "license": "MIT",
   "dependencies": {
     "@elastic/elasticsearch": "^8.17.1",
+    "@google/genai": "^1.38.0",
     "@prisma/client": "^6.4.1",
     "@sendgrid/mail": "^8.1.4",
     "amqplib": "^0.10.8",
@@ -22,6 +23,7 @@
     "mongoose": "^8.14.1",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.16.1",
     "node-cron": "^3.0.3",
     "prisma": "^6.4.1",
     "socket.io": "^4.8.1",

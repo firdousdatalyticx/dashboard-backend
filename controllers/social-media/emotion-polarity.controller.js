@@ -647,6 +647,7 @@ const emotionPolarityController = {
                               { match_phrase: { source: 'Web' } },
                             { match_phrase: { source: 'Facebook' } },
                             { match_phrase: { source: 'Instagram' } },
+                            { match_phrase: { source: 'Youtube' } },
                         ],
                         minimum_should_match: 1
                     }
@@ -668,7 +669,7 @@ const emotionPolarityController = {
                         ],
                         minimum_should_match: 1
                     }
-                } : parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 ? {
+                } : parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 ? {
 
                       bool: {
                         should: [

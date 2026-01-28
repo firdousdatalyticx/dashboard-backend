@@ -1404,11 +1404,12 @@ function buildAnalysisQuery(params) {
           { match_phrase: { source: "Web" } },
              { match_phrase: { source: 'Facebook' } },
                  { match_phrase: { source: 'Instagram' } },
+                 { match_phrase: { source: 'Youtube' } },
         ],
         minimum_should_match: 1
       }
     });
-  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644 || topicIdNum === 2651 || topicIdNum === 2652) {        
+  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644 || topicIdNum === 2651 || topicIdNum === 2652 || topicIdNum === 2653 || topicIdNum === 2654 || topicIdNum === 2655) {        
         query.bool.must.push({
             bool: {
                 should: [

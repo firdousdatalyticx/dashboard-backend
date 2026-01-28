@@ -127,11 +127,11 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
   } else if (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640) {
     return `source:("LinkedIn" OR "Linkedin")`;
   } else if (parseInt(topicId) === 2646 || parseInt(topicId) === 2650) {
-    return `source:("LinkedIn" OR "Linkedin" OR "Twitter" OR "Web"  OR "Facebook" OR "Instagram")`;
+    return `source:("LinkedIn" OR "Linkedin" OR "Twitter" OR "Web"  OR "Facebook" OR "Instagram" OR "Youtube")`;
   } 
    else if (isSpecialTopic) {
     return `source:("Facebook" OR "Twitter")`;
-  }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652) {
+  }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655) {
     return `source:("Facebook" OR "Twitter" OR "Instagram")`;
   } else {
     return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
@@ -373,6 +373,7 @@ const influencersController = {
                  { match_phrase: { source: "Web" } },
                   { match_phrase: { source: "Facebook" } },
                 { match_phrase: { source: "Instagram" } },
+                { match_phrase: { source: "Youtube" } },
               ],
               minimum_should_match: 1,
             },
@@ -389,7 +390,7 @@ const influencersController = {
               minimum_should_match: 1,
             },
           };
-        } else if ( parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652) {
+        } else if ( parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655) {
           sourceFilterBool = {
             bool: {
               should: [

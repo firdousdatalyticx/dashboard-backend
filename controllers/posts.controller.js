@@ -130,10 +130,10 @@ else {
         // Default logic based on topic
         if (topicId=== 2619 || topicId=== 2639 || topicId=== 2640 || topicId===2642 || topicId===2647  || topicId===2648  || topicId===2649 ) {
           qsParts.push(` source:("LinkedIn" OR "Linkedin")`);
-        } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 || topicId=== 2651 || topicId=== 2652) {
+        } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 || topicId=== 2651 || topicId=== 2652 || topicId=== 2653 || topicId=== 2654 || topicId=== 2655) {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);
         } else  if (topicId=== 2646 || topicId === 2650) {
-          qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook")`);
+          qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook" OR "Youtube")`);
         }
         else {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`);
@@ -395,7 +395,7 @@ else {
             minimum_should_match: 1,
           },
         });
-      } else if (topicId==2641 || topicId === 2643 || topicId === 2644 || topicId === 2651 || topicId === 2652) {
+      } else if (topicId==2641 || topicId === 2643 || topicId === 2644 || topicId === 2651 || topicId === 2652 || topicId === 2653 || topicId === 2654 || topicId === 2655) {
         must.push({
           bool: {
             should: [

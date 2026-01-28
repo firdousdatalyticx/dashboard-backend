@@ -960,6 +960,7 @@ model employee_engagement_leaderboard {
   isPublic               Boolean  @default(false)
   created_at             DateTime @default(now())
   updated_at             DateTime @updatedAt
+  non_cpx_comments      Int      @default(0)
 
   @@map("employee_engagement_leaderboard")
 } 

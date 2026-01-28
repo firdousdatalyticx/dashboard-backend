@@ -1018,6 +1018,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
           { match_phrase: { source: "Web" } },
            { match_phrase: { source: 'Facebook' } },
            { match_phrase: { source: 'Instagram' } },
+           { match_phrase: { source: 'Youtube' } },
         ],
         minimum_should_match: 1,
       },
@@ -1043,7 +1044,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
         minimum_should_match: 1,
       },
     });
-  } else if(topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652){
+  } else if(topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655){
     query.bool.must.push({
       bool: {
         should: [

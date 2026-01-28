@@ -159,6 +159,7 @@ const poiSentimentDistributionController = {
             { match_phrase: { source: 'Web' } },
                { match_phrase: { source: 'Facebook' } },
                  { match_phrase: { source: 'Instagram' } },
+                 { match_phrase: { source: 'Youtube' } },
             ];
         } else if (isSpecialTopic){
              sourceFilter = [
@@ -166,7 +167,7 @@ const poiSentimentDistributionController = {
                 { match_phrase: { source: 'Twitter' } }
             ];
         } 
-         else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652){
+         else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655){
              sourceFilter = [
                 { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } },

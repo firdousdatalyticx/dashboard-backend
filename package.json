@@ -29,7 +29,8 @@
     "socket.io-client": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "@distube/ytdl-core": "^4.14.4"
+    "@distube/ytdl-core": "^4.14.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

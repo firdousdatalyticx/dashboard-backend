@@ -355,6 +355,99 @@ const channelSourceController = {
                             },
                         });
                     }
+                    else if (parseInt(topicId) === 2653) {
+                        queryTemplate.query.bool.must.push({
+                            bool: {
+                                should: [
+                                    {
+                                        bool: {
+                                            must: [
+                                                {
+                                                    range: {
+                                                        lat: {
+                                                            gte: 24.2,
+                                                            lte: 24.8,
+                                                        },
+                                                    },
+                                                },
+                                                {
+                                                    range: {
+                                                        long: {
+                                                            gte: 54.1,
+                                                            lte: 54.8,
+                                                        },
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ],
+                                minimum_should_match: 1,
+                            },
+                        });
+                    }
+                    else if (parseInt(topicId) === 2654) {
+                        queryTemplate.query.bool.must.push({
+                            bool: {
+                                should: [
+                                    {
+                                        bool: {
+                                            must: [
+                                                {
+                                                    range: {
+                                                        lat: {
+                                                            gte: 24.2,
+                                                            lte: 24.8,
+                                                        },
+                                                    },
+                                                },
+                                                {
+                                                    range: {
+                                                        long: {
+                                                            gte: 54.1,
+                                                            lte: 54.8,
+                                                        },
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ],
+                                minimum_should_match: 1,
+                            },
+                        });
+                    }
+                    else if (parseInt(topicId) === 2655) {
+                        queryTemplate.query.bool.must.push({
+                            bool: {
+                                should: [
+                                    {
+                                        bool: {
+                                            must: [
+                                                {
+                                                    range: {
+                                                        lat: {
+                                                            gte: 24.2,
+                                                            lte: 24.8,
+                                                        },
+                                                    },
+                                                },
+                                                {
+                                                    range: {
+                                                        long: {
+                                                            gte: 54.1,
+                                                            lte: 54.8,
+                                                        },
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                ],
+                                minimum_should_match: 1,
+                            },
+                        });
+                    }
 
                     // Apply any additional filters from the filter processor (if not already handled by sentimentType)
                     if (filters.sentimentFilter && !sentimentType) {

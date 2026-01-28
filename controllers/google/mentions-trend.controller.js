@@ -365,6 +365,99 @@ const mentionsTrendController = {
                     },
                 });
             }
+            else if (parseInt(topicId) === 2653) {
+                queryTemplate.query.bool.must.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+            else if (parseInt(topicId) === 2654) {
+                queryTemplate.query.bool.must.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+            else if (parseInt(topicId) === 2655) {
+                queryTemplate.query.bool.must.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
 
 
             // First, get total count to determine how many posts to fetch

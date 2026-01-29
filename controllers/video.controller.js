@@ -1,7 +1,7 @@
 const { createChatSession, getChatSession } = require("../helpers/chatSessionHelper");
 const { upload } = require("../middleware/image_upload");
 const { authenticateUserToken } = require("../middleware/user.auth.token");
-const { createChat, sendChatMessage } = require("../services/ai/gemini_agent.js");
+const { createChat, sendChatMessage } = require("../services/ai/gemini_agent");
 const prisma = require("../config/database");
 
 /**
@@ -19,15 +19,6 @@ const videoController = {
       console.log("Analyze Request");
 
       const { videoUrl, type = "url" } = req.body;
-      const user = req.user;
-
-      // Check if video analyzer is enabled for this customer
-      if (!user.enabledVideoAnalyzer) {
-        return res.status(403).json({
-          success: false,
-          error: "Video analyzer is not enabled for your account. Please contact support to enable this feature."
-        });
-      }
 
       let videoMetadata = null;
       let filePath = null;
@@ -60,11 +51,28 @@ const videoController = {
       const chat = await createChat(videoUrl || filePath, videoMetadata, type === "file", req?.file?.mimetype);
       const chatId = createChatSession(chat);
 
+      // Save video analysis to database
+      const customerId = req.user?.id;
+      if (!customerId) {
+        return res.status(401).json({ error: "Customer ID not found" });
+      }
+
+      const videoAnalysis = await prisma.video_analyses.create({
+        data: {
+          customer_id: customerId,
+          video_url: type === "url" ? videoUrl : null,
+          video_file_path: type === "file" ? filePath : null,
+          video_type: type,
+          video_metadata: videoMetadata ? JSON.parse(JSON.stringify(videoMetadata)) : null,
+          chat_id: chatId,
+        },
+      });
+
       res.status(200).json({
-        success: true,
         chatId,
+        videoAnalysisId: videoAnalysis.video_analysis_id,
         message: "Video analyzed and chat created",
-        videoMetadata
+        videoMetadata,
       });
     } catch (err) {
       console.error(err);
@@ -78,9 +86,7 @@ const videoController = {
    */
   chatWithVideo: async (req, res) => {
     try {
-      const { chatId, message } = req.query;
-      const user = req.user;
-      const TOKEN_COST_QUESTION = 10;
+      const { chatId, message, videoAnalysisId } = req.query;
 
       // Set headers for streaming
       res.setHeader("Content-Type", "text/event-stream");
@@ -93,21 +99,6 @@ const videoController = {
         return;
       }
 
-      // Check token balance if mode is LIMITED (case-insensitive)
-      if (user.tokenMode && user.tokenMode.toUpperCase() === "LIMITED") {
-        const currentBalance = user.tokenBalance || 0;
-        
-        if (currentBalance < TOKEN_COST_QUESTION) {
-          res.write(`data: ${JSON.stringify({ 
-            error: "Insufficient token balance. You need 10 tokens to ask a question. Please contact support to add more tokens.",
-            tokenBalance: currentBalance,
-            requiredTokens: TOKEN_COST_QUESTION
-          })}\n\n`);
-          res.end();
-          return;
-        }
-      }
-
       const chat = getChatSession(chatId);
 
       if (!chat) {
@@ -116,35 +107,46 @@ const videoController = {
         return;
       }
 
-      const response = await sendChatMessage(chat, message);
+      // Save user message to database
+      let savedUserMessage = null;
+      if (videoAnalysisId) {
+        try {
+          savedUserMessage = await prisma.video_chat_messages.create({
+            data: {
+              video_analysis_id: parseInt(videoAnalysisId),
+              message: message,
+              is_user_message: true,
+            },
+          });
+        } catch (dbError) {
+          console.error("Error saving user message:", dbError);
+          // Continue even if DB save fails
+        }
+      }
 
-      // Track if we've sent at least one chunk (to know if message was successful)
-      let messageSent = false;
+      const response = await sendChatMessage(chat, message);
+      let fullResponse = "";
 
       for await (const chunk of response) {
         if (chunk.text) {
-          messageSent = true;
+          fullResponse += chunk.text;
           res.write(`data: ${JSON.stringify({ content: chunk.text })}\n\n`);
         }
       }
 
-      // Deduct tokens after successful message (only if LIMITED mode and message was sent)
-      if (user.tokenMode && user.tokenMode.toUpperCase() === "LIMITED" && messageSent) {
+      // Save AI response to database
+      if (videoAnalysisId && fullResponse) {
         try {
-          const currentBalance = user.tokenBalance || 0;
-          const newBalance = Math.max(0, currentBalance - TOKEN_COST_QUESTION);
-          
-          await prisma.customers.update({
-            where: {
-              customer_id: user.customerId
-            },
+          await prisma.video_chat_messages.create({
             data: {
-              customer_token_balance: newBalance
-            }
+              video_analysis_id: parseInt(videoAnalysisId),
+              message: fullResponse, // AI response text
+              is_user_message: false,
+            },
           });
-        } catch (tokenError) {
-          console.error("Error deducting tokens:", tokenError);
-          // Continue even if token deduction fails, but log it
+        } catch (dbError) {
+          console.error("Error saving AI response:", dbError);
+          // Continue even if DB save fails
         }
       }
 
@@ -156,9 +158,144 @@ const videoController = {
       res.write(`data: ${JSON.stringify({ error: err.message || "Failed to send message" })}\n\n`);
       res.end();
     }
+  },
+
+  /**
+   * Get video analysis history for a customer
+   * GET /api/video/history
+   */
+  getVideoHistory: async (req, res) => {
+    try {
+      const customerId = req.user?.id;
+      if (!customerId) {
+        return res.status(401).json({ error: "Customer ID not found" });
+      }
+
+      const { page = 1, limit = 10 } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const [videoAnalyses, total] = await Promise.all([
+        prisma.video_analyses.findMany({
+          where: {
+            customer_id: customerId,
+          },
+          orderBy: {
+            created_at: "desc",
+          },
+          skip: skip,
+          take: parseInt(limit),
+          include: {
+            chat_messages: {
+              orderBy: {
+                created_at: "asc",
+              },
+              take: 1, // Just get count or first message for preview
+            },
+          },
+        }),
+        prisma.video_analyses.count({
+          where: {
+            customer_id: customerId,
+          },
+        }),
+      ]);
+
+      res.status(200).json({
+        data: videoAnalyses,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / parseInt(limit)),
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message || "Failed to fetch video history" });
+    }
+  },
+
+  /**
+   * Get chat messages for a specific video analysis
+   * GET /api/video/:videoAnalysisId/chat
+   */
+  getVideoChatHistory: async (req, res) => {
+    try {
+      const customerId = req.user?.id;
+      const { videoAnalysisId } = req.params;
+
+      if (!customerId) {
+        return res.status(401).json({ error: "Customer ID not found" });
+      }
+
+      // Verify the video analysis belongs to the customer
+      const videoAnalysis = await prisma.video_analyses.findFirst({
+        where: {
+          video_analysis_id: parseInt(videoAnalysisId),
+          customer_id: customerId,
+        },
+      });
+
+      if (!videoAnalysis) {
+        return res.status(404).json({ error: "Video analysis not found" });
+      }
+
+      const chatMessages = await prisma.video_chat_messages.findMany({
+        where: {
+          video_analysis_id: parseInt(videoAnalysisId),
+        },
+        orderBy: {
+          created_at: "asc",
+        },
+      });
+
+      res.status(200).json({
+        videoAnalysis,
+        chatMessages,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message || "Failed to fetch chat history" });
+    }
+  },
+
+  /**
+   * Get a specific video analysis by ID
+   * GET /api/video/:videoAnalysisId
+   */
+  getVideoAnalysis: async (req, res) => {
+    try {
+      const customerId = req.user?.id;
+      const { videoAnalysisId } = req.params;
+
+      if (!customerId) {
+        return res.status(401).json({ error: "Customer ID not found" });
+      }
+
+      const videoAnalysis = await prisma.video_analyses.findFirst({
+        where: {
+          video_analysis_id: parseInt(videoAnalysisId),
+          customer_id: customerId,
+        },
+        include: {
+          chat_messages: {
+            orderBy: {
+              created_at: "asc",
+            },
+          },
+        },
+      });
+
+      if (!videoAnalysis) {
+        return res.status(404).json({ error: "Video analysis not found" });
+      }
+
+      res.status(200).json(videoAnalysis);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message || "Failed to fetch video analysis" });
+    }
   }
 };
 
 module.exports = videoController;
-
-

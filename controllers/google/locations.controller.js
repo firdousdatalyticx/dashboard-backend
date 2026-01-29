@@ -14,7 +14,7 @@ const googleLocationsController = {
      */
     getGoogleLocations: async (req, res) => {
         try {
-            const { topicId, fromDate, toDate, sentimentType } = req.body;
+            const { topicId, greaterThanTime, lessThanTime, fromDate, toDate, sentimentType } = req.body;
 
             if (!topicId) {
                 return res.status(400).json({
@@ -23,6 +23,11 @@ const googleLocationsController = {
                     locations: []
                 });
             }
+
+            // Use greaterThanTime/lessThanTime for consistency with other Google controllers
+            // Fall back to fromDate/toDate if greaterThanTime/lessThanTime not provided
+            const startDate = greaterThanTime || fromDate;
+            const endDate = lessThanTime || toDate;
 
             // Fetch topics and categories
             const customerTopics = await prisma.customer_topics.findMany({
@@ -57,31 +62,225 @@ const googleLocationsController = {
             // Process filters for sentiment and date range (if provided)
             const filters = processFilters({
                 sentimentType,
-                fromDate,
-                toDate,
+                fromDate: startDate,
+                toDate: endDate,
                 queryString: ""
             });
 
             // Build Elasticsearch query
+            const mustFilters = [
+                {
+                    terms: {
+                        'u_source.keyword': googleUrls
+                    }
+                }
+            ];
+
+            // Add date range filter only if dates are provided
+            if (startDate || endDate) {
+                const dateFilter = {
+                    range: {
+                        p_created_time: {
+                            ...(startDate && { gte: startDate }),
+                            ...(endDate && { lte: endDate }),
+                            format: 'strict_date_optional_time||epoch_millis||yyyy-MM-dd||yyyy-MM-dd\'T\'HH:mm:ss'
+                        }
+                    }
+                };
+                mustFilters.push(dateFilter);
+            }
+
+            // Special filters for topicIds 2641, 2651, 2652
+            if (parseInt(topicId) === 2641) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            } else if (parseInt(topicId) === 2651) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            } else if (parseInt(topicId) === 2652) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+            else if (parseInt(topicId) === 2653) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+            else if (parseInt(topicId) === 2654) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+            else if (parseInt(topicId) === 2655) {
+                mustFilters.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+
             const params = {
                 size: 0,
                 query: {
                     bool: {
-                        must: [
-                            {
-                                terms: {
-                                    'u_source.keyword': googleUrls
-                                }
-                            },
-                            {
-                                range: {
-                                    created_at: {
-                                        gte: fromDate || 'now-90d',
-                                        lte: toDate || 'now',
-                                    }
-                                }
-                            }
-                        ]
+                        must: mustFilters
                     }
                 },
                 aggs: {
@@ -104,13 +303,14 @@ const googleLocationsController = {
                                 }
                             },
                             recent_reviews: {
-                                filter: {
+                                filter: startDate ? {
                                     range: {
                                         p_created_time: {
-                                            gte: fromDate || 'now-90d'
+                                            gte: startDate,
+                                            format: 'strict_date_optional_time||epoch_millis||yyyy-MM-dd||yyyy-MM-dd\'T\'HH:mm:ss'
                                         }
                                     }
-                                },
+                                } : { match_all: {} },
                                 aggs: {
                                     recent_count: {
                                         value_count: {

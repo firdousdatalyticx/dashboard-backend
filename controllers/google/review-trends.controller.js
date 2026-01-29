@@ -33,9 +33,9 @@ const googleReviewTrendsController = {
                 queryString: topicQueryString || ""
             });
             
-            // Default date range if not provided
-            let greaterThanTime = startDate || 'now-90d/d';
-            let lessThanTime = endDate || 'now/d';
+            // Use broad default date range to match other Google controllers
+            let greaterThanTime = startDate || '2020-01-01';
+            let lessThanTime = endDate || '2026-12-31';
 
             // Format date ranges 
             if (greaterThanTime && greaterThanTime.includes('-') && !greaterThanTime.includes('T') && !greaterThanTime.includes('now')) {
@@ -155,7 +155,192 @@ const googleReviewTrendsController = {
                 });
             }
 
-          
+            // Special coordinate filters for topicIds 2641, 2651, 2652
+            if (parseInt(topicId) === 2641) {
+                mustConditions.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            } else if (parseInt(topicId) === 2651) {
+                mustConditions.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            } else if (parseInt(topicId) === 2652) {
+                mustConditions.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+            else if (parseInt(topicId) === 2653) {
+                mustConditions.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+            else if (parseInt(topicId) === 2654) {
+                mustConditions.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+            else if (parseInt(topicId) === 2655) {
+                mustConditions.push({
+                    bool: {
+                        should: [
+                            {
+                                bool: {
+                                    must: [
+                                        {
+                                            range: {
+                                                lat: {
+                                                    gte: 24.2,
+                                                    lte: 24.8,
+                                                },
+                                            },
+                                        },
+                                        {
+                                            range: {
+                                                long: {
+                                                    gte: 54.1,
+                                                    lte: 54.8,
+                                                },
+                                            },
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        minimum_should_match: 1,
+                    },
+                });
+            }
+
 
             // Build Elasticsearch query
             const params = {

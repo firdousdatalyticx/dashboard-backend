@@ -54,6 +54,7 @@ const wordCloudController = {
             const llmField = type === 'positivegooglewordphrase' ? 'llm_positive_points' : 'llm_negative_points';
 
             // Build Elasticsearch query
+            // NOTE: No date filter - fetch all available data for word cloud
             const params = {
                 size: 5000,
                 query: {
@@ -62,14 +63,6 @@ const wordCloudController = {
                             {
                                 query_string: {
                                     query: `${sourceQuery} AND predicted_sentiment_value:"${sentiment}" AND source:"GoogleMyBusiness" AND NOT manual_entry_type:("review")`
-                                }
-                            },
-                            {
-                                range: {
-                                    p_created_time: {
-                                        gte: 'now-90d',
-                                        lte: 'now'
-                                    }
                                 }
                             }
                         ]
@@ -85,6 +78,10 @@ const wordCloudController = {
                     }
                 });
             }
+
+            // Special coordinate filters for topicIds 2641, 2651, 2652
+            // Note: This controller doesn't have topicId in its parameters, so this won't apply
+            // But keeping the structure for consistency
 
             // Execute Elasticsearch query
             const response = await elasticClient.search({

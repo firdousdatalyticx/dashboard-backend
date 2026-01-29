@@ -140,6 +140,9 @@ model customer_topics {
   topic_updated_at          DateTime? @db.DateTime(0)
   topic_is_deleted          String?   @db.Char(1)
   topic_exclude_words       String?   @db.MediumText
+  scad_topic_hash_tags      String?   @db.MediumText
+  scad_topic_urls           String?   @db.MediumText
+  scad_topic_keywords       String?   @db.MediumText
   topic_exclude_accounts    String?   @db.Text
   topic_data_source         String?   @db.MediumText
   topic_data_location       String?   @db.MediumText
@@ -575,10 +578,16 @@ model question {
 
 model reports {
   id           Int      @id @default(autoincrement())
+  title        String
   report_data  String?  @db.Text
-  title        String?
   date_created DateTime @default(now())
-  city         String?
+  user_id       Int?
+  
+  status       Boolean?  @db.TinyInt  // tinyint(1), can be null
+  startDate    DateTime?             // nullable datetime
+  endDate      DateTime?             // nullable datetime
+  job_id       String?   @db.Char(36) // UUID stored as CHAR(36)
+  error        String?   @db.Text
 }
 
 model reports_data {
@@ -924,17 +933,40 @@ model notification {
   @@index([alertId], map: "notification_alertId_fkey")
 }
 
-model comparisonsAnalysisReports {
-  id           Int      @id @default(autoincrement())
-  poiTitle1    String?
-  poiCity1     String?
-  poiTitle2    String?
-  poiCity2     String?
-  report_data  String?  @db.Text
-  date_created DateTime @default(now())
-  user_id      Int?
-  topicId1     Int?
-  topicId2     Int?
+model comparisonsanalysisreports {
+  id               Int      @id @default(autoincrement())
+  poiTitle1        String? 
+  poiTitle2        String? 
+  report_data      String?  @db.Text
+  date_created     DateTime @default(now())
+  user_id          Int?
+  topicId1         Int?
+  topicId2         Int?
+  startDate        DateTime?
+  endDate          DateTime?
+  startDate2       DateTime?
+  endDate2         DateTime?
+  competitive_reports competitive_reports[]
+}
+
+model competitive_reports {
+  id                    Int                        @id @default(autoincrement())
+  report_data           String?                    @db.Text
+  dashboard_name_1      String?                    @db.VarChar(250)
+  dashboard_name_2      String?                    @db.VarChar(250)
+  topic_id_1            Int?
+  topic_id_2            Int?
+  user_id               Int?
+  start_date_1          DateTime?
+  end_date_1            DateTime?
+  start_date_2          DateTime?
+  end_date_2            DateTime?
+  date_created          DateTime                  @default(now())
+  comparison_analysis_id Int?
+  status                Boolean                   @default(false)
+  comparison_analysis   comparisonsanalysisreports? @relation(fields: [comparison_analysis_id], references: [id])
+
+  @@index([comparison_analysis_id])
 }
 
 model google_pois_locations {
@@ -1057,3 +1089,32 @@ model video_chat_messages {
   @@index([video_analysis_id])
   @@index([created_at])
 }
+
+
+model employee_engagement_leaderboard {
+  id                     Int      @id @default(autoincrement())
+
+  topic_id               Int
+  name                   String   @db.VarChar(255)
+  position               String?  @db.VarChar(255)
+  profile_url             String?  @db.VarChar(500)
+
+  likes                  Int      @default(0)
+  comments               Int      @default(0)
+  reshares               Int      @default(0)
+
+  sum_quality             Decimal  @default(0.00) @db.Decimal(10, 2)
+  avg_quality             Decimal  @default(0.00) @db.Decimal(10, 2)
+  high_q                  Decimal  @default(0.00) @db.Decimal(10, 2)
+  low_q                   Decimal  @default(0.00) @db.Decimal(10, 2)
+
+  activity_score          Decimal  @default(0.00) @db.Decimal(10, 2)
+  quality_score           Decimal  @default(0.00) @db.Decimal(10, 2)
+  final_engagement_score  Decimal  @default(0.00) @db.Decimal(10, 2)
+  isPublic               Boolean  @default(false)
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+  non_cpx_comments      Int      @default(0)
+
+  @@map("employee_engagement_leaderboard")
+} 

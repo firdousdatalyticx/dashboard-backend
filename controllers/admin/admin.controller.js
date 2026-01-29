@@ -49,7 +49,7 @@ const adminController = {
                     customer_account_parent: true,
                     customer_allowed_sources: true,
                     enabled_video_analyzer: true,
-                    is_copilot_enabled: true,
+                    // is_copilot_enabled: true,
                     customer_token_mode: true,
                     customer_token_balance: true
                 },
@@ -259,7 +259,7 @@ const adminController = {
                 'customer_topics_access',
                 'customer_subtopics_access',
                 'enabled_video_analyzer',
-                'is_copilot_enabled',
+                // 'is_copilot_enabled',
                 'customer_token_mode',
                 'customer_token_balance'
             ];
@@ -298,7 +298,7 @@ const adminController = {
                     customer_account_parent: true,
                     customer_allowed_sources: true,
                     enabled_video_analyzer: true,
-                    is_copilot_enabled: true,
+                    // is_copilot_enabled: true,
                     customer_token_mode: true,
                     customer_token_balance: true
                 }
@@ -619,6 +619,7 @@ const adminController = {
             delete updateData.topic_id;
             delete updateData.topic_user_id;
             delete updateData.topic_created_at;
+            delete updateData.is_copilot_enabled; 
 
             // enable_archive_data is already a boolean, no conversion needed
             

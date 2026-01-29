@@ -187,7 +187,7 @@ const topicController = {
                     topic_archive_end_date: topic_archive_end_date !== undefined ? (topic_archive_end_date ? new Date(topic_archive_end_date) : null) : existingTopic.topic_archive_end_date,
                     topic_archive_interval_type: topic_archive_interval_type !== undefined ? topic_archive_interval_type : existingTopic.topic_archive_interval_type,
                     // Copilot configuration updates
-                    is_copilot_enabled: isCopilotEnabledValue !== undefined ? isCopilotEnabledValue : existingTopic.is_copilot_enabled,
+                    // is_copilot_enabled: isCopilotEnabledValue !== undefined ? isCopilotEnabledValue : existingTopic.is_copilot_enabled,
                     topic_updated_at: new Date()
                 }
             });
@@ -419,7 +419,7 @@ const topicController = {
             const topicsWithCounts = customerTopics.map(topic => ({
                 ...topic,
                 categoryCount: countMap[topic.topic_id] || 0,
-                isCopilotEnabled: topic.is_copilot_enabled
+                // isCopilotEnabled: topic.is_copilot_enabled
             }));
     
             return res.json({

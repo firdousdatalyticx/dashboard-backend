@@ -88,6 +88,7 @@ const sentimentsController = {
             const {
                 interval = 'monthly',
                 sources,
+                source,
                 category = 'all',
                 topicId,
                  fromDate,
@@ -162,9 +163,23 @@ const sentimentsController = {
 
             // Validate and filter sources against available data sources
             const availableDataSources = req.processedDataSources || [];
-            const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+            
+            // Handle both 'source' (singular string) and 'sources' (array/string)
+            let sourcesToValidate = [];
+            if (sources) {
+                sourcesToValidate = normalizeSourceInput(sources);
+            }
+            if (source && typeof source === 'string' && source.trim() !== '' && source !== 'All') {
+                // Add single source if not already in the array
+                const normalizedSource = source.trim();
+                if (!sourcesToValidate.includes(normalizedSource)) {
+                    sourcesToValidate.push(normalizedSource);
+                }
+            }
+            
+            const validatedSources = sourcesToValidate.filter(src =>
                 availableDataSources.includes(src) || availableDataSources.length === 0
-            ) : [];
+            );
 
             // Build base query with special topic source filtering
             const query = buildBaseQuery({
@@ -429,6 +444,7 @@ const sentimentsController = {
         const {
             interval = 'monthly',
             sources,
+            source,
             category = 'all',
             topicId,
             fromDate,
@@ -480,9 +496,23 @@ const sentimentsController = {
 
         // Validate and filter sources against available data sources
         const availableDataSources = req.processedDataSources || [];
-        const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+        
+        // Handle both 'source' (singular string) and 'sources' (array/string)
+        let sourcesToValidate = [];
+        if (sources) {
+            sourcesToValidate = normalizeSourceInput(sources);
+        }
+        if (source && typeof source === 'string' && source.trim() !== '' && source !== 'All') {
+            // Add single source if not already in the array
+            const normalizedSource = source.trim();
+            if (!sourcesToValidate.includes(normalizedSource)) {
+                sourcesToValidate.push(normalizedSource);
+            }
+        }
+        
+        const validatedSources = sourcesToValidate.filter(src =>
             availableDataSources.includes(src) || availableDataSources.length === 0
-        ) : [];
+        );
 
         // Build base query with special topic source filtering
         const query = buildBaseQuery({
@@ -605,6 +635,7 @@ llmMotivationSentimentTrend: async (req, res) => {
     const {
       interval = "monthly",
       sources,
+      source,
       category = "all",
       topicId,
       fromDate,
@@ -662,9 +693,23 @@ llmMotivationSentimentTrend: async (req, res) => {
 
     // Validate and filter sources against available data sources
     const availableDataSources = req.processedDataSources || [];
-    const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+    
+    // Handle both 'source' (singular string) and 'sources' (array/string)
+    let sourcesToValidate = [];
+    if (sources) {
+        sourcesToValidate = normalizeSourceInput(sources);
+    }
+    if (source && typeof source === 'string' && source.trim() !== '' && source !== 'All') {
+        // Add single source if not already in the array
+        const normalizedSource = source.trim();
+        if (!sourcesToValidate.includes(normalizedSource)) {
+            sourcesToValidate.push(normalizedSource);
+        }
+    }
+    
+    const validatedSources = sourcesToValidate.filter(src =>
         availableDataSources.includes(src) || availableDataSources.length === 0
-    ) : [];
+    );
 
     const query = buildBaseQuery({ greaterThanTime, lessThanTime }, validatedSources, req);
     addCategoryFilters(query, category, categoryData);

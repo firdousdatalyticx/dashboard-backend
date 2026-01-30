@@ -2657,6 +2657,7 @@ const mentionsChartController = {
         topicId,
         sentiment,
         sources,
+        source,
         field,
         type,
         value,
@@ -2700,7 +2701,7 @@ const mentionsChartController = {
         value,
         interval,
         res,
-        source,
+        source || undefined, // source parameter (can be undefined if not provided)
         undefined, // llm_mention_type
         req // <-- Pass req here
       );

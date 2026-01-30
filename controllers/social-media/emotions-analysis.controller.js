@@ -36,6 +36,7 @@ const emotionsController = {
       const {
         interval = "monthly",
         sources,
+        source,
         category = "all",
         topicId,
         fromDate,
@@ -89,10 +90,22 @@ const emotionsController = {
       // Get available data sources from middleware
       const availableDataSources = req.processedDataSources || [];
 
-      // Validate and filter sources against available data sources
-      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+      // Handle both 'source' (singular string) and 'sources' (array/string)
+      let sourcesToValidate = [];
+      if (sources) {
+          sourcesToValidate = normalizeSourceInput(sources);
+      }
+      if (source && typeof source === 'string' && source.trim() !== '' && source !== 'All') {
+          // Add single source if not already in the array
+          const normalizedSource = source.trim();
+          if (!sourcesToValidate.includes(normalizedSource)) {
+              sourcesToValidate.push(normalizedSource);
+          }
+      }
+      
+      const validatedSources = sourcesToValidate.filter(src =>
           availableDataSources.includes(src) || availableDataSources.length === 0
-      ) : [];
+      );
 
             // Build base query with special topic source filtering
             const query = buildBaseQuery({
@@ -399,6 +412,7 @@ const emotionsController = {
     const {
       interval = "monthly",
       sources,
+      source,
       category = "all",
       topicId,
       fromDate,
@@ -414,9 +428,23 @@ const emotionsController = {
 
     // Validate and filter sources against available data sources
     const availableDataSources = req.processedDataSources || [];
-    const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
+    
+    // Handle both 'source' (singular string) and 'sources' (array/string)
+    let sourcesToValidate = [];
+    if (sources) {
+        sourcesToValidate = normalizeSourceInput(sources);
+    }
+    if (source && typeof source === 'string' && source.trim() !== '' && source !== 'All') {
+        // Add single source if not already in the array
+        const normalizedSource = source.trim();
+        if (!sourcesToValidate.includes(normalizedSource)) {
+            sourcesToValidate.push(normalizedSource);
+        }
+    }
+    
+    const validatedSources = sourcesToValidate.filter(src =>
       availableDataSources.includes(src) || availableDataSources.length === 0
-    ) : [];
+    );
 
     // Get category data from middleware
     let categoryData = {};

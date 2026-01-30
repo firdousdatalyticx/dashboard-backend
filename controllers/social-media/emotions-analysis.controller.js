@@ -330,40 +330,40 @@ const emotionsController = {
 
           try {
             // Execute the query
-            // const emotionPostsResponse = await elasticClient.search({
-            //   index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            //   body: emotionPostsQuery,
-            // });
+            const emotionPostsResponse = await elasticClient.search({
+              index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+              body: emotionPostsQuery,
+            });
 
-            // // Format posts for this emotion
-            // const postsRaw = emotionPostsResponse.hits.hits.map((hit) => formatPostData(hit));
+            // Format posts for this emotion
+            let posts = emotionPostsResponse.hits.hits.map((hit) => formatPostData(hit));
+            
             // Add matched_terms to each post
-            const posts = []
-            // postsRaw.map(post => {
-            //   const textFields = [
-            //     post.message_text,
-            //     post.content,
-            //     post.keywords,
-            //     post.title,
-            //     post.hashtags,
-            //     post.uSource,
-            //     post.source,
-            //     post.p_url,
-            //     post.userFullname
-            //   ];
-            //   return {
-            //     ...post,
-            //     matched_terms: allFilterTerms.filter(term =>
-            //       textFields.some(field => {
-            //         if (!field) return false;
-            //         if (Array.isArray(field)) {
-            //           return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
-            //         }
-            //         return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
-            //       })
-            //     )
-            //   };
-            // });
+            posts = posts.map(post => {
+              const textFields = [
+                post.message_text,
+                post.content,
+                post.keywords,
+                post.title,
+                post.hashtags,
+                post.uSource,
+                post.source,
+                post.p_url,
+                post.userFullname
+              ];
+              return {
+                ...post,
+                matched_terms: allFilterTerms.filter(term =>
+                  textFields.some(field => {
+                    if (!field) return false;
+                    if (Array.isArray(field)) {
+                      return field.some(f => typeof f === 'string' && f.toLowerCase().includes(term.toLowerCase()));
+                    }
+                    return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
+                  })
+                )
+              };
+            });
 
             // Add to interval results with the actual count from aggregation
             emotionsInInterval.push({

@@ -355,16 +355,15 @@ const sentimentsController = {
                         sort: [{ p_created_time: { order: 'desc' } }]
                     };
                     
-                    
+                    try {
                         // Execute the query
-                        // const sentimentPostsResponse = await elasticClient.search({
-                        //     index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-                        //     body: sentimentPostsQuery
-                        // });
+                        const sentimentPostsResponse = await elasticClient.search({
+                            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+                            body: sentimentPostsQuery
+                        });
                         
                         // Format posts for this sentiment
-                        const posts =[]
-                        // sentimentPostsResponse.hits.hits.map(hit => formatPostData(hit));
+                        let posts = sentimentPostsResponse.hits.hits.map(hit => formatPostData(hit));
                         
                         // Add to interval results with the actual count from aggregation
                         sentimentsInInterval.push({
@@ -372,6 +371,15 @@ const sentimentsController = {
                             count: sentimentCount,  // Use the total count from aggregation
                             posts: posts  // Limited to MAX_POSTS_PER_SENTIMENT
                         });
+                    } catch (error) {
+                        console.error(`Error fetching posts for sentiment ${sentimentName} in interval ${intervalDate}:`, error);
+                        // Add empty array if there was an error, but keep the aggregation count
+                        sentimentsInInterval.push({
+                            name: sentimentName,
+                            count: sentimentCount,  // Keep the aggregation count even if we couldn't get posts
+                            posts: []
+                        });
+                    }
                
                 }
                 
@@ -444,7 +452,6 @@ const sentimentsController = {
         const {
             interval = 'monthly',
             sources,
-            source,
             category = 'all',
             topicId,
             fromDate,
@@ -496,23 +503,9 @@ const sentimentsController = {
 
         // Validate and filter sources against available data sources
         const availableDataSources = req.processedDataSources || [];
-        
-        // Handle both 'source' (singular string) and 'sources' (array/string)
-        let sourcesToValidate = [];
-        if (sources) {
-            sourcesToValidate = normalizeSourceInput(sources);
-        }
-        if (source && typeof source === 'string' && source.trim() !== '' && source !== 'All') {
-            // Add single source if not already in the array
-            const normalizedSource = source.trim();
-            if (!sourcesToValidate.includes(normalizedSource)) {
-                sourcesToValidate.push(normalizedSource);
-            }
-        }
-        
-        const validatedSources = sourcesToValidate.filter(src =>
+        const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
             availableDataSources.includes(src) || availableDataSources.length === 0
-        );
+        ) : [];
 
         // Build base query with special topic source filtering
         const query = buildBaseQuery({
@@ -635,7 +628,6 @@ llmMotivationSentimentTrend: async (req, res) => {
     const {
       interval = "monthly",
       sources,
-      source,
       category = "all",
       topicId,
       fromDate,
@@ -693,23 +685,9 @@ llmMotivationSentimentTrend: async (req, res) => {
 
     // Validate and filter sources against available data sources
     const availableDataSources = req.processedDataSources || [];
-    
-    // Handle both 'source' (singular string) and 'sources' (array/string)
-    let sourcesToValidate = [];
-    if (sources) {
-        sourcesToValidate = normalizeSourceInput(sources);
-    }
-    if (source && typeof source === 'string' && source.trim() !== '' && source !== 'All') {
-        // Add single source if not already in the array
-        const normalizedSource = source.trim();
-        if (!sourcesToValidate.includes(normalizedSource)) {
-            sourcesToValidate.push(normalizedSource);
-        }
-    }
-    
-    const validatedSources = sourcesToValidate.filter(src =>
+    const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
         availableDataSources.includes(src) || availableDataSources.length === 0
-    );
+    ) : [];
 
     const query = buildBaseQuery({ greaterThanTime, lessThanTime }, validatedSources, req);
     addCategoryFilters(query, category, categoryData);
@@ -1361,6 +1339,10 @@ const formatPostData = (hit) => {
         googleName: source.name,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
         p_comments_data:source.p_comments_data,
+        p_url: source.p_url,
+        keywords: source.keywords,
+        hashtags: source.hashtags,
+        title: source.title
 
     };
 };

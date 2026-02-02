@@ -145,7 +145,7 @@ const poiSentimentDistributionController = {
                 sourceFilter = normalizedSources.map(src => ({
                     match_phrase: { source: src }
                 }));
-            } else if(parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640){
+            } else if(parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2647 ||parseInt(topicId) === 2648 || parseInt(topicId) === 2649){
              sourceFilter = [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },

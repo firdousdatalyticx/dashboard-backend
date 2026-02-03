@@ -150,7 +150,7 @@ const leaderboardAnalysisController = {
             }
             const normalizedSources = normalizeSourceInput(source);
             // Define source filter based on special topic
-            const sourceFilter = normalizedSources.length > 0
+            let sourceFilter = normalizedSources.length > 0
             ? normalizedSources.map(src => ({ match_phrase: { source: src } }))
             : parseInt(2646) || parseInt(2650)?
             [
@@ -163,7 +163,7 @@ const leaderboardAnalysisController = {
             { match_phrase: { source: 'Youtube' } },
             ]
             
-            :parseInt(topicId)==2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ?
+            :parseInt(topicId)==2619  || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 ||parseInt(topicId) === 2647 ||parseInt(topicId) === 2648 || parseInt(topicId) === 2649 ?
              [
              { match_phrase: { source: 'LinkedIn' } },
             { match_phrase: { source: "Linkedin" } },
@@ -191,6 +191,13 @@ const leaderboardAnalysisController = {
                 { match_phrase: { source: 'Web' } },
                 { match_phrase: { source: 'TikTok' } }
             ];
+
+            if(parseInt(topicId) === 2647 ||parseInt(topicId) === 2648 || parseInt(topicId) === 2649){
+                sourceFilter= [
+             { match_phrase: { source: 'LinkedIn' } },
+            { match_phrase: { source: "Linkedin" } },
+            ];
+            }
 
             // Split categories into valid and empty ones
             const allCategories = Object.entries(categoryData);
@@ -572,7 +579,7 @@ const leaderboardAnalysisController = {
             // Sort the final leaderboard
             leaderboard.sort((a, b) => b.totalMentions - a.totalMentions);
 
-            return res.json({ leaderboard });
+            return res.json({ leaderboard,params });
         } catch (error) {
             console.error('Error fetching POI sentiment leaderboard:', error);
             return res.status(500).json({ 

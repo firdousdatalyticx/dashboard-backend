@@ -185,6 +185,7 @@ const emotionsController = {
         parseInt(topicId)
       );
 
+
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
       if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
         query.bool.must.push({
@@ -354,6 +355,7 @@ const emotionsController = {
           },
         },
       };
+      
 
       // Execute the query to get emotion counts
       const countResponse = await elasticClient.search({
@@ -577,7 +579,7 @@ const emotionsController = {
         success: true,
         emotions,
         totalCount,
-        timeIntervals: timeIntervalsWithPosts,
+        timeIntervals: timeIntervalsWithPosts
       
       });
     } catch (error) {
@@ -997,7 +999,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
   };
   const normalizedSources = normalizeSourceInput(source);
 
-  if (topicId === 2619 || topicId === 2639 || topicId === 2640 || topicId === 2647 || topicId === 2648 || topicId === 2649) {
+  if (topicId === 2619 || topicId === 2639 || topicId === 2640 || topicId == 2647 || topicId == 2648 || topicId == 2649) {
     query.bool.must.push({
       bool: {
         should: [
@@ -1008,7 +1010,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
       },
     });
   }
-    if (topicId === 2646 || topicId === 2650) {
+    else if (topicId === 2646 || topicId === 2650) {
     query.bool.must.push({
       bool: {
         should: [

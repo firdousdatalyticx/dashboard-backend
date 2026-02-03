@@ -444,6 +444,9 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
   } else if(topicId && topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655){        
     return  'source:("Twitter" OR "Facebook" OR "Instagram")';
     } 
+    else if(topicId && parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+      return 'source:("Facebook" OR "Twitter" OR "Instagram" OR "Youtube")';
+    }
     else if(topicId===2646 || parseInt(topicId)===2650){
       return  'source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Facebook" OR "Instagram" OR "Youtube")';
     }

@@ -133,6 +133,8 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
     return `source:("Facebook" OR "Twitter")`;
   }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655) {
     return `source:("Facebook" OR "Twitter" OR "Instagram")`;
+  } else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+    return `source:("Facebook" OR "Twitter" OR "Instagram" OR "Youtube")`;
   } else {
     return `source:("Twitter" OR "Facebook" OR "Instagram" OR "Youtube" OR "Pinterest" OR "Reddit" OR "LinkedIn" OR "Linkedin" OR "Web" OR "TikTok")`;
   }
@@ -401,7 +403,22 @@ const influencersController = {
               minimum_should_match: 1,
             },
           };
-        }else {
+        }
+        
+        else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+          sourceFilterBool = {
+            bool: {
+              should: [
+                { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Twitter" } },
+                { match_phrase: { source: "Instagram" } },
+                { match_phrase: { source: "Youtube" } },
+              ],
+              minimum_should_match: 1,
+            },
+          };
+        } 
+        else {
           sourceFilterBool = {
             bool: {
               should: [

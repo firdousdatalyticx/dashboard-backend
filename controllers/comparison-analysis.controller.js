@@ -399,7 +399,26 @@ const comparisonAnalysisController = {
               minimum_should_match: 1,
             },
           });
-        } else {
+        } 
+
+
+        else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+          query.bool.must.push({
+            bool: {
+              should: [
+                { match_phrase: { source: "Facebook" } },
+                { match_phrase: { source: "Twitter" } },
+                { match_phrase: { source: "Instagram" } },
+                { match_phrase: { source: "Youtube" } },
+              ],
+              minimum_should_match: 1,
+            },
+          });
+        } 
+        
+        
+        
+        else {
           query.bool.must.push({
             bool: {
               should: [
@@ -764,13 +783,11 @@ const comparisonAnalysisController = {
         ];
       }
 
-      else if (parseInt(topicId) === 2646 || parseInt(topicId) === 2650) {
+       
+      else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
         sourceFilter = [
-          { match_phrase: { source: "Twitter" } },
-          { match_phrase: { source: "LinkedIn" } },
-          { match_phrase: { source: "Linkedin" } },
-          { match_phrase: { source: "Web" } },
           { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } },
           { match_phrase: { source: "Instagram" } },
           { match_phrase: { source: "Youtube" } },
         ];

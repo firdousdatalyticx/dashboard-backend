@@ -309,7 +309,11 @@ const audienceController = {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655) {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
-        } else {
+        }
+        else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+          sourcesQuery = ` AND source:("Facebook" OR "Twitter" OR "Instagram" OR "Youtube")`;
+        }
+        else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }
       }
@@ -2489,7 +2493,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if (Number(topicId) == 2641 || Number(topicId) == 2643 || Number(topicId) == 2644 || Number(topicId) == 2651 || Number(topicId) == 2652 || Number(topicId) == 2653 || Number(topicId) == 2654 || Number(topicId) == 2655) {
+      else if (Number(topicId) == 2641 || Number(topicId) == 2643 || Number(topicId) == 2644 || Number(topicId) == 2651 || Number(topicId) == 2652 || Number(topicId) == 2653 || Number(topicId) == 2654 || Number(topicId) == 2655 || Number(topicId) == 2656 || Number(topicId) == 2657) {
         params.body.query.bool.must.push({
           bool: {
             must_not: [
@@ -2500,6 +2504,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
           },
         });
       }
+  
 
       if (
         sentimentType &&

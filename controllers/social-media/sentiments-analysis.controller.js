@@ -1716,7 +1716,33 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
                   minimum_should_match: 1
               }
           });
-    } else if (normalizedSources.length > 0) {
+    }
+    else if(topicIdNum === 2641 || parseInt(topicIdNum) === 2643 || parseInt(topicIdNum) === 2644 || parseInt(topicIdNum) === 2651 || parseInt(topicIdNum) === 2652 || parseInt(topicIdNum) === 2653 || parseInt(topicIdNum) === 2654 || parseInt(topicIdNum) === 2655){
+      query.bool.must.push({
+        bool: {
+          should: [
+            { match_phrase: { source: "Facebook" } },
+            { match_phrase: { source: "Twitter" } },
+            { match_phrase: { source: "Instagram" } }
+          ],
+          minimum_should_match: 1,
+        }});
+  
+    }
+    else if (parseInt(topicIdNum) === 2656 || parseInt(topicIdNum) === 2657) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                ],
+                minimum_should_match: 1
+            }
+        });
+    }
+    else if (normalizedSources.length > 0) {
         query.bool.must.push({
             bool: {
                 should: normalizedSources.map(src => ({

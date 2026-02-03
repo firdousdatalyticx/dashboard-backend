@@ -170,7 +170,11 @@ const leaderboardAnalysisController = {
             ]:parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 ?
             [   { match_phrase: { source: 'Facebook' } },
                 { match_phrase: { source: 'Twitter' } },
-                { match_phrase: { source: 'Instagram' } }]
+                { match_phrase: { source: 'Instagram' } }] :parseInt(topicId)==2656 || parseInt(topicId) === 2657 ?
+            [   { match_phrase: { source: 'Facebook' } },
+                { match_phrase: { source: 'Twitter' } },
+                { match_phrase: { source: 'Instagram' } },
+                { match_phrase: { source: 'Youtube' } }] 
             
             :isSpecialTopic ? [
                 { match_phrase: { source: 'Facebook' } },

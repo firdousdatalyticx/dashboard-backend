@@ -1420,7 +1420,21 @@ function buildAnalysisQuery(params) {
                 minimum_should_match: 1
             }
         });
-    } else  {
+    } 
+    else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+        query.bool.must.push({
+            bool: {
+                should: [
+                    { match_phrase: { source: "Facebook" } },
+                    { match_phrase: { source: "Twitter" } },
+                    { match_phrase: { source: "Instagram" } },
+                    { match_phrase: { source: "Youtube" } },
+                ],
+                minimum_should_match: 1
+            }
+        });
+    }
+    else  {
     // When sources='All' or not specified, use default sources
     query.bool.must.push({
       bool: {

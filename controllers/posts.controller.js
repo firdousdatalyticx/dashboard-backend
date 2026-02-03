@@ -135,6 +135,9 @@ else {
         } else  if (topicId=== 2646 || topicId === 2650) {
           qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook" OR "Youtube")`);
         }
+        else if (topicId=== 2656 || topicId=== 2657) {
+          qsParts.push(` source:("Facebook" OR "Twitter" OR "Instagram" OR "Youtube")`);
+        }
         else {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`);
         }
@@ -406,7 +409,24 @@ else {
             minimum_should_match: 1,
           },
         });
-      } else {
+      }
+      
+      else if (topicId=== 2656 || topicId=== 2657) {
+        must.push({
+          bool: {
+            should: [
+              { match_phrase: { source: "Facebook" } },
+              { match_phrase: { source: "Twitter" } },
+              { match_phrase: { source: "Instagram" } },
+              { match_phrase: { source: "Youtube" } },
+            ],
+            minimum_should_match: 1,
+          },
+        });
+      }
+      
+
+      else {
         must.push({
           bool: {
             should: [

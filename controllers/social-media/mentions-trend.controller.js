@@ -1544,7 +1544,23 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
         minimum_should_match: 1,
       },
     });
-  } else if(topicId===2646 || parseInt(topicId)===2650 ){
+  }
+  else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+    query.bool.must.push({
+      bool: {
+        should: [
+          { match_phrase: { source: "Facebook" } },
+          { match_phrase: { source: "Twitter" } },
+          { match_phrase: { source: "Instagram" } },
+          { match_phrase: { source: "Youtube" } },
+        ],
+        minimum_should_match: 1,
+      },
+    });
+  }
+
+  
+  else if(topicId===2646 || parseInt(topicId)===2650 ){
        query.bool.must.push({
             bool: {
                 should: [

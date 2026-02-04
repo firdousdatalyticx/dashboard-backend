@@ -961,6 +961,8 @@ model employee_engagement_leaderboard {
   created_at             DateTime @default(now())
   updated_at             DateTime @updatedAt
   non_cpx_comments      Int      @default(0)
+  replies               Int      @default(0)
+  reactions            Int      @default(0)
 
   @@map("employee_engagement_leaderboard")
 } 

@@ -366,7 +366,7 @@ const topicCategoriesController = {
             } else if (numericTopicId === 2646 || numericTopicId === 2650) {
                 socialSources = ["LinkedIn", "Linkedin", "Twitter", "Web","Instagram","Facebook","Youtube"];
             } 
-            else if (numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644 || numericTopicId === 2651 || numericTopicId === 2652 || numericTopicId === 2653 || numericTopicId === 2654 || numericTopicId === 2655) {
+            else if (numericTopicId === 2641 || numericTopicId === 2643 || numericTopicId === 2644 || numericTopicId === 2651 || numericTopicId === 2652 || numericTopicId === 2653 || numericTopicId === 2654 || numericTopicId === 2655 || numericTopicId === 2658 || numericTopicId === 2659 || numericTopicId === 2660 || numericTopicId === 2661 || numericTopicId === 2662) {
                 socialSources = ["Twitter", "Facebook", "Instagram"];
             } 
             else if (numericTopicId === 2656 || numericTopicId === 2657) {

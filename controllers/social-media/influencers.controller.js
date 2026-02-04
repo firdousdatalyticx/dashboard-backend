@@ -131,7 +131,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
   } 
    else if (isSpecialTopic) {
     return `source:("Facebook" OR "Twitter")`;
-  }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655) {
+  }else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662) {
     return `source:("Facebook" OR "Twitter" OR "Instagram")`;
   } else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
     return `source:("Facebook" OR "Twitter" OR "Instagram" OR "Youtube")`;
@@ -392,7 +392,7 @@ const influencersController = {
               minimum_should_match: 1,
             },
           };
-        } else if ( parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655) {
+        } else if ( parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662) {
           sourceFilterBool = {
             bool: {
               should: [

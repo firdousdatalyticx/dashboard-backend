@@ -857,6 +857,11 @@ function buildAnalysisQuery(params) {
     });
   } else if (
     topicIdNum === 2641 ||
+    topicIdNum === 2658 ||
+    topicIdNum === 2659 ||
+    topicIdNum === 2660 ||
+    topicIdNum === 2661 ||
+    topicIdNum === 2662 ||
     topicIdNum === 2643 ||
     topicIdNum === 2644 ||
     topicIdNum === 2651 ||

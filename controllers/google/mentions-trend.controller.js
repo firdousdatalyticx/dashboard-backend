@@ -274,7 +274,7 @@ const mentionsTrendController = {
                 }
 
             // Special coordinate filters for topicIds 2641, 2651, 2652
-            if (parseInt(topicId) === 2641) {
+            if (parseInt(topicId) === 2641 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662) {
                 queryTemplate.query.bool.must.push({
                     bool: {
                         should: [

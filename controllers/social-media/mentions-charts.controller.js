@@ -441,7 +441,7 @@ function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
     return 'source:("LinkedIn" OR "Linkedin")';
   } else if (isSpecialTopic) {
     return 'source:("Twitter" OR "Facebook")';
-  } else if(topicId && topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655){        
+  } else if(topicId && topicId === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662){        
     return  'source:("Twitter" OR "Facebook" OR "Instagram")';
     } 
     else if(topicId && parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {

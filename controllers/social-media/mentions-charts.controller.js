@@ -4407,8 +4407,8 @@ const mentionsChartController = {
         body: query,
       });
 
-      const buckets = result.aggregations.event_types.buckets;
-      const totalDocs = result.hits.total.value;
+      const buckets = result.aggregations?.event_types?.buckets || [];
+      const totalDocs = result.hits?.total?.value || 0;
       const mergedMap = new Map();
 
       for (const bucket of buckets) {
@@ -4432,12 +4432,12 @@ const mentionsChartController = {
 
           current.value += bucket.doc_count;
 
-          for (const source of bucket.sources.buckets) {
+          for (const source of bucket.sources?.buckets || []) {
             const prev = current.sourcesMap.get(source.key) || 0;
             current.sourcesMap.set(source.key, prev + source.doc_count);
           }
 
-          for (const phrase of bucket.word_cloud_phrases.buckets) {
+          for (const phrase of bucket.word_cloud_phrases?.buckets || []) {
             const prev = current.wordCloudPhrasesMap.get(phrase.key) || 0;
             current.wordCloudPhrasesMap.set(
               phrase.key,
@@ -4447,6 +4447,7 @@ const mentionsChartController = {
 
           mergedMap.set(normalized, current);
         }
+      }
 
       let pieData = Array.from(mergedMap.values()).map((entry) => ({
         name: entry.name,
@@ -4470,19 +4471,15 @@ const mentionsChartController = {
         total: totalDocs,
         query,
       });
-    } 
-    
-  
-  }
-  catch (error) {
-    console.error("Error fetching event type data:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      details: error.message,
-    });
-  }
-},
+    } catch (error) {
+      console.error("Error fetching event type data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        details: error.message,
+      });
+    }
+  },
 
   llmMotivationSentimentTrend: async (req, res) => {
     try {

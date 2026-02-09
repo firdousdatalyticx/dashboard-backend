@@ -24,6 +24,25 @@ const normalizeSourceInput = (sourceParam) => {
 
     return [];
 };
+
+/**
+ * Normalize source name to handle case variations
+ * Merges "LinkedIn" and "Linkedin" into "LinkedIn"
+ * @param {string} sourceName - Source name to normalize
+ * @returns {string} Normalized source name
+ */
+const normalizeSourceName = (sourceName) => {
+    if (!sourceName) return sourceName;
+    
+    const normalized = sourceName.trim();
+    
+    // Normalize LinkedIn variations to "LinkedIn"
+    if (normalized.toLowerCase() === 'linkedin') {
+        return 'LinkedIn';
+    }
+    
+    return normalized;
+};
 const socialsDistributionsController = {
     getDistributions: async (req, res) => {
         try {
@@ -188,12 +207,18 @@ const socialsDistributionsController = {
             // Note: total count is not returned in this endpoint for performance
             // If needed, it can be added back with a lightweight count aggregation
 
-            // Extract the aggregation buckets
+            // Extract the aggregation buckets and normalize source names
             const buckets = aggResponse.aggregations.source_counts.buckets;
             const sourceCounts = buckets.reduce((acc, bucket) => {
                 // Only include sources with count > 0
                 if (bucket.doc_count > 0) {
-                    acc[bucket.key] = bucket.doc_count;
+                    const normalizedSource = normalizeSourceName(bucket.key);
+                    // Merge counts for case variations (e.g., "LinkedIn" and "Linkedin")
+                    if (acc[normalizedSource]) {
+                        acc[normalizedSource] += bucket.doc_count;
+                    } else {
+                        acc[normalizedSource] = bucket.doc_count;
+                    }
                 }
                 return acc;
             }, {});

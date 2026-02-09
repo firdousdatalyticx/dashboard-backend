@@ -142,18 +142,19 @@ publishToQueue(topicId,startDate, endDate) {
       );
     }
 
-    // Set date range: September 15 of current year to now
-    // const now = new Date();
-    // const currentYear = now.getFullYear();
-    // const startDate = new Date(`${currentYear}-09-15T00:00:00.000Z`);
-    // const endDate = now.toISOString().split("T")[0]; // Format as YYYY-MM-DD
+    // Hardcode date range: Last 90 days
+    const now = new Date();
+    const startDate90DaysAgo = new Date(now);
+    startDate90DaysAgo.setDate(now.getDate() - 90);
+    const hardcodedStartDate = startDate90DaysAgo.toISOString().split("T")[0]; // Format as YYYY-MM-DD
+    const hardcodedEndDate = now.toISOString().split("T")[0]; // Format as YYYY-MM-DD
 
     // Build message payload with fetched data
     const messagePayload = {
       queries: topicData.queries, // Comma-separated keywords and hashtags
-      start_date: startDate,
-      end_date: endDate, // Current date
-      source: ["Twitter"], // Default sources
+      start_date: hardcodedStartDate,
+      end_date: hardcodedEndDate, // Current date
+      source: "Twitter", // Default sources
       request_type: "GET", // POST to initiate collection, GET to collect and dump
     };
 
@@ -279,17 +280,9 @@ async function main() {
   console.log(`Topic ID: ${topicId}\n`);
 
   try {
-    const ranges = generateDateRanges();
-    console.log(
-      `Generated ${ranges.length} date ranges for Topic ID ${topicId}`
-    );
-    let i = 1;
-    for (const range of ranges) {
-    console.log(`=>${i + 1}. ${range.start} → ${range.end}`);
-      await publishToQueue(topicId, range.start, range.end);
-      await new Promise((r) => setTimeout(r, 2000)); // wait 2 seconds
-      i=i+1;
-    }
+    // Since dates are hardcoded to last 90 days in publishToQueue, 
+    // we can call it directly without date ranges
+    await publishToQueue(topicId, null, null);
 
     process.exit(0);
   } catch (error) {

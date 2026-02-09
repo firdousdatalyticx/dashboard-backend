@@ -4163,24 +4163,40 @@ const mentionsChartController = {
 
   llmMotivationPhase: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentiment, sources } =
-        req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentiment, source, categoryItems, category = 'all' } = req.body;
+
+      // Determine which category data to use
+      let categoryData = {};
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: true, data: [], total: 0, query: {} });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
+      }
 
       const topicIdNum = parseInt(topicId);
       const isSpecialTopic = topicIdNum === 2600;
       const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
       const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
 
-      // Validate and filter sources against available data sources
-      const availableDataSources = req.processedDataSources || [];
-      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
-        availableDataSources.includes(src) || availableDataSources.length === 0
-      ) : [];
-
       const isScadUser = false;
       const selectedTab = "Social";
 
-      let topicQueryString = await buildQueryString(topicId, isScadUser, selectedTab);
+      let topicQueryString = await buildQueryString(
+        topicId,
+        isScadUser,
+        selectedTab
+      );
 
       const allowedSources = isSpecialTopic
         ? `"Twitter" OR "Facebook"`
@@ -4389,9 +4405,9 @@ const mentionsChartController = {
         });
       }
 
-      if (sources?.trim()) {
+      if (source?.trim()) {
         query.query.bool.must.push({
-          term: { "source.keyword": sources.trim() },
+          term: { "source.keyword": source.trim() },
         });
       }
 
@@ -4401,14 +4417,28 @@ const mentionsChartController = {
         });
       }
 
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (parseInt(topicId) === 2651) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (parseInt(topicId) === 2652) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
       // Execute the query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: query,
       });
 
-      const buckets = result.aggregations?.event_types?.buckets || [];
-      const totalDocs = result.hits?.total?.value || 0;
+      const buckets = result.aggregations.event_types.buckets;
+      const totalDocs = result.hits.total.value;
       const mergedMap = new Map();
 
       for (const bucket of buckets) {
@@ -4432,12 +4462,12 @@ const mentionsChartController = {
 
           current.value += bucket.doc_count;
 
-          for (const source of bucket.sources?.buckets || []) {
+          for (const source of bucket.sources.buckets) {
             const prev = current.sourcesMap.get(source.key) || 0;
             current.sourcesMap.set(source.key, prev + source.doc_count);
           }
 
-          for (const phrase of bucket.word_cloud_phrases?.buckets || []) {
+          for (const phrase of bucket.word_cloud_phrases.buckets) {
             const prev = current.wordCloudPhrasesMap.get(phrase.key) || 0;
             current.wordCloudPhrasesMap.set(
               phrase.key,
@@ -4483,8 +4513,7 @@ const mentionsChartController = {
 
   llmMotivationSentimentTrend: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentiment, sources, categoryItems } =
-        req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentiment, source, categoryItems, category = 'all' } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -4494,16 +4523,21 @@ const mentionsChartController = {
         categoryData = req.processedCategories || {};
       }
 
+      let workingCategory = category;
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (!matchedKey) {
+          // Category not found, return empty response
+          return res.status(200).json({ success: true, data: {}, total: 0 });
+        }
+        categoryData = { [matchedKey]: categoryData[matchedKey] };
+        workingCategory = matchedKey;
+      }
+
       const topicIdNum = parseInt(topicId);
       const isSpecialTopic = topicIdNum === 2600;
       const isTopic2604 = topicIdNum === 2604 || topicIdNum === 2602;
       const isTopic2603 = topicIdNum === 2603 || topicIdNum === 2601;
-
-      // Validate and filter sources against available data sources
-      const availableDataSources = req.processedDataSources || [];
-      const validatedSources = sources ? normalizeSourceInput(sources).filter(src =>
-        availableDataSources.includes(src) || availableDataSources.length === 0
-      ) : [];
 
       const isScadUser = false;
       const selectedTab = "Social";
@@ -4673,8 +4707,8 @@ const mentionsChartController = {
         ...(sentiment?.trim()
           ? [{ match: { predicted_sentiment_value: sentiment.trim() } }]
           : []),
-        ...(sources?.trim()
-          ? [{ term: { "source.keyword": sources.trim() } }]
+        ...(source?.trim()
+          ? [{ term: { "source.keyword": source.trim() } }]
           : []),
         ...(subtopicId?.trim()
           ? [{ term: { subtopic_id: parseInt(subtopicId) } }]
@@ -4916,97 +4950,47 @@ const mentionsChartController = {
         }
       }
 
-      // Helper function to format post data (similar to your getSentimentsAnalysis)
+
+      // Helper function to format post data (simplified version without req)
       const formatPostData = (hit) => {
         const source = hit._source;
-
-        // Use a default image if a profile picture is not provided
-        const profilePic =
-          source.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-        // Social metrics
+        const profilePic = source.u_profile_photo || `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
         const followers = source.u_followers > 0 ? `${source.u_followers}` : "";
         const following = source.u_following > 0 ? `${source.u_following}` : "";
         const posts = source.u_posts > 0 ? `${source.u_posts}` : "";
         const likes = source.p_likes > 0 ? `${source.p_likes}` : "";
-
-        // Emotion
-        const llm_emotion =
-          source.llm_emotion ||
-          (source.source === "GoogleMyBusiness" && source.rating
-            ? source.rating >= 4
-              ? "Supportive"
-              : source.rating <= 2
-              ? "Frustrated"
-              : "Neutral"
-            : "");
-
-        // Clean up comments URL if available
-        const commentsUrl =
-          source.p_comments_text && source.p_comments_text.trim() !== ""
-            ? source.p_url.trim().replace("https: // ", "https://")
-            : "";
-
-        const comments = `${source.p_comments}`;
+        const llm_emotion = source.llm_emotion || "";
+        const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ""
+          ? source.p_url.trim().replace("https: // ", "https://")
+          : "";
+        const comments = `${source.p_comments || 0}`;
         const shares = source.p_shares > 0 ? `${source.p_shares}` : "";
-        const engagements =
-          source.p_engagement > 0 ? `${source.p_engagement}` : "";
-
-        const content =
-          source.p_content && source.p_content.trim() !== ""
-            ? source.p_content
-            : "";
-        const imageUrl =
-          source.p_picture_url && source.p_picture_url.trim() !== ""
-            ? source.p_picture_url
-            : `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
-
-        // Determine sentiment
+        const engagements = source.p_engagement > 0 ? `${source.p_engagement}` : "";
+        const content = source.p_content && source.p_content.trim() !== "" ? source.p_content : "";
+        const imageUrl = source.p_picture_url && source.p_picture_url.trim() !== ""
+          ? source.p_picture_url
+          : `${process?.env?.PUBLIC_IMAGES_PATH}grey.png`;
         let predicted_sentiment = "";
         let predicted_category = "";
-
-        if (source.predicted_sentiment_value)
-          predicted_sentiment = `${source.predicted_sentiment_value}`;
-        else if (source.source === "GoogleMyBusiness" && source.rating) {
-          predicted_sentiment =
-            source.rating >= 4
-              ? "Positive"
-              : source.rating <= 2
-              ? "Negative"
-              : "Neutral";
-        }
-
-        if (source.predicted_category)
-          predicted_category = source.predicted_category;
-
-        // Handle YouTube-specific fields
+        if (source.predicted_sentiment_value) predicted_sentiment = `${source.predicted_sentiment_value}`;
+        if (source.predicted_category) predicted_category = source.predicted_category;
         let youtubeVideoUrl = "";
         let profilePicture2 = "";
         if (source.source === "Youtube") {
           if (source.video_embed_url) youtubeVideoUrl = source.video_embed_url;
-          else if (source.p_id)
-            youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
+          else if (source.p_id) youtubeVideoUrl = `https://www.youtube.com/embed/${source.p_id}`;
         } else {
           profilePicture2 = source.p_picture ? source.p_picture : "";
         }
-
-        // Determine source icon based on source name
         let sourceIcon = "";
         const userSource = source.source;
-        if (
-          ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
-            userSource
-          )
-        )
-          sourceIcon = "Blog";
+        if (["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(userSource)) sourceIcon = "Blog";
         else if (userSource === "Reddit") sourceIcon = "Reddit";
         else if (["FakeNews", "News"].includes(userSource)) sourceIcon = "News";
         else if (userSource === "Tumblr") sourceIcon = "Tumblr";
         else if (userSource === "Vimeo") sourceIcon = "Vimeo";
         else if (["Web", "DeepWeb"].includes(userSource)) sourceIcon = "Web";
         else sourceIcon = userSource;
-
-        // Format message text – with special handling for GoogleMaps/Tripadvisor
         let message_text = "";
         if (["GoogleMaps", "Tripadvisor"].includes(source.source)) {
           const parts = source.p_message_text.split("***|||###");
@@ -5016,7 +5000,6 @@ const mentionsChartController = {
             ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, "")
             : "";
         }
-
         return {
           profilePicture: profilePic,
           profilePicture2,
@@ -5044,9 +5027,8 @@ const mentionsChartController = {
           businessResponse: source.business_response,
           uSource: source.u_source,
           googleName: source.name,
-          created_at: new Date(
-            source.p_created_time || source.created_at
-          ).toLocaleString(),
+          created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+          language: source.llm_language,
         };
       };
 
@@ -5058,6 +5040,59 @@ const mentionsChartController = {
         maxPosts = 30
       ) => {
         try {
+          // Build category filters if categoryData exists
+          const categoryFilters = [];
+          if (Object.keys(categoryData).length > 0) {
+            Object.values(categoryData).forEach(data => {
+              if (data.keywords && data.keywords.length > 0) {
+                data.keywords.forEach(keyword => {
+                  categoryFilters.push({
+                    multi_match: {
+                      query: keyword,
+                      fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                      type: 'phrase'
+                    }
+                  });
+                });
+              }
+              if (data.hashtags && data.hashtags.length > 0) {
+                data.hashtags.forEach(hashtag => {
+                  categoryFilters.push({
+                    multi_match: {
+                      query: hashtag,
+                      fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                      type: 'phrase'
+                    }
+                  });
+                });
+              }
+              if (data.urls && data.urls.length > 0) {
+                data.urls.forEach(url => {
+                  categoryFilters.push({
+                    multi_match: {
+                      query: url,
+                      fields: ['p_message_text', 'p_message', 'keywords', 'title', 'hashtags', 'u_source', 'p_url'],
+                      type: 'phrase'
+                    }
+                  });
+                });
+              }
+            });
+          }
+
+          // Add special topic filters if applicable
+          const specialTopicFilters = [];
+          if (parseInt(topicId) === 2651) {
+            specialTopicFilters.push({
+              term: { "p_tag_cat.keyword": "Healthcare" }
+            });
+          }
+          if (parseInt(topicId) === 2652) {
+            specialTopicFilters.push({
+              term: { "p_tag_cat.keyword": "Food and Beverages" }
+            });
+          }
+
           const postsQuery = {
             size: maxPosts,
             query: {
@@ -5071,6 +5106,15 @@ const mentionsChartController = {
                     },
                   },
                   ...(phaseFilter ? [phaseFilter] : []),
+                  // Add category filters if they exist
+                  ...(categoryFilters.length > 0 ? [{
+                    bool: {
+                      should: categoryFilters,
+                      minimum_should_match: 1
+                    }
+                  }] : []),
+                  // Add special topic filters if they exist
+                  ...specialTopicFilters,
                 ],
                 must_not: baseMustNot, // Use the same must_not conditions
               },
@@ -5092,6 +5136,20 @@ const mentionsChartController = {
           return [];
         }
       };
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (parseInt(topicId) === 2651) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (parseInt(topicId) === 2652) {
+        query.query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
 
       // Execute the main aggregation query
       const result = await elasticClient.search({

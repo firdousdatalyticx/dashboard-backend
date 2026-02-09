@@ -34,6 +34,8 @@
     
     // Apply CORS globally
     app.use(cors(corsOptions));
+    app.use('/public', express.static(path.join(__dirname, 'public')));
+
     
 
     // Connect to MongoDB (for chat only)

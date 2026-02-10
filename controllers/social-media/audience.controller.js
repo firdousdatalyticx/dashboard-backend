@@ -1905,6 +1905,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
                   sharesCount: comment.totalSocialActivityCounts.numShares,
                   ReactionCount:
                     comment.totalSocialActivityCounts.totalReactionCount,
+                    date:comment.createdAtString
                 });
               }
             }

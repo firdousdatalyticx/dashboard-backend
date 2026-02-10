@@ -1874,19 +1874,19 @@ console.log(`Total records retrieved: ${allResults.length}`);
             const isMatch = comment.author.fullPositions?.some(
               (pos) =>
                  normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl)
-              &&
-                pos.end.year == 0 &&
-                pos.end.month == 0 &&
-                pos.end.day == 0
+              // &&
+              //   pos.end.year == 0 &&
+              //   pos.end.month == 0 &&
+              //   pos.end.day == 0
             );
             if (isMatch) {
               const isMatchComment = comment.author.fullPositions?.filter(
                 (pos) =>
                    normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl)
-                &&
-                  pos.end.year == 0 &&
-                  pos.end.month == 0 &&
-                  pos.end.day == 0
+                // &&
+                //   pos.end.year == 0 &&
+                //   pos.end.month == 0 &&
+                //   pos.end.day == 0
               );
               if (req.body?.needCommentsData) {
                 commentsList.push(comment);

@@ -1,5 +1,7 @@
 const prisma = require("../config/database");
 const { elasticClient } = require("../config/elasticsearch");
+const { format, parseISO, subDays } = require("date-fns");
+const processCategoryItems = require("../helpers/processedCategoryItems");
 
 const topicCategoriesController = {
     // Create topic categories
@@ -291,8 +293,13 @@ const topicCategoriesController = {
      */
     getTopicStats: async (req, res) => {
         try {
-            const userId = req.query.userId;
-            const topicId = req.query.topicId;
+            // Support both req.body and req.query for backward compatibility
+            const userId = req.body.userId || req.query.userId;
+            const topicId = req.body.topicId || req.query.topicId;
+            const fromDate = req.body.fromDate || req.query.fromDate;
+            const toDate = req.body.toDate || req.query.toDate;
+            const sentiment = req.body.sentiment || req.query.sentiment;
+            const llm_mention_type = req.body.llm_mention_type || req.query.llm_mention_type;
 
             if (!userId || isNaN(Number(userId))) {
                 return res.status(400).json({
@@ -304,8 +311,8 @@ const topicCategoriesController = {
             const numericTopicId =
                 topicId && !isNaN(Number(topicId)) ? Number(topicId) : null;
 
-      // Check if this is the special topicId
-      const isSpecialTopic = numericTopicId === 2600 || numericTopicId === 2627;
+            // Check if this is the special topicId
+            const isSpecialTopic = numericTopicId === 2600 || numericTopicId === 2627;
 
             // Fetch customer topics
             const customerTopics = await prisma.customer_topics.findMany({
@@ -333,8 +340,13 @@ const topicCategoriesController = {
                 ),
             ].filter(Boolean);
 
-            // Get category data from middleware
-            const categoryData = req.processedCategories || {};
+            // Get category data from middleware or req.body.categoryItems
+            let categoryData = {};
+            if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+                categoryData = processCategoryItems(req.body.categoryItems);
+            } else {
+                categoryData = req.processedCategories || {};
+            }
 
             // Return empty data if no categories found
             if (Object.keys(categoryData).length === 0) {
@@ -356,8 +368,34 @@ const topicCategoriesController = {
                 categoryData
             );
 
-       
+            // Set default date range - last 90 days (same logic as getSentimentsAnalysis)
+            const now = new Date();
+            let ninetyDaysAgo = subDays(now, 365);
+            
+            let startDate;
+            let endDate = now;
+            
+            // Determine date range based on fromDate/toDate or topicId
+            if (fromDate && toDate) {
+                startDate = parseISO(fromDate);
+                endDate = parseISO(toDate);
+            } else {
+                const topic = parseInt(numericTopicId);
+                
+                // Topics requiring last 1 year
+                const lastYearTopics = [2641, 2643, 2644];
+                if (lastYearTopics.includes(topic)) {
+                    startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+                    endDate = format(now, "yyyy-MM-dd");
+                } else {
+                    ninetyDaysAgo = subDays(now, 90);
+                    startDate = format(ninetyDaysAgo, "yyyy-MM-dd");
+                    endDate = format(now, "yyyy-MM-dd");
+                }
+            }
 
+            const greaterThanTime = format(startDate, 'yyyy-MM-dd');
+            const lessThanTime = format(endDate, 'yyyy-MM-dd');
 
             // Determine social media sources based on topicId (same as socials-distributions.controller.js)
             let socialSources = [];
@@ -394,22 +432,14 @@ const topicCategoriesController = {
                 ];
             }
 
-
-            const must = []
-
-           
-            const googleMust =
-                [
-                    {
-                        terms: {
-                            "u_source.keyword": googleUrls,
-                        },
+            const googleMust = [
+                {
+                    terms: {
+                        "u_source.keyword": googleUrls,
                     },
+                },
+            ];
 
-                ]
-
-
-          
             // Build category filters using the same logic as addCategoryFilters()
             const categoryFilters = [];
 
@@ -452,6 +482,14 @@ const topicCategoriesController = {
                     bool: {
                         must: [
                             {
+                                range: {
+                                    p_created_time: {
+                                        gte: greaterThanTime,
+                                        lte: lessThanTime
+                                    }
+                                }
+                            },
+                            {
                                 bool: {
                                     should: categoryFilters,
                                     minimum_should_match: 1
@@ -476,6 +514,50 @@ const topicCategoriesController = {
                     },
                 };
 
+                // Special filter for topicId 2643, 2644 - only fetch posts where is_public_opinion is true
+                if (parseInt(numericTopicId) === 2643 || parseInt(numericTopicId) === 2644) {
+                    query.bool.must.push({
+                        term: {
+                            is_public_opinion: true
+                        }
+                    });
+                }
+
+                // Special filter for topicId 2646, 2650 - customer_name filtering
+                const topic = parseInt(numericTopicId);
+                const termToAdd =
+                    topic === 2646
+                        ? { term: { "customer_name.keyword": "oia" } }
+                        : topic === 2650
+                        ? { term: { "customer_name.keyword": "omantel" } }
+                        : null;
+
+                if (termToAdd) {
+                    // Find bool.should that contains p_message_text
+                    let messageTextShouldBlock = query.bool.must.find(
+                        (m) =>
+                            m.bool &&
+                            Array.isArray(m.bool.should) &&
+                            m.bool.should.some(
+                                (s) => s.match_phrase && s.match_phrase.p_message_text
+                            )
+                    );
+
+                    if (messageTextShouldBlock) {
+                        // Already exists → push into same should
+                        messageTextShouldBlock.bool.should.push(termToAdd);
+                        messageTextShouldBlock.bool.minimum_should_match = 1;
+                    } else {
+                        // Not exists → create new should block
+                        query.bool.must.push({
+                            bool: {
+                                should: [termToAdd],
+                                minimum_should_match: 1,
+                            },
+                        });
+                    }
+                }
+
                 // Special filter for topicId 2651 - only fetch Healthcare results
                 if (parseInt(numericTopicId) === 2651) {
                     query.bool.must.push({
@@ -490,13 +572,68 @@ const topicCategoriesController = {
                     });
                 }
 
+                // Sentiment filtering
+                if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
+                    if (sentiment.includes(',')) {
+                        // Handle multiple sentiment types
+                        const sentimentArray = sentiment.split(',');
+                        const sentimentFilter = {
+                            bool: {
+                                should: sentimentArray.map(sentiment => ({
+                                    match: { predicted_sentiment_value: sentiment.trim() }
+                                })),
+                                minimum_should_match: 1
+                            }
+                        };
+                        query.bool.must.push(sentimentFilter);
+                    } else {
+                        // Handle single sentiment type
+                        query.bool.must.push({
+                            match: { predicted_sentiment_value: sentiment.trim() }
+                        });
+                    }
+                }
+
+                // LLM Mention Type filtering logic
+                let mentionTypesArray = [];
+
+                if (llm_mention_type) {
+                    if (Array.isArray(llm_mention_type)) {
+                        mentionTypesArray = llm_mention_type;
+                    } else if (typeof llm_mention_type === "string") {
+                        mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+                    }
+                }
+
+                // If mentionTypesArray has valid values → apply should-match filter
+                if (mentionTypesArray.length > 0) {
+                    query.bool.must.push({
+                        bool: {
+                            should: mentionTypesArray.map(type => ({
+                                match: { llm_mention_type: type }
+                            })),
+                            minimum_should_match: 1
+                        }
+                    });
+                }
+
                 return query;
             };
 
             // Query builder for Google data
             const buildGoogleQuery = () => ({
                 bool: {
-                    must: googleMust,
+                    must: [
+                        ...googleMust,
+                        {
+                            range: {
+                                p_created_time: {
+                                    gte: greaterThanTime,
+                                    lte: lessThanTime
+                                }
+                            }
+                        }
+                    ],
                 },
             });
 

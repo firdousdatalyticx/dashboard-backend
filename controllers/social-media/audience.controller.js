@@ -51,12 +51,12 @@ const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
   }
 
   let matchedKey = categoryKeys.find(
-    (key) => key.toLowerCase() === normalizedSelectedRaw.toLowerCase()
+    (key) => key.toLowerCase() === normalizedSelectedRaw.toLowerCase(),
   );
 
   if (!matchedKey) {
     matchedKey = categoryKeys.find(
-      (key) => key.toLowerCase().replace(/\s+/g, "") === normalizedSelected
+      (key) => key.toLowerCase().replace(/\s+/g, "") === normalizedSelected,
     );
   }
 
@@ -280,7 +280,7 @@ const audienceController = {
       ) {
         const matchedKey = findMatchingCategoryKey(
           category,
-          audienceCategoryData
+          audienceCategoryData,
         );
         if (matchedKey) {
           selectedCategory = matchedKey;
@@ -309,11 +309,9 @@ const audienceController = {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
         } else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662 || parseInt(topicId) === 2663) {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
-        }
-        else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+        } else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
           sourcesQuery = ` AND source:("Facebook" OR "Twitter" OR "Instagram" OR "Youtube")`;
-        }
-        else {
+        } else {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
         }
       }
@@ -534,7 +532,7 @@ const audienceController = {
       ) {
         const matchedKey = findMatchingCategoryKey(
           category,
-          breakdownCategoryData
+          breakdownCategoryData,
         );
         if (!matchedKey) {
           return res.json({
@@ -1013,7 +1011,7 @@ const audienceController = {
       }
       const results = await elasticClient.search(params);
       const posts = results.hits.hits.map((hit) =>
-        formatPostData(hit, allFilterTerms)
+        formatPostData(hit, allFilterTerms),
       );
       const datewiseCommentCount = {};
       const datewisePostCount = {};
@@ -1200,7 +1198,7 @@ const audienceController = {
 
       let firstUrl = Object.values(trendCategoryData)[0].urls;
       let linkedInUrl = firstUrl.find((url) =>
-        url.includes("linkedin.com/company")
+        url.includes("linkedin.com/company"),
       );
 
       console.log("linkedInUrl", linkedInUrl);
@@ -1321,7 +1319,7 @@ const audienceController = {
 
       const results = await elasticClient.search(params);
       const posts = results.hits.hits.map((hit) =>
-        formatPostData(hit, allFilterTerms)
+        formatPostData(hit, allFilterTerms),
       );
 
       const commentsList = [];
@@ -1346,8 +1344,7 @@ const audienceController = {
         if (req.body.companyURL) {
           linkedInUrl = req.body.companyURL;
         }
-        const normalizeUrl = (url = "") =>
-  url.replace(/\/$/, "").toLowerCase();
+        const normalizeUrl = (url = "") => url.replace(/\/$/, "").toLowerCase();
 
         for (const comment of commentsData) {
           // commentsList.push(comment)
@@ -1357,18 +1354,18 @@ const audienceController = {
           ) {
             const isMatch = comment.author.fullPositions?.some(
               (pos) =>
-                 normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl) &&
+                normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl) &&
                 pos.end.year == 0 &&
                 pos.end.month == 0 &&
-                pos.end.day == 0
+                pos.end.day == 0,
             );
             if (isMatch) {
               const isMatchComment = comment.author.fullPositions?.filter(
                 (pos) =>
-                   normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl) &&
+                  normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl) &&
                   pos.end.year == 0 &&
                   pos.end.month == 0 &&
-                  pos.end.day == 0
+                  pos.end.day == 0,
               );
               if (req.body?.needCommentsData) {
                 commentsList.push(comment);
@@ -1386,7 +1383,7 @@ const audienceController = {
                   likeCount: comment.totalSocialActivityCounts.likeCount,
                   sharesCount: comment.totalSocialActivityCounts.numShares,
                   ReactionCount:
-                    comment.totalSocialActivityCounts.totalReactionCount
+                    comment.totalSocialActivityCounts.totalReactionCount,
                 });
               }
             }
@@ -1424,14 +1421,14 @@ const audienceController = {
           if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
             Object.assign(
               flattened,
-              flattenObject(obj[key], `${prefix}${key}.`)
+              flattenObject(obj[key], `${prefix}${key}.`),
             );
           } else if (Array.isArray(obj[key])) {
             // Handle arrays by converting to JSON string or processing first element
             if (obj[key].length > 0 && typeof obj[key][0] === "object") {
               Object.assign(
                 flattened,
-                flattenObject(obj[key][0], `${prefix}${key}.`)
+                flattenObject(obj[key][0], `${prefix}${key}.`),
               );
             } else {
               flattened[prefix + key] = obj[key].join("; ");
@@ -1446,7 +1443,7 @@ const audienceController = {
 
       // Flatten all comments to get all possible keys
       const flattenedComments = commentsList.map((comment) =>
-        flattenObject(comment)
+        flattenObject(comment),
       );
 
       // Get all unique headers from all comments
@@ -1514,189 +1511,36 @@ const audienceController = {
   },
   getCommentAudienceLeaderBoardEmployeeData: async (req, res) => {
     try {
-      const {
-        timeSlot,
-        fromDate,
-        toDate,
-        sentimentType,
-        records = 20,
-        topicId,
-        categoryItems,
-        source = "All",
-        category = "all",
-        llm_mention_type,
-      } = req.body;
-
-      // Determine which category data to use
-      let trendCategoryData = {};
-
-      if (
-        categoryItems &&
-        Array.isArray(categoryItems) &&
-        categoryItems.length > 0
-      ) {
-        trendCategoryData = processCategoryItems(categoryItems);
-      } else {
-        // Fall back to middleware data
-        trendCategoryData = req.processedCategories || {};
-      }
-
-      if (Object.keys(trendCategoryData).length === 0) {
-        return res.json({
-          dates: [],
-          maxTrendData: "0,0",
-        });
-      }
-
-      // Handle category parameter - validate if provided
-      let selectedCategory = category;
-      if (
-        category &&
-        category !== "all" &&
-        category !== "" &&
-        category !== "custom"
-      ) {
-        const matchedKey = findMatchingCategoryKey(category, trendCategoryData);
-        if (!matchedKey) {
-          return res.json({
-            dates: [],
-            maxTrendData: "0,0",
-            error: "Category not found",
-          });
-        }
-        selectedCategory = matchedKey;
-      }
-
-      const topicQueryString = buildTopicQueryString(trendCategoryData);
-
-      // Source filtering logic
-      const normalizedSources = normalizeSourceInput(source);
-      let sourcesQuery = "";
-
-      if (normalizedSources.length > 0) {
-        // Specific sources provided
-        const sourcesStr = normalizedSources.map((s) => `"${s}"`).join(" OR ");
-        sourcesQuery = ` AND source:(${sourcesStr})`;
-      } else {
-        // Default logic based on topic
-        if (
-          parseInt(topicId) === 2619 ||
-          parseInt(topicId) === 2639 ||
-          parseInt(topicId) === 2640 ||
-          parseInt(topicId) === 2642 ||
-          parseInt(topicId) === 2649 ||
-          parseInt(topicId) == 2647 ||
-          parseInt(topicId) == 2648 ||
-          parseInt(topicId) == 2650 ||
-          parseInt(topicId) == 2646
-        ) {
-          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin" OR "Instagram" OR "Facebook" OR "Twitter" OR "Web" OR "Youtube")`;
-        } else {
-          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
-        }
-      }
-
-      // Process filters for time range
-      const filters = processFilters({
-        timeSlot,
-        fromDate,
-        toDate,
-        sentimentType,
-        queryString: topicQueryString,
-      });
-
-      // Gather all filter terms
-      let allFilterTerms = [];
-      if (trendCategoryData) {
-        Object.values(trendCategoryData).forEach((data) => {
-          if (data.keywords && data.keywords.length > 0)
-            allFilterTerms.push(...data.keywords);
-          if (data.hashtags && data.hashtags.length > 0)
-            allFilterTerms.push(...data.hashtags);
-          if (data.urls && data.urls.length > 0)
-            allFilterTerms.push(...data.urls);
-        });
-      }
-
-      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
-      let isPublicOpinionFilter = null;
-
-      let firstUrl = Object.values(trendCategoryData)[0].urls;
-      let linkedInUrl = firstUrl.find((url) =>
-        url.includes("linkedin.com/company")
-      );
-
-      console.log("linkedInUrl", linkedInUrl);
-      // Optimized query to only get the fields we need
-      let params = {
+      // Initial search with scroll
+      const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
         body: {
-          size: 10000, // Increased slightly to ensure we get all relevant posts
           _source: [
-            "u_profile_photo",
-            "u_followers",
-            "u_following",
-            "u_posts",
-            "p_likes",
-            "llm_emotion",
-            "p_comments_text",
-            "p_url",
-            "p_comments",
-            "p_shares",
-            "p_engagement",
-            "p_content",
-            "p_picture_url",
-            "predicted_sentiment_value",
-            "predicted_category",
-            "source",
-            "rating",
-            "u_fullname",
-            "p_message_text",
-            "comment",
-            "business_response",
-            "u_source",
-            "name",
-            "p_created_time",
-            "created_at",
+            // "p_comments_text",
+            // "p_message_text",
+            // "comment",
+            // "u_source",
+            // "name",
+            // "p_created_time",
             "p_comments_data",
-            "video_embed_url",
-            "p_id",
-            "p_picture",
+            // "p_id"
           ],
+          size: 500,
           query: {
             bool: {
               must: [
                 {
-                  query_string: {
-                    query: `${"(p_company_name:(\"CPX\")"} ${sourcesQuery}`,
-                    analyze_wildcard: true,
-                    default_operator: "AND",
-                  }, //OR \"https://www.linkedin.com/company/cpxholding/\". OR \"https://www.linkedin.com/company/cpxholding/\" OR \"https://www.linkedin.com/company/cpxholding/\"
-                },
-                { exists: { field: "p_comments_data" } },
-                {
-                  range: {
-                    p_created_time: {
-                      gte: filters.greaterThanTime,
-                      lte: filters.lessThanTime,
-                    },
+                  match: {
+                    p_company_name: "CPX",
                   },
-                },
-                ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
+                }
               ],
               must_not: [
-                { term: { "p_comments_data.keyword": "" } },
-                { term: { "p_comments_data.keyword": "[]" } },
                 {
-                  term: {
-                    u_source:
-                      "https://www.linkedin.com/company/cpxholding/posts",
-                  },
-                },
-                {
-                  term: {
-                    u_source:
-                      "https://www.linkedin.com/company/cpxholding/",
+                  wildcard: {
+                    "u_source.keyword":
+                      "https://www.linkedin.com/company/cpxholding*",
                   },
                 },
               ],
@@ -1705,140 +1549,40 @@ const audienceController = {
         },
       };
 
-      // LLM Mention Type filtering logic
-      let mentionTypesArray = [];
+      // Get all results
+      let allResults = [];
+      let response = await elasticClient.search(params);
+      let scrollId = response?._scroll_id;
 
-      if (llm_mention_type) {
-        if (Array.isArray(llm_mention_type)) {
-          mentionTypesArray = llm_mention_type;
-        } else if (typeof llm_mention_type === "string") {
-          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
-        }
-      }
+      allResults.push(...response.hits.hits);
+      console.log(`Total records retrieved: ${allResults.length}`);
 
-      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
-      if (mentionTypesArray.length > 0) {
-        params.body.query.bool.must.push({
-          bool: {
-            should: mentionTypesArray.map((type) => ({
-              match: { llm_mention_type: type },
-            })),
-            minimum_should_match: 1,
-          },
+      while (response.hits.hits.length > 0) {
+        response = await elasticClient.scroll({
+          scroll_id: scrollId,
+          scroll: "2m",
         });
-      }
 
-      if (
-        sentimentType &&
-        sentimentType !== "undefined" &&
-        sentimentType !== "null" &&
-        sentimentType != ""
-      ) {
-        if (sentimentType.includes(",")) {
-          // Handle multiple sentiment types
-          const sentimentArray = sentimentType.split(",");
-          const sentimentFilter = {
-            bool: {
-              should: sentimentArray.map((sentiment) => ({
-                match: { predicted_sentiment_value: sentiment.trim() },
-              })),
-              minimum_should_match: 1,
-            },
-          };
-          params.body.query.bool.must.push(sentimentFilter);
-        } else {
-          // Handle single sentiment type
-          params.body.query.bool.must.push({
-            match: { predicted_sentiment_value: sentimentType.trim() },
-          });
+        scrollId = response._scroll_id;
+        allResults.push(...response.hits.hits);
+        console.log(`Total records retrieved: ${allResults.length}`);
+
+        if (response.hits.hits.length === 0) {
+          break;
         }
       }
 
-// Initial search with scroll
-params = {
-    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-    scroll: '2m',
-    body: {
-        _source: [
-            "p_comments_text",
-            "p_message_text",
-            "comment",
-            "u_source",
-            "name",
-            "p_created_time",
-            "p_comments_data",
-            "p_id"
-        ],
-        size: 1000,
-        query: {
-            bool: {
-                must: [
-                    {
-                        match: {
-                            "p_company_name": "CPX"
-                        }
-                    }
-                ],
-                must_not: [
-                    {
-                        wildcard: {
-                            "u_source.keyword": "https://www.linkedin.com/company/cpxholding*"
-                        }
-                    }
-                ]
-            }
-        }
-    }
-};
-
-// Get all results
-let allResults = [];
-let response = await elasticClient.search(params);
-let scrollId = response._scroll_id;
-
-allResults.push(...response.hits.hits);
-console.log(`Total records retrieved: ${allResults.length}`);
-
-while (response.hits.hits.length > 0) {
-    response = await elasticClient.scroll({
+      await elasticClient.clearScroll({
         scroll_id: scrollId,
-        scroll: '2m'
-    });
-    
-    scrollId = response._scroll_id;
-    allResults.push(...response.hits.hits);
-    console.log(`Total records retrieved: ${allResults.length}`);
+      });
+      console.log(`Total records retrieved: ${allResults.length}`);
 
-    if (response.hits.hits.length === 0) {
-        break;
-    }
-}
-
-await elasticClient.clearScroll({
-    scroll_id: scrollId
-});
-
-console.log(`Total records retrieved: ${allResults.length}`);
-
-// Split into batches of 1000 and process
-// const batchSize = 1000;
-// for (let i = 0; i < allResults.length; i += batchSize) {
-//     const batch = allResults.slice(i, i + batchSize);
-//     console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} records`);
-    
-//     // Process your batch here
-//     // await processData(batch);
-// }
-
-
-    //  return res.send(params)
-      // const results = await elasticClient.search(params);
-      // const posts = results.hits.hits.map((hit) =>
-      //   formatPostData(hit, allFilterTerms)
-      // );
-
+ 
       const commentsList = [];
       for (const post of allResults) {
+
+      
+
         if (!post._source.p_comments_data) continue;
 
         let commentsData;
@@ -1852,176 +1596,140 @@ console.log(`Total records retrieved: ${allResults.length}`);
           continue;
         }
 
-        if (!Array.isArray(commentsData)) continue;
 
-                  // commentsList.push(commentsData)
-
-        // To avoid counting the same post multiple times for the same date
-
-        if (req.body.companyURL) {
-          linkedInUrl = req.body.companyURL;
-        }
-
-                const normalizeUrl = (url = "") =>
-  url.replace(/\/$/, "").toLowerCase();
-
+      
         for (const comment of commentsData) {
-          // commentsList.push(comment)
-          if (
-            comment.author?.fullPositions &&
-            Array.isArray(comment.author?.fullPositions)
-          ) {
-            const isMatch = comment.author.fullPositions?.some(
-              (pos) =>
-                 normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl)
-              &&
-                pos.end.year == 0 &&
-                pos.end.month == 0 &&
-                pos.end.day == 0
-            );
-            if (isMatch) {
-              const isMatchComment = comment.author.fullPositions?.filter(
-                (pos) =>
-                   normalizeUrl(pos.companyURL) === normalizeUrl(linkedInUrl)
-                &&
-                  pos.end.year == 0 &&
-                  pos.end.month == 0 &&
-                  pos.end.day == 0
-              );
-              if (req.body?.needCommentsData) {
-                commentsList.push(comment);
-              } else {
-                commentsList.push({
-                  name:
-                    comment?.author?.name ||
-                    comment?.author?.firstName +
-                      " " +
-                      comment?.author?.lastName,
-                  text: comment.text,
-                  profile_url: comment?.author?.profilePicture,
-                  position: isMatchComment[0].title,
-                  commentsCount: comment.totalSocialActivityCounts.numComments,
-                  likeCount: comment.totalSocialActivityCounts.likeCount,
-                  sharesCount: comment.totalSocialActivityCounts.numShares,
-                  ReactionCount:
-                    comment.totalSocialActivityCounts.totalReactionCount,
-                });
-              }
-            }
+          if (req.body?.needCommentsData) {
+            commentsList.push(comment);
+          } else {
+            commentsList.push({
+              name:
+                comment?.author?.name ||
+                comment?.author?.firstName + " " + comment?.author?.lastName,
+              text: comment.text,
+              profile_url: comment?.author?.profilePicture,
+              position: comment?.author?.title,
+              commentsCount: comment.totalSocialActivityCounts.numComments,
+              likeCount: comment.totalSocialActivityCounts.likeCount,
+              sharesCount: comment.totalSocialActivityCounts.numShares,
+              ReactionCount:
+                comment.totalSocialActivityCounts.totalReactionCount,
+              date: comment.createdAtString,
+            });
           }
-          // return res.status(200).json(isMatchComment);
-          continue;
+
+          // continue;
         }
       }
+        // Generate CSV from commentsList
+     if (commentsList.length === 0) {
+  return res.status(404).json({
+    success: false,
+    message: "No comments found",
+  });
+}
+        // console.log(req.body?.isCSV);
+        // return res.status(200).json(commentsList);
+        if (req.body.isCSV == false || req.body?.needCommentsData) {
+          return res.status(200).json(commentsList);
+        }
 
-      // Generate CSV from commentsList
-      if (commentsList.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: "No comments found",
-        });
-      }
-      // console.log(req.body?.isCSV);
-  // return res.status(200).json(commentsList);
-      if (req.body.isCSV == false || req.body?.needCommentsData) {
-        return res.status(200).json(commentsList);
-      }
+        // return res.status(200).json(commentsList);
 
-      // return res.status(200).json(commentsList);
+        // Helper function to flatten nested objects
+        const flattenObject = (obj, prefix = "") => {
+          const flattened = {};
 
-      // Helper function to flatten nested objects
-      const flattenObject = (obj, prefix = "") => {
-        const flattened = {};
+          for (const key in obj) {
+            if (obj[key] === null || obj[key] === undefined) {
+              flattened[prefix + key] = "";
+              continue;
+            }
 
-        for (const key in obj) {
-          if (obj[key] === null || obj[key] === undefined) {
-            flattened[prefix + key] = "";
-            continue;
-          }
-
-          if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
-            Object.assign(
-              flattened,
-              flattenObject(obj[key], `${prefix}${key}.`)
-            );
-          } else if (Array.isArray(obj[key])) {
-            // Handle arrays by converting to JSON string or processing first element
-            if (obj[key].length > 0 && typeof obj[key][0] === "object") {
+            if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
               Object.assign(
                 flattened,
-                flattenObject(obj[key][0], `${prefix}${key}.`)
+                flattenObject(obj[key], `${prefix}${key}.`),
               );
+            } else if (Array.isArray(obj[key])) {
+              // Handle arrays by converting to JSON string or processing first element
+              if (obj[key].length > 0 && typeof obj[key][0] === "object") {
+                Object.assign(
+                  flattened,
+                  flattenObject(obj[key][0], `${prefix}${key}.`),
+                );
+              } else {
+                flattened[prefix + key] = obj[key].join("; ");
+              }
             } else {
-              flattened[prefix + key] = obj[key].join("; ");
+              flattened[prefix + key] = obj[key];
             }
-          } else {
-            flattened[prefix + key] = obj[key];
           }
-        }
 
-        return flattened;
-      };
+          return flattened;
+        };
 
-      // Flatten all comments to get all possible keys
-      const flattenedComments = commentsList.map((comment) =>
-        flattenObject(comment)
-      );
+        // Flatten all comments to get all possible keys
+        const flattenedComments = commentsList.map((comment) =>
+          flattenObject(comment),
+        );
 
-      // Get all unique headers from all comments
-      const allHeaders = new Set();
-      flattenedComments.forEach((comment) => {
-        Object.keys(comment).forEach((key) => allHeaders.add(key));
-      });
+        // Get all unique headers from all comments
+        const allHeaders = new Set();
+        flattenedComments.forEach((comment) => {
+          Object.keys(comment).forEach((key) => allHeaders.add(key));
+        });
 
-      const csvHeaders = Array.from(allHeaders);
+        const csvHeaders = Array.from(allHeaders);
 
-      // Helper function to escape CSV values
-      const escapeCsvValue = (value) => {
-        if (value === null || value === undefined) return "";
+        // Helper function to escape CSV values
+        const escapeCsvValue = (value) => {
+          if (value === null || value === undefined) return "";
 
-        const stringValue = String(value);
-        // Escape double quotes and wrap in quotes if contains comma, newline, or quote
-        if (
-          stringValue.includes(",") ||
-          stringValue.includes("\n") ||
-          stringValue.includes('"')
-        ) {
-          return `"${stringValue.replace(/"/g, '""').replace(/\n/g, " ")}"`;
-        }
-        return stringValue;
-      };
+          const stringValue = String(value);
+          // Escape double quotes and wrap in quotes if contains comma, newline, or quote
+          if (
+            stringValue.includes(",") ||
+            stringValue.includes("\n") ||
+            stringValue.includes('"')
+          ) {
+            return `"${stringValue.replace(/"/g, '""').replace(/\n/g, " ")}"`;
+          }
+          return stringValue;
+        };
 
-      // Convert commentsList to CSV rows
-      const csvRows = flattenedComments.map((comment) => {
-        return csvHeaders
-          .map((header) => escapeCsvValue(comment[header]))
-          .join(",");
-      });
+        // Convert commentsList to CSV rows
+        const csvRows = flattenedComments.map((comment) => {
+          return csvHeaders
+            .map((header) => escapeCsvValue(comment[header]))
+            .join(",");
+        });
 
-      // Combine headers and rows
-      const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
+        // Combine headers and rows
+        const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
 
-      // Store CSV file to disk
-      const exportsDir = path.join(__dirname, "../../exports");
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/:/g, "-")
-        .split(".")[0];
-      const filename = `comments-export-${timestamp}.csv`;
-      const filePath = path.join(exportsDir, filename);
+        // Store CSV file to disk
+        const exportsDir = path.join(__dirname, "../../exports");
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/:/g, "-")
+          .split(".")[0];
+        const filename = `comments-export-${timestamp}.csv`;
+        const filePath = path.join(exportsDir, filename);
 
-      // Create exports directory if it doesn't exist
-      await fs.mkdir(exportsDir, { recursive: true });
+        // Create exports directory if it doesn't exist
+        await fs.mkdir(exportsDir, { recursive: true });
 
-      // Write CSV file
-      await fs.writeFile(filePath, csvContent, "utf8");
+        // Write CSV file
+        await fs.writeFile(filePath, csvContent, "utf8");
 
-      return res.json({
-        success: true,
-        message: "CSV file stored successfully",
-        filePath: filePath,
-        filename: filename,
-      });
+        return res.json({
+          success: true,
+          message: "CSV file stored successfully",
+          filePath: filePath,
+          filename: filename,
+        });
+      
     } catch (error) {
       console.error("Error fetching comment audience trend:", error);
       return res.status(500).json({
@@ -2031,7 +1739,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
     }
   },
 
-    getCommentAudienceLeaderBoardEmployeeDataOIA: async (req, res) => {
+  getCommentAudienceLeaderBoardEmployeeDataOIA: async (req, res) => {
     try {
       const {
         timeSlot,
@@ -2046,13 +1754,12 @@ console.log(`Total records retrieved: ${allResults.length}`);
         llm_mention_type,
       } = req.body;
 
-
-// Initial search with scroll
-const params = {
-    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-    scroll: '2m',
-    body: {
-        _source: [
+      // Initial search with scroll
+      const params = {
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
+        body: {
+          _source: [
             "p_comments_text",
             "p_message_text",
             "comment",
@@ -2060,72 +1767,71 @@ const params = {
             "name",
             "p_created_time",
             "p_comments_data",
-            "p_id"
-        ],
-        size: 1000,
-        query: {
+            "p_id",
+          ],
+          size: 1000,
+          query: {
             bool: {
-                must: [
-                    {
-                        match: {
-                            "p_company_name": "OIA"
-                        }
-                    }
-                ],
-                must_not: [
-                    {
-                        wildcard: {
+              must: [
+                {
+                  match: {
+                    p_company_name: "OIA",
+                  },
+                },
+              ],
+              must_not: [
+                {
+                  wildcard: {
+                    "u_source.keyword":
+                      "https://www.linkedin.com/company/oman-investment-authority*",
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
 
-                            "u_source.keyword":"https://www.linkedin.com/company/oman-investment-authority*"
-                        }
-                    }
-                ]
-            }
+      // Get all results
+      let allResults = [];
+      let response = await elasticClient.search(params);
+      let scrollId = response._scroll_id;
+
+      allResults.push(...response.hits.hits);
+      console.log(`Total records retrieved: ${allResults.length}`);
+
+      while (response.hits.hits.length > 0) {
+        response = await elasticClient.scroll({
+          scroll_id: scrollId,
+          scroll: "2m",
+        });
+
+        scrollId = response._scroll_id;
+        allResults.push(...response.hits.hits);
+        console.log(`Total records retrieved: ${allResults.length}`);
+
+        if (response.hits.hits.length === 0) {
+          break;
         }
-    }
-};
+      }
 
-// Get all results
-let allResults = [];
-let response = await elasticClient.search(params);
-let scrollId = response._scroll_id;
-
-allResults.push(...response.hits.hits);
-console.log(`Total records retrieved: ${allResults.length}`);
-
-while (response.hits.hits.length > 0) {
-    response = await elasticClient.scroll({
+      await elasticClient.clearScroll({
         scroll_id: scrollId,
-        scroll: '2m'
-    });
-    
-    scrollId = response._scroll_id;
-    allResults.push(...response.hits.hits);
-    console.log(`Total records retrieved: ${allResults.length}`);
+      });
 
-    if (response.hits.hits.length === 0) {
-        break;
-    }
-}
+      console.log(`Total records retrieved: ${allResults.length}`);
 
-await elasticClient.clearScroll({
-    scroll_id: scrollId
-});
+      // Split into batches of 1000 and process
+      // const batchSize = 1000;
+      // for (let i = 0; i < allResults.length; i += batchSize) {
+      //     const batch = allResults.slice(i, i + batchSize);
+      //     console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} records`);
 
-console.log(`Total records retrieved: ${allResults.length}`);
+      //     // Process your batch here
+      //     // await processData(batch);
+      // }
 
-// Split into batches of 1000 and process
-// const batchSize = 1000;
-// for (let i = 0; i < allResults.length; i += batchSize) {
-//     const batch = allResults.slice(i, i + batchSize);
-//     console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} records`);
-    
-//     // Process your batch here
-//     // await processData(batch);
-// }
-
-
-    //  return res.send(params)
+      //  return res.send(params)
       // const results = await elasticClient.search(params);
       // const posts = results.hits.hits.map((hit) =>
       //   formatPostData(hit, allFilterTerms)
@@ -2148,7 +1854,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
 
         if (!Array.isArray(commentsData)) continue;
 
-                  // commentsList.push(commentsData)
+        // commentsList.push(commentsData)
 
         // To avoid counting the same post multiple times for the same date
 
@@ -2158,27 +1864,25 @@ console.log(`Total records retrieved: ${allResults.length}`);
 
         for (const comment of commentsData) {
           // commentsList.push(comment)
-         
-              if (req.body?.needCommentsData) {
-                commentsList.push(comment);
-              } else {
-                commentsList.push({
-                  name:
-                    comment?.author?.name ||
-                    comment?.author?.firstName +
-                      " " +
-                      comment?.author?.lastName,
-                  // text: comment.text,
-                  profile_url: comment?.author?.profilePicture,
-                  position: comment?.author?.title,
-                  commentsCount: comment.totalSocialActivityCounts.numComments,
-                  likeCount: comment.totalSocialActivityCounts.likeCount,
-                  sharesCount: comment.totalSocialActivityCounts.numShares,
-                  ReactionCount:
-                    comment.totalSocialActivityCounts.totalReactionCount,
-                });
-              }
-       
+
+          if (req.body?.needCommentsData) {
+            commentsList.push(comment);
+          } else {
+            commentsList.push({
+              name:
+                comment?.author?.name ||
+                comment?.author?.firstName + " " + comment?.author?.lastName,
+              // text: comment.text,
+              profile_url: comment?.author?.profilePicture,
+              position: comment?.author?.title,
+              commentsCount: comment.totalSocialActivityCounts.numComments,
+              likeCount: comment.totalSocialActivityCounts.likeCount,
+              sharesCount: comment.totalSocialActivityCounts.numShares,
+              ReactionCount:
+                comment.totalSocialActivityCounts.totalReactionCount,
+            });
+          }
+
           // return res.status(200).json(isMatchComment);
           continue;
         }
@@ -2192,7 +1896,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
         });
       }
       // console.log(req.body?.isCSV);
-  // return res.status(200).json(commentsList);
+      // return res.status(200).json(commentsList);
       if (req.body.isCSV == false || req.body?.needCommentsData) {
         return res.status(200).json(commentsList);
       }
@@ -2212,14 +1916,14 @@ console.log(`Total records retrieved: ${allResults.length}`);
           if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
             Object.assign(
               flattened,
-              flattenObject(obj[key], `${prefix}${key}.`)
+              flattenObject(obj[key], `${prefix}${key}.`),
             );
           } else if (Array.isArray(obj[key])) {
             // Handle arrays by converting to JSON string or processing first element
             if (obj[key].length > 0 && typeof obj[key][0] === "object") {
               Object.assign(
                 flattened,
-                flattenObject(obj[key][0], `${prefix}${key}.`)
+                flattenObject(obj[key][0], `${prefix}${key}.`),
               );
             } else {
               flattened[prefix + key] = obj[key].join("; ");
@@ -2234,7 +1938,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
 
       // Flatten all comments to get all possible keys
       const flattenedComments = commentsList.map((comment) =>
-        flattenObject(comment)
+        flattenObject(comment),
       );
 
       // Get all unique headers from all comments
@@ -2353,7 +2057,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
       ) {
         const matchedKey = findMatchingCategoryKey(
           category,
-          seniorityCategoryData
+          seniorityCategoryData,
         );
         if (!matchedKey) {
           return res.json({
@@ -2504,7 +2208,6 @@ console.log(`Total records retrieved: ${allResults.length}`);
           },
         });
       }
-  
 
       if (
         sentimentType &&
@@ -2748,7 +2451,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
 
         // First check for experience patterns
         const experienceMatch = summaryLower.match(
-          /(\d+)\+?\s*years?\s*(of\s*)?(experience|exp|industry|field|work)/i
+          /(\d+)\+?\s*years?\s*(of\s*)?(experience|exp|industry|field|work)/i,
         );
         if (experienceMatch) {
           const years = parseInt(experienceMatch[1]);
@@ -2761,7 +2464,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
 
         // Check for education level indicators
         const educationMatch = summaryLower.match(
-          /(master|mba|phd|doctorate|postgraduate)/i
+          /(master|mba|phd|doctorate|postgraduate)/i,
         );
         if (educationMatch) {
           return "Senior Level (Advanced Degree)";
@@ -2853,7 +2556,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
         // Additional check for enterprise/business roles
         if (
           /\b(enterprise|business|strategic|solutions|technology)\b/i.test(
-            combinedText
+            combinedText,
           )
         ) {
           return "Senior Level";
@@ -2980,7 +2683,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
           postSeniorityBreakdown[seniorityLevel].total_comments +=
             commenterData.comments;
           postSeniorityBreakdown[seniorityLevel].sentiment_values.push(
-            ...commenterData.sentiment_values
+            ...commenterData.sentiment_values,
           );
           postSeniorityBreakdown[seniorityLevel].sentiment_counts.positive +=
             commenterData.sentiment_counts.positive;
@@ -3006,15 +2709,15 @@ console.log(`Total records retrieved: ${allResults.length}`);
           }
 
           seniorityStats[seniorityLevel].unique_commenters.add(
-            commenterData.name
+            commenterData.name,
           );
           seniorityStats[seniorityLevel].total_comments +=
             commenterData.comments;
           seniorityStats[seniorityLevel].posts_with_engagement.add(
-            postData.p_id
+            postData.p_id,
           );
           seniorityStats[seniorityLevel].sentiment_values.push(
-            ...commenterData.sentiment_values
+            ...commenterData.sentiment_values,
           );
           seniorityStats[seniorityLevel].sentiment_counts.positive +=
             commenterData.sentiment_counts.positive;
@@ -3149,7 +2852,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
       // Sort and limit top commenters
       Object.keys(topCommentersBySeniority).forEach((level) => {
         topCommentersBySeniority[level] = topCommentersBySeniority[level].sort(
-          (a, b) => b.total_comments - a.total_comments
+          (a, b) => b.total_comments - a.total_comments,
         );
       });
 
@@ -3167,7 +2870,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
 
         commentersData.forEach((commenter) => {
           commenterIds.add(
-            commenter.author_id || commenter.id || commenter.username
+            commenter.author_id || commenter.id || commenter.username,
           ); // adjust based on actual structure
 
           commenter.comments.forEach((comment) => {
@@ -3200,7 +2903,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
             100
           ).toFixed(1)}%`,
           neutral: `${((sentimentCounts.neutral / totalComments) * 100).toFixed(
-            1
+            1,
           )}%`,
           negative: `${(
             (sentimentCounts.negative / totalComments) *
@@ -3223,7 +2926,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
 
       Object.keys(topCommentersBySeniority).forEach((level) => {
         seniorityBreakdown[level] = calculateSentimentStats(
-          topCommentersBySeniority[level]
+          topCommentersBySeniority[level],
         );
       });
 
@@ -3237,7 +2940,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
               finalSeniorityStats[prev]?.total_comments
                 ? current
                 : prev,
-            Object.keys(finalSeniorityStats)[0] || ""
+            Object.keys(finalSeniorityStats)[0] || "",
           ),
           highest_engagement_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
@@ -3245,7 +2948,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
               finalSeniorityStats[prev]?.unique_commenters
                 ? current
                 : prev,
-            Object.keys(finalSeniorityStats)[0] || ""
+            Object.keys(finalSeniorityStats)[0] || "",
           ),
           most_positive_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
@@ -3253,7 +2956,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
               parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
                 ? current
                 : prev,
-            Object.keys(finalSeniorityStats)[0] || ""
+            Object.keys(finalSeniorityStats)[0] || "",
           ),
           most_negative_seniority: Object.keys(finalSeniorityStats).reduce(
             (prev, current) =>
@@ -3261,7 +2964,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
               parseFloat(finalSeniorityStats[prev]?.avg_sentiment || 0)
                 ? current
                 : prev,
-            Object.keys(finalSeniorityStats)[0] || ""
+            Object.keys(finalSeniorityStats)[0] || "",
           ),
         },
       };
@@ -3324,7 +3027,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
       ) {
         const matchedKey = findMatchingCategoryKey(
           category,
-          countryCategoryData
+          countryCategoryData,
         );
         if (!matchedKey) {
           return res.json({
@@ -3338,7 +3041,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
       // Build base query for filters processing
       const baseQueryString = buildBaseQueryString(
         category,
-        countryCategoryData
+        countryCategoryData,
       );
 
       // Process filters (time slot, date range, sentiment)
@@ -3376,7 +3079,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
         queryTimeRange,
         source,
         isSpecialTopic,
-        parseInt(topicId)
+        parseInt(topicId),
       );
 
       // Add category filters
@@ -3696,7 +3399,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
             .replace(/_/g, " ")
             .replace(/\b\w/g, (char) => char.toUpperCase());
           const posts = value.top_posts.hits.hits.map((hit) =>
-            formatPostData(hit)
+            formatPostData(hit),
           );
 
           // Extract posts from top_hits aggregation
@@ -3751,8 +3454,8 @@ const formatPostData = (hit, allFilterTerms = []) => {
       ? source.rating >= 4
         ? "Supportive"
         : source.rating <= 2
-        ? "Frustrated"
-        : "Neutral"
+          ? "Frustrated"
+          : "Neutral"
       : "");
 
   // Clean up comments URL if available
@@ -3783,8 +3486,8 @@ const formatPostData = (hit, allFilterTerms = []) => {
       source.rating >= 4
         ? "Positive"
         : source.rating <= 2
-        ? "Negative"
-        : "Neutral";
+          ? "Negative"
+          : "Neutral";
   }
 
   if (source.predicted_category) predicted_category = source.predicted_category;
@@ -3805,7 +3508,7 @@ const formatPostData = (hit, allFilterTerms = []) => {
   const userSource = source.source;
   if (
     ["khaleej_times", "Omanobserver", "Time of oman", "Blogs"].includes(
-      userSource
+      userSource,
     )
   )
     sourceIcon = "Blog";
@@ -3845,14 +3548,14 @@ const formatPostData = (hit, allFilterTerms = []) => {
         return field.some(
           (f) =>
             typeof f === "string" &&
-            f.toLowerCase().includes(term.toLowerCase())
+            f.toLowerCase().includes(term.toLowerCase()),
         );
       }
       return (
         typeof field === "string" &&
         field.toLowerCase().includes(term.toLowerCase())
       );
-    })
+    }),
   );
 
   return {
@@ -3883,7 +3586,7 @@ const formatPostData = (hit, allFilterTerms = []) => {
     uSource: source.u_source,
     googleName: source.name,
     created_at: new Date(
-      source.p_created_time || source.created_at
+      source.p_created_time || source.created_at,
     ).toLocaleString(),
     p_comments_data: source.p_comments_data,
     matched_terms,
@@ -4039,19 +3742,19 @@ function addCategoryFilters(query, selectedCategory, categoryData) {
             (data.keywords || []).flatMap((keyword) => [
               { match_phrase: { p_message_text: keyword } },
               { match_phrase: { keywords: keyword } },
-            ])
+            ]),
           ),
           ...Object.values(categoryData).flatMap((data) =>
             (data.hashtags || []).flatMap((hashtag) => [
               { match_phrase: { p_message_text: hashtag } },
               { match_phrase: { hashtags: hashtag } },
-            ])
+            ]),
           ),
           ...Object.values(categoryData).flatMap((data) =>
             (data.urls || []).flatMap((url) => [
               { match_phrase: { u_source: url } },
               { match_phrase: { p_url: url } },
-            ])
+            ]),
           ),
         ],
         minimum_should_match: 1,

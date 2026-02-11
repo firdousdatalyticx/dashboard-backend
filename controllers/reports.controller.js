@@ -377,7 +377,11 @@ const reportsController = {
 
                  if(parseInt(req.body.topicId)==2619 || parseInt(req.body.topicId)==2639 || parseInt(req.body.topicId)==2640 || parseInt(req.body.topicId)==2642 || parseInt(req.body.topicId)==2647 || parseInt(req.body.topicId)==2648 || parseInt(req.body.topicId)==2649){
             topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin)`;
-        }else if(parseInt(req.body.topicId)==2619){
+        }
+        else if(parseInt(req.body.topicId)== 2656 || parseInt(req.body.topicId)==2657) {
+            topicQueryString += ` AND source:(Facebook OR Instagram OR Youtube OR Twitter)`;
+        }  
+        else if(parseInt(req.body.topicId)==2619){
                       topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin OR Twitter)`;
         }else if(parseInt(req.body.topicId)==2646 || parseInt(req.body.topicId)==2650){
           topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin OR Twitter OR Web OR Instagram OR Facebook)`;

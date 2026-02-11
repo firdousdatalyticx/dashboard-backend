@@ -579,7 +579,7 @@ const sentimentAnalysisController = {
           subtopic_frequency: {
             terms: {
               field: "llm_subtopic.keyword",
-              size: 20,
+              size: 10,
               exclude: "null",
             },
           },
@@ -719,7 +719,7 @@ const sentimentAnalysisController = {
           subtopics: {
             terms: {
               field: "llm_subtopic.keyword",
-              size: 20,
+              size: 10,
               exclude: "null",
             },
             aggs: {
@@ -1135,7 +1135,7 @@ const sentimentAnalysisController = {
           subtopics: {
             terms: {
               field: "llm_subtopic.keyword",
-              size: 20,
+              size: 10,
               exclude: "null",
             },
             aggs: {

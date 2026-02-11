@@ -1409,7 +1409,7 @@ function buildAnalysisQuery(params) {
         minimum_should_match: 1
       }
     });
-  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644 || topicIdNum === 2651 || topicIdNum === 2652 || topicIdNum === 2653 || topicIdNum === 2654 || topicIdNum === 2655 || topicIdNum === 2658 || topicIdNum === 2659 || topicIdNum === 2660 || topicIdNum === 2661 || topicIdNum === 2662) {        
+  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644 || topicIdNum === 2651 || topicIdNum === 2652 || topicIdNum === 2653 || topicIdNum === 2654 || topicIdNum === 2655 || topicIdNum === 2658 || topicIdNum === 2659 || topicIdNum === 2660 || topicIdNum === 2661 || topicIdNum === 2662 || topicIdNum === 2663) {        
         query.bool.must.push({
             bool: {
                 should: [
@@ -1468,7 +1468,7 @@ function buildAnalysisQuery(params) {
   }
 
   // Special filter for topicId 2652 - only fetch Food and Beverages results
-  if (topicIdNum === 2652) {
+  if (topicIdNum === 2652 || topicIdNum === 2663) {
     query.bool.must.push({
       term: { "p_tag_cat.keyword": "Food and Beverages" }
     });

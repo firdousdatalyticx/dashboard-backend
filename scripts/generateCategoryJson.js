@@ -283,7 +283,7 @@ async function generateCategoryJson(topicId) {
             }
 
             // Special filter for topicId 2652 - only fetch Food and Beverages results
-            if (topicIdNum === 2652) {
+            if (topicIdNum === 2652 || topicIdNum === 2663) {
                 query.query.bool.must.push({
                     term: { "p_tag_cat.keyword": "Food and Beverages" }
                 });

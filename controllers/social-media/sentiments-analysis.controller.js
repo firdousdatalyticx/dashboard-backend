@@ -312,7 +312,7 @@ const sentimentsController = {
         }
 
         // Special filter for topicId 2652 - only fetch Food and Beverages results
-        if (topic === 2652) {
+        if (topic === 2652 || topic === 2663) {
           query.bool.must.push({
             term: { "p_tag_cat.keyword": "Food and Beverages" }
           });
@@ -1717,7 +1717,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
               }
           });
     }
-    else if(topicIdNum === 2641 || parseInt(topicIdNum) === 2643 || parseInt(topicIdNum) === 2644 || parseInt(topicIdNum) === 2651 || parseInt(topicIdNum) === 2652 || parseInt(topicIdNum) === 2653 || parseInt(topicIdNum) === 2654 || parseInt(topicIdNum) === 2655 || parseInt(topicIdNum) === 2658 || parseInt(topicIdNum) === 2659 || parseInt(topicIdNum) === 2660 || parseInt(topicIdNum) === 2661 || parseInt(topicIdNum) === 2662){
+    else if(topicIdNum === 2641 || parseInt(topicIdNum) === 2643 || parseInt(topicIdNum) === 2644 || parseInt(topicIdNum) === 2651 || parseInt(topicIdNum) === 2652 || parseInt(topicIdNum) === 2653 || parseInt(topicIdNum) === 2654 || parseInt(topicIdNum) === 2655 || parseInt(topicIdNum) === 2658 || parseInt(topicIdNum) === 2659 || parseInt(topicIdNum) === 2660 || parseInt(topicIdNum) === 2661 || parseInt(topicIdNum) === 2662 || parseInt(topicIdNum) === 2663){
       query.bool.must.push({
         bool: {
           should: [

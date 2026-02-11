@@ -248,7 +248,7 @@ const socialsDistributionsController = {
       }
 
       // Special filter for topicId 2652 - only fetch Food and Beverages results
-      if (topic === 2652) {
+      if (topic === 2652 || topic === 2663) {
         query.bool.must.push({
           term: { "p_tag_cat.keyword": "Food and Beverages" }
         });
@@ -547,7 +547,7 @@ const socialsDistributionsController = {
       }
 
       // Special filter for topicId 2652 - only fetch Food and Beverages results
-      if (topic === 2652) {
+      if (topic === 2652 || topic === 2663) {
         query.bool.must.push({
           term: { "p_tag_cat.keyword": "Food and Beverages" }
         });
@@ -852,7 +852,7 @@ const socialsDistributionsController = {
       }
 
       // Special filter for topicId 2652 - only fetch Food and Beverages results
-      if (topic === 2652) {
+      if (topic === 2652 || topic === 2663) {
         query.bool.must.push({
           term: { "p_tag_cat.keyword": "Food and Beverages" }
         });
@@ -1157,7 +1157,7 @@ const socialsDistributionsController = {
       }
 
       // Special filter for topicId 2652 - only fetch Food and Beverages results
-      if (topic === 2652) {
+      if (topic === 2652 || topic === 2663) {
         query.bool.must.push({
           term: { "p_tag_cat.keyword": "Food and Beverages" }
         });
@@ -1463,7 +1463,7 @@ const socialsDistributionsController = {
       }
 
       // Special filter for topicId 2652 - only fetch Food and Beverages results
-      if (topic === 2652) {
+      if (topic === 2652 || topic === 2663) {
         query.bool.must.push({
           term: { "p_tag_cat.keyword": "Food and Beverages" }
         });
@@ -1804,7 +1804,7 @@ const socialsDistributionsController = {
       }
 
       // Special filter for topicId 2652 - only fetch Food and Beverages results
-      if (topic === 2652) {
+      if (topic === 2652 || topic === 2663) {
         query.bool.must.push({
           term: { "p_tag_cat.keyword": "Food and Beverages" }
         });
@@ -2060,7 +2060,8 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
     parseInt(topicId) === 2659 ||
     parseInt(topicId) === 2660 ||
     parseInt(topicId) === 2661 ||
-    parseInt(topicId) === 2662
+    parseInt(topicId) === 2662 ||
+    parseInt(topicId) === 2663
   ) {
     query.bool.must.push({
       bool: {

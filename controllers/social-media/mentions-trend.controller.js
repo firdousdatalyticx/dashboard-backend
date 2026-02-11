@@ -293,7 +293,7 @@ const mentionsTrendController = {
         }
 
         // Special filter for topicId 2652 - only fetch Food and Beverages results
-        if (parseInt(topicId) === 2652) {
+        if (parseInt(topicId) === 2652 || parseInt(topicId) === 2663) {
           query.bool.must.push({
             term: { "p_tag_cat.keyword": "Food and Beverages" }
           });
@@ -904,7 +904,7 @@ const mentionsTrendController = {
         }
 
         // Special filter for topicId 2652 - only fetch Food and Beverages results
-        if (parseInt(topicId) === 2652) {
+        if (parseInt(topicId) === 2652 || parseInt(topicId) === 2663) {
           query.bool.must.push({
             term: { "p_tag_cat.keyword": "Food and Beverages" }
           });
@@ -1178,7 +1178,7 @@ const mentionsTrendController = {
         }
 
         // Special filter for topicId 2652 - only fetch Food and Beverages results
-        if (parseInt(topicId) === 2652) {
+        if (parseInt(topicId) === 2652 || parseInt(topicId) === 2663) {
           query.bool.must.push({
             term: { "p_tag_cat.keyword": "Food and Beverages" }
           });

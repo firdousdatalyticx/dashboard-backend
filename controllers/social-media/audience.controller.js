@@ -307,7 +307,7 @@ const audienceController = {
           parseInt(topicId) === 2640
         ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
-        } else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662) {
+        } else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662 || parseInt(topicId) === 2663) {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
         }
         else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
@@ -2493,7 +2493,7 @@ console.log(`Total records retrieved: ${allResults.length}`);
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if (Number(topicId) == 2641 || Number(topicId) == 2643 || Number(topicId) == 2644 || Number(topicId) == 2651 || Number(topicId) == 2652 || Number(topicId) == 2653 || Number(topicId) == 2654 || Number(topicId) == 2655 || Number(topicId) == 2656 || Number(topicId) == 2657 || Number(topicId) == 2658 || Number(topicId) == 2659 || Number(topicId) == 2660 || Number(topicId) == 2661 || Number(topicId) == 2662) {
+      else if (Number(topicId) == 2641 || Number(topicId) == 2643 || Number(topicId) == 2644 || Number(topicId) == 2651 || Number(topicId) == 2652 || Number(topicId) == 2653 || Number(topicId) == 2654 || Number(topicId) == 2655 || Number(topicId) == 2656 || Number(topicId) == 2657 || Number(topicId) == 2658 || Number(topicId) == 2659 || Number(topicId) == 2660 || Number(topicId) == 2661 || Number(topicId) == 2662 || Number(topicId) == 2663) {
         params.body.query.bool.must.push({
           bool: {
             must_not: [

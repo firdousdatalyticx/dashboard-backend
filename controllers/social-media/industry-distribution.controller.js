@@ -866,6 +866,7 @@ function buildAnalysisQuery(params) {
     topicIdNum === 2644 ||
     topicIdNum === 2651 ||
     topicIdNum === 2652 ||
+    topicIdNum === 2663 ||
     topicIdNum === 2653 ||
     topicIdNum === 2654 ||
     topicIdNum === 2655

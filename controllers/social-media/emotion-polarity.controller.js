@@ -669,7 +669,7 @@ const emotionPolarityController = {
                         ],
                         minimum_should_match: 1
                     }
-                } : parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662 ? {
+                } : parseInt(topicId)==2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662 || parseInt(topicId) === 2663 ? {
 
                       bool: {
                         should: [
@@ -764,7 +764,7 @@ const emotionPolarityController = {
             }
 
             // Special filter for topicId 2652 - only fetch Food and Beverages results
-            if (parseInt(topicId) === 2652) {
+            if (parseInt(topicId) === 2652 || parseInt(topicId) === 2663) {
                 queryFilters.push({
                     term: { "p_tag_cat.keyword": "Food and Beverages" }
                 });

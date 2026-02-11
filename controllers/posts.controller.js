@@ -130,7 +130,7 @@ else {
         // Default logic based on topic
         if (topicId=== 2619 || topicId=== 2639 || topicId=== 2640 || topicId===2642 || topicId===2647  || topicId===2648  || topicId===2649 ) {
           qsParts.push(` source:("LinkedIn" OR "Linkedin")`);
-        } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 || topicId=== 2651 || topicId=== 2652 || topicId=== 2653 || topicId=== 2654 || topicId=== 2655 || topicId=== 2658 || topicId=== 2659 || topicId=== 2660 || topicId=== 2661 || topicId=== 2662) {
+        } else  if (topicId=== 2641 || topicId=== 2643 || topicId=== 2644 || topicId=== 2651 || topicId=== 2652 || topicId=== 2653 || topicId=== 2654 || topicId=== 2655 || topicId=== 2658 || topicId=== 2659 || topicId=== 2660 || topicId=== 2661 || topicId=== 2662 || topicId=== 2663) {
           qsParts.push(` source:("Twitter" OR "Instagram" OR "Facebook")`);
         } else  if (topicId=== 2646 || topicId === 2650) {
           qsParts.push(` source:("Twitter" OR "LinkedIn" OR "Linkedin" OR "Web" OR "Instagram" OR "Facebook" OR "Youtube")`);
@@ -148,7 +148,7 @@ else {
         }
 
         // Special filter for topicId 2652 - only fetch Food and Beverages results
-        if (parseInt(topicId) === 2652) {
+        if (parseInt(topicId) === 2652 || parseInt(topicId) === 2663) {
           qsParts.push(' p_tag_cat.keyword:"Food and Beverages"');
         }
       }
@@ -398,7 +398,7 @@ else {
             minimum_should_match: 1,
           },
         });
-      } else if (topicId==2641 || topicId === 2643 || topicId === 2644 || topicId === 2651 || topicId === 2652 || topicId === 2653 || topicId === 2654 || topicId === 2655 || topicId === 2658 || topicId === 2659 || topicId === 2660 || topicId === 2661 || topicId === 2662) {
+      } else if (topicId==2641 || topicId === 2643 || topicId === 2644 || topicId === 2651 || topicId === 2652 || topicId === 2653 || topicId === 2654 || topicId === 2655 || topicId === 2658 || topicId === 2659 || topicId === 2660 || topicId === 2661 || topicId === 2662 || topicId === 2663) {
         must.push({
           bool: {
             should: [

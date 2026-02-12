@@ -49,13 +49,39 @@ const processTimeSlot = (timeSlot, fromDate, toDate) => {
         default:
             // Handle fromDate and toDate if present
             if (fromDate) {
-                greaterThanTime = format(new Date(fromDate), 'yyyy-MM-dd');
+                // Check if it's an Elasticsearch date math string (contains "now")
+                if (typeof fromDate === 'string' && fromDate.includes('now')) {
+                    // Return as-is for Elasticsearch date math strings
+                    greaterThanTime = fromDate;
+                } else {
+                    // Try to parse as regular date
+                    const parsedDate = new Date(fromDate);
+                    if (isNaN(parsedDate.getTime())) {
+                        // Invalid date, fall back to default
+                        greaterThanTime = format(subDays(now, 90), 'yyyy-MM-dd');
+                    } else {
+                        greaterThanTime = format(parsedDate, 'yyyy-MM-dd');
+                    }
+                }
             } else {
                 greaterThanTime = format(subDays(now, 90), 'yyyy-MM-dd');
             }
 
             if (toDate) {
-                lessThanTime = format(new Date(toDate), 'yyyy-MM-dd');
+                // Check if it's an Elasticsearch date math string (contains "now")
+                if (typeof toDate === 'string' && toDate.includes('now')) {
+                    // Return as-is for Elasticsearch date math strings
+                    lessThanTime = toDate;
+                } else {
+                    // Try to parse as regular date
+                    const parsedDate = new Date(toDate);
+                    if (isNaN(parsedDate.getTime())) {
+                        // Invalid date, keep current lessThanTime
+                        // lessThanTime already set to today above
+                    } else {
+                        lessThanTime = format(parsedDate, 'yyyy-MM-dd');
+                    }
+                }
             }
     }
 

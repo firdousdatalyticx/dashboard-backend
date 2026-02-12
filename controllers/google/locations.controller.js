@@ -59,11 +59,16 @@ const googleLocationsController = {
                 });
             }
 
-            // Process filters for sentiment and date range (if provided)
+            // Process filters for sentiment only (not dates if they're Elasticsearch date math strings)
+            // Check if dates are Elasticsearch date math strings (contain "now")
+            const isDateMath = (date) => date && typeof date === 'string' && date.includes('now');
+            const hasDateMath = isDateMath(startDate) || isDateMath(endDate);
+            
+            // Only process dates through processFilters if they're not Elasticsearch date math strings
             const filters = processFilters({
                 sentimentType,
-                fromDate: startDate,
-                toDate: endDate,
+                fromDate: hasDateMath ? undefined : startDate,
+                toDate: hasDateMath ? undefined : endDate,
                 queryString: ""
             });
 

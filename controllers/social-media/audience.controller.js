@@ -1201,42 +1201,14 @@ const audienceController = {
         url.includes("linkedin.com/company"),
       );
 
-      console.log("linkedInUrl", linkedInUrl);
+    //  return res.status(200).json(topicQueryString)
       // Optimized query to only get the fields we need
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
           size: 10000, // Increased slightly to ensure we get all relevant posts
           _source: [
-            "u_profile_photo",
-            "u_followers",
-            "u_following",
-            "u_posts",
-            "p_likes",
-            "llm_emotion",
-            "p_comments_text",
-            "p_url",
-            "p_comments",
-            "p_shares",
-            "p_engagement",
-            "p_content",
-            "p_picture_url",
-            "predicted_sentiment_value",
-            "predicted_category",
-            "source",
-            "rating",
-            "u_fullname",
-            "p_message_text",
-            "comment",
-            "business_response",
-            "u_source",
-            "name",
-            "p_created_time",
-            "created_at",
-            "p_comments_data",
-            "video_embed_url",
-            "p_id",
-            "p_picture",
+            "p_comments_data"
           ],
           query: {
             bool: {
@@ -1384,6 +1356,7 @@ const audienceController = {
                   sharesCount: comment.totalSocialActivityCounts.numShares,
                   ReactionCount:
                     comment.totalSocialActivityCounts.totalReactionCount,
+                     date: comment.createdAtString,
                 });
               }
             }
@@ -1510,23 +1483,19 @@ const audienceController = {
     }
   },
   getCommentAudienceLeaderBoardEmployeeData: async (req, res) => {
+ 
     try {
       // Initial search with scroll
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        scroll: "2m",
+        scroll: "5m",
         body: {
           _source: [
-            // "p_comments_text",
-            // "p_message_text",
-            // "comment",
-            // "u_source",
-            // "name",
-            // "p_created_time",
+         
             "p_comments_data",
-            // "p_id"
+           
           ],
-          size: 500,
+          size: 1000,
           query: {
             bool: {
               must: [
@@ -1535,6 +1504,14 @@ const audienceController = {
                     p_company_name: "CPX",
                   },
                 }
+                // ,  {
+                //   range: {
+                //     p_created_time: {
+                //       gte: fromDate,
+                //       lte: toDate,
+                //     },
+                //   },
+                // },
               ],
               must_not: [
                 {
@@ -1560,7 +1537,7 @@ const audienceController = {
       while (response.hits.hits.length > 0) {
         response = await elasticClient.scroll({
           scroll_id: scrollId,
-          scroll: "2m",
+          scroll: "5m"
         });
 
         scrollId = response._scroll_id;

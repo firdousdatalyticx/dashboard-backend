@@ -18,7 +18,7 @@ router.post('/getEmployeeDataOIA', express.json(), authMiddleware, transformCate
  * POST /api/employee-engagement-leaderboard/create
  */
 router.post('/create', express.json(), authMiddleware, employee_engagement_leaderboardController.Create);
-router.post('/update', express.json(), authMiddleware, employee_engagement_leaderboardController.Update);
+// router.post('/update', express.json(), authMiddleware, employee_engagement_leaderboardController.Update);
 
 /**
  * API Endpoint: Get Employee Engagement Leaderboard by Topic

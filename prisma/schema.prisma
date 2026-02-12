@@ -939,7 +939,7 @@ model competitive_reports {
 
 model employee_engagement_leaderboard {
   id                     Int      @id @default(autoincrement())
-
+  comment_text           String?  @db.Text
   topic_id               Int
   name                   String   @db.VarChar(255)
   position               String?  @db.VarChar(255)

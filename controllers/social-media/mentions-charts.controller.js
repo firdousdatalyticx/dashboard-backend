@@ -420,23 +420,29 @@ const buildQueryString = async (topicId, isScadUser, selectedTab) => {
  * @returns {string} Source filter string for query_string
  */
 function buildSourceFilterString(source, topicId, isSpecialTopic = false) {
-  // Normalize source input
+  // Normalize source input - consistent with other controllers
   let normalizedSources = [];
   if (!source || source === 'All') {
     normalizedSources = [];
   } else if (Array.isArray(source)) {
-    normalizedSources = source.filter(s => s && s.trim() !== '');
+    normalizedSources = source
+      .filter(Boolean)
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && s.toLowerCase() !== 'all');
   } else if (typeof source === 'string') {
-    normalizedSources = source.split(',').map(s => s.trim()).filter(s => s !== '');
+    normalizedSources = source
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && s.toLowerCase() !== 'all');
   }
 
-  // If specific sources provided, use them
+  // Check user-provided sources FIRST - they take precedence over topicId defaults
   if (normalizedSources.length > 0) {
     const sourceStr = normalizedSources.map(s => `"${s}"`).join(' OR ');
     return `source:(${sourceStr})`;
   }
 
-  // Otherwise, use topic-specific defaults
+  // Otherwise, use topic-specific defaults as fallback
   if (topicId && (parseInt(topicId) === 2619 || parseInt(topicId) === 2639 || parseInt(topicId) === 2640 || parseInt(topicId) === 2647 || parseInt(topicId) === 2648 || parseInt(topicId) === 2649)) {
     return 'source:("LinkedIn" OR "Linkedin")';
   } else if (isSpecialTopic) {
@@ -3511,12 +3517,17 @@ const mentionsChartController = {
         topicId,
         sentiment,
         source,
+        sources,
         field,
         type,
         value,
         interval,
       } = req.query;
       let category = req.query.category||"all"
+      
+      // Use 'sources' (plural) if provided, otherwise fall back to 'source' (singular) for backward compatibility
+      const sourceParam = sources || source;
+      
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
@@ -3529,7 +3540,7 @@ const mentionsChartController = {
       );
 
       // Apply source filtering using helper function
-      const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+      const sourceFilter = buildSourceFilterString(sourceParam, topicId, isSpecialTopic);
       topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
     
@@ -3545,7 +3556,7 @@ const mentionsChartController = {
         value,
         interval,
         res,
-        source,
+        sourceParam,
         undefined, // llm_mention_type
         req, // <-- Pass req here,
         category

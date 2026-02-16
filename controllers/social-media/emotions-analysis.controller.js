@@ -999,7 +999,17 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
   };
   const normalizedSources = normalizeSourceInput(source);
 
-  if (topicId === 2619 || topicId === 2639 || topicId === 2640 || topicId == 2647 || topicId == 2648 || topicId == 2649) {
+  // Check user-provided sources FIRST - they take precedence over topicId defaults
+  if (normalizedSources.length > 0) {
+    query.bool.must.push({
+      bool: {
+        should: normalizedSources.map(src => ({
+          match_phrase: { source: src }
+        })),
+        minimum_should_match: 1,
+      },
+    });
+  } else if (topicId === 2619 || topicId === 2639 || topicId === 2640 || topicId == 2647 || topicId == 2648 || topicId == 2649) {
     query.bool.must.push({
       bool: {
         should: [
@@ -1022,16 +1032,6 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
            { match_phrase: { source: 'Instagram' } },
            { match_phrase: { source: 'Youtube' } },
         ],
-        minimum_should_match: 1,
-      },
-    });
-  }
-  else if (normalizedSources.length > 0) {
-    query.bool.must.push({
-      bool: {
-        should: normalizedSources.map(src => ({
-          match_phrase: { source: src }
-        })),
         minimum_should_match: 1,
       },
     });

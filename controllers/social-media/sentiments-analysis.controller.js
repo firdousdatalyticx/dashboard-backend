@@ -1691,7 +1691,17 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
 
     const normalizedSources = normalizeSourceInput(source);
 
-    if(topicIdNum===2619 || topicIdNum===2639 || topicIdNum===2640 || topicIdNum===2647 || topicIdNum===2648 || topicIdNum===2649){
+    // Check user-provided sources FIRST - they take precedence over topicId defaults
+    if (normalizedSources.length > 0) {
+        query.bool.must.push({
+            bool: {
+                should: normalizedSources.map(src => ({
+                    match_phrase: { source: src }
+                })),
+                minimum_should_match: 1
+            }
+        });
+    } else if(topicIdNum===2619 || topicIdNum===2639 || topicIdNum===2640 || topicIdNum===2647 || topicIdNum===2648 || topicIdNum===2649){
        query.bool.must.push({
               bool: {
                   should: [
@@ -1738,16 +1748,6 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
                     { match_phrase: { source: "Instagram" } },
                     { match_phrase: { source: "Youtube" } },
                 ],
-                minimum_should_match: 1
-            }
-        });
-    }
-    else if (normalizedSources.length > 0) {
-        query.bool.must.push({
-            bool: {
-                should: normalizedSources.map(src => ({
-                    match_phrase: { source: src }
-                })),
                 minimum_should_match: 1
             }
         });

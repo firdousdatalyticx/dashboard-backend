@@ -3,6 +3,33 @@ const { elasticClient } = require("../config/elasticsearch");
 const { format, parseISO, subDays } = require("date-fns");
 const processCategoryItems = require("../helpers/processedCategoryItems");
 
+/**
+ * Normalize platform/source input - consistent with other controllers
+ * @param {string|Array} platformParam - Platform input (can be "All", comma-separated string, array, or single value)
+ * @returns {Array} Normalized array of platforms
+ */
+const normalizeSourceInput = (platformParam) => {
+  if (!platformParam || platformParam === 'All') {
+    return [];
+  }
+
+  if (Array.isArray(platformParam)) {
+    return platformParam
+      .filter(Boolean)
+      .map(src => src.trim())
+      .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+  }
+
+  if (typeof platformParam === 'string') {
+    return platformParam
+      .split(',')
+      .map(src => src.trim())
+      .filter(src => src.length > 0 && src.toLowerCase() !== 'all');
+  }
+
+  return [];
+};
+
 const topicCategoriesController = {
     // Create topic categories
     createCategories: async (req, res) => {
@@ -300,6 +327,7 @@ const topicCategoriesController = {
             const toDate = req.body.toDate || req.query.toDate;
             const sentiment = req.body.sentiment || req.query.sentiment;
             const llm_mention_type = req.body.llm_mention_type || req.query.llm_mention_type;
+            const platform = req.body.platform || req.query.platform;
 
             if (!userId || isNaN(Number(userId))) {
                 return res.status(400).json({
@@ -397,9 +425,16 @@ const topicCategoriesController = {
             const greaterThanTime = format(startDate, 'yyyy-MM-dd');
             const lessThanTime = format(endDate, 'yyyy-MM-dd');
 
-            // Determine social media sources based on topicId (same as socials-distributions.controller.js)
+            // Normalize user-provided platforms
+            const normalizedPlatforms = normalizeSourceInput(platform);
+
+            // Determine social media sources - user-provided platforms take precedence over topicId defaults
             let socialSources = [];
-            if (numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 || numericTopicId === 2647 || numericTopicId === 2648 || numericTopicId === 2649) {
+            
+            // Check user-provided platforms FIRST - they take precedence over topicId defaults
+            if (normalizedPlatforms.length > 0) {
+                socialSources = normalizedPlatforms;
+            } else if (numericTopicId === 2619 || numericTopicId === 2639 || numericTopicId === 2640 || numericTopicId === 2647 || numericTopicId === 2648 || numericTopicId === 2649) {
                 socialSources = ["LinkedIn", "Linkedin"];
             } else if (numericTopicId === 2646 || numericTopicId === 2650) {
                 socialSources = ["LinkedIn", "Linkedin", "Twitter", "Web","Instagram","Facebook","Youtube"];

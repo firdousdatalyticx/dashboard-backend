@@ -1366,7 +1366,8 @@ const formatPostData = (hit) => {
     ).toLocaleString(),
     llm_subtopic: source.llm_subtopic,
     llm_emotion: source.llm_emotion,
-    llm_keywords: source.llm_keywords
+    llm_keywords: source.llm_keywords,
+    p_id: source.p_id
   };
 };
 

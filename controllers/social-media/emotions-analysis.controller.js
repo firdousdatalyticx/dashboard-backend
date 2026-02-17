@@ -971,7 +971,8 @@ const formatPostData = (hit) => {
     p_url: source.p_url,
     keywords: source.keywords,
     hashtags: source.hashtags,
-    title: source.title
+    title: source.title,
+    p_id: source.p_id
   };
 };
 

@@ -352,7 +352,8 @@ const inflationAnalysisController = {
                                 source_icon: `${source.p_url},${source.source}`,
                                 message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
                                 source: source.source,
-                                created_at: new Date(source.p_created_time).toLocaleString()
+                                created_at: new Date(source.p_created_time).toLocaleString(),
+                                p_id: source.p_id
                             };
                             
                             // Gather all filter terms
@@ -764,7 +765,8 @@ const inflationAnalysisController = {
                                 source_icon: `${source.p_url},${source.source}`,
                                 message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
                                 source: source.source,
-                                created_at: new Date(source.p_created_time).toLocaleString()
+                                created_at: new Date(source.p_created_time).toLocaleString(),
+                                p_id: source.p_id
                             };
                             
                             // Gather all filter terms
@@ -1135,7 +1137,8 @@ const inflationAnalysisController = {
                                 source_icon: `${source.p_url},${source.source}`,
                                 message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
                                 source: source.source,
-                                created_at: new Date(source.p_created_time).toLocaleString()
+                                created_at: new Date(source.p_created_time).toLocaleString(),
+                                p_id: source.p_id
                             };
                             
                             // Gather all filter terms

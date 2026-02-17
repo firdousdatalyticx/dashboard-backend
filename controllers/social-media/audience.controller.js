@@ -3567,6 +3567,7 @@ const formatPostData = (hit, allFilterTerms = []) => {
     ).toLocaleString(),
     p_comments_data: source.p_comments_data,
     matched_terms,
+    p_id: source.p_id,
   };
 };
 

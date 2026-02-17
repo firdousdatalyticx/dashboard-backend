@@ -251,6 +251,7 @@ const formatPostData = (hit) => {
     created_at: new Date(
       source.p_created_time || source.created_at
     ).toLocaleString(),
+    p_id: source.p_id,
   };
 };
 
@@ -1312,6 +1313,7 @@ const formatPostDataForLanguage = (hit, req) => {
     created_at: new Date(
       source.p_created_time || source.created_at
     ).toLocaleString(),
+    p_id: source.p_id,
     language: source.llm_language, // Include the detected language
   };
 };

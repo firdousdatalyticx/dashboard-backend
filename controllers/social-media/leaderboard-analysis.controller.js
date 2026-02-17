@@ -554,7 +554,8 @@ const leaderboardAnalysisController = {
                                                     }
                                                     return typeof field === 'string' && field.toLowerCase().includes(term.toLowerCase());
                                                 })
-                                            )
+                                            ),
+                                            p_id: review._source.p_id
                                         };
                                     })
                                 ];

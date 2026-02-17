@@ -541,7 +541,8 @@ const formatPostData = async (hit) => {
         message_text,
         source: source.source,
         uSource: source.u_source,
-        created_at: new Date(source.p_created_time).toLocaleString()
+        created_at: new Date(source.p_created_time).toLocaleString(),
+        p_id: source.p_id
     };
 };
 

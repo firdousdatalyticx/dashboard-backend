@@ -321,7 +321,8 @@ const distributionbyCountryPostsController = {
               businessResponse: esData._source.business_response,
               uSource: esData._source.u_source,
               googleName: esData._source.name,
-              created_at: new Date(esData._source.p_created_time).toLocaleString()
+              created_at: new Date(esData._source.p_created_time).toLocaleString(),
+              p_id: esData._source.p_id
             }
             // Add matched_terms
             const textFields = [

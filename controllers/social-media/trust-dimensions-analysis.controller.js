@@ -522,7 +522,8 @@ const formatPostData = (hit) => {
         uSource: source.u_source,
         googleName: source.name,
         country: source.u_country,
-        created_at: new Date(source.p_created_time || source.created_at).toLocaleString()
+        created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+        p_id: source.p_id
     };
 };
 

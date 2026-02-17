@@ -209,7 +209,8 @@ function formatPostData(hit) {
     uSource: s.u_source,
     googleName: s.name,
     created_at: new Date(s.p_created_time || s.created_at).toLocaleString(),
-    p_comments_data: s.p_comments_data
+    p_comments_data: s.p_comments_data,
+    p_id: s.p_id
   };
 }
 

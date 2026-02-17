@@ -1662,7 +1662,7 @@ const formatPostData = (hit) => {
         googleName: source.name,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
         p_comments_data:source.p_comments_data,
-
+        p_id: source.p_id
     };
 };
 

@@ -930,6 +930,7 @@ const influencersController = {
           uSource: esData._source.u_source,
           googleName: esData._source.name,
           created_at: new Date(esData._source.p_created_time).toLocaleString(),
+          p_id: esData._source.p_id,
         };
         const textFields = [
           esData._source.p_message_text,

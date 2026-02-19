@@ -582,6 +582,14 @@ const sentimentAnalysisController = {
               size: 10,
               exclude: "null",
             },
+            aggs: {
+              sample_doc: {
+                top_hits: {
+                  size: 1,
+                  _source: ["llm_subtopic_arabic"],
+                },
+              },
+            },
           },
         },
       };
@@ -593,10 +601,14 @@ const sentimentAnalysisController = {
 
       const buckets = response.aggregations.subtopic_frequency.buckets;
       const result = buckets
-        .map((bucket) => ({
-          subtopic: bucket.key,
-          count: bucket.doc_count,
-        }))
+        .map((bucket) => {
+          const sampleDoc = bucket.sample_doc?.hits?.hits?.[0]?._source;
+          return {
+            subtopic: bucket.key,
+            subtopic_arabic: sampleDoc?.llm_subtopic_arabic || "",
+            count: bucket.doc_count,
+          };
+        })
         .sort((a, b) => b.count - a.count);
 
       return res.json(result);
@@ -729,6 +741,12 @@ const sentimentAnalysisController = {
                   size: 10,
                 },
               },
+              sample_doc: {
+                top_hits: {
+                  size: 1,
+                  _source: ["llm_subtopic_arabic"],
+                },
+              },
             },
           },
         },
@@ -754,8 +772,11 @@ const sentimentAnalysisController = {
             sentiments[sentiment] = sentBucket.doc_count;
           });
 
+          const sampleDoc = bucket.sample_doc?.hits?.hits?.[0]?._source;
+
           return {
             subtopic: bucket.key,
+            subtopic_arabic: sampleDoc?.llm_subtopic_arabic || "",
             ...sentiments,
             total: bucket.doc_count,
           };
@@ -1145,6 +1166,12 @@ const sentimentAnalysisController = {
                   size: 20,
                 },
               },
+              sample_doc: {
+                top_hits: {
+                  size: 1,
+                  _source: ["llm_subtopic_arabic"],
+                },
+              },
             },
           },
         },
@@ -1163,8 +1190,11 @@ const sentimentAnalysisController = {
             count: emotionBucket.doc_count,
           }));
 
+          const sampleDoc = bucket.sample_doc?.hits?.hits?.[0]?._source;
+
           return {
             subtopic: bucket.key,
+            subtopic_arabic: sampleDoc?.llm_subtopic_arabic || "",
             emotions: emotions,
             total: bucket.doc_count,
           };

@@ -16,7 +16,8 @@ const aiSummaryController = {
                 interval = 'monthly',
                 source = 'All',
                 category = 'all',
-                chartType = 'emotionAnalysis'
+                chartType = 'emotionAnalysis',
+                language = 'en'
             } = req.body;
 
             // Check if this is the special topicId
@@ -95,7 +96,8 @@ const aiSummaryController = {
 
             // Call external AI summary API
             const summaryResponse = await axios.post(summaryUrl, {
-                data: formattedArray
+                data: formattedArray,
+                language: language
             }, {
                 headers: {
                     'Accept': 'application/json',

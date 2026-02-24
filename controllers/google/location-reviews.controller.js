@@ -30,8 +30,7 @@ const googleLocationReviewsController = {
                 });
             }
 
-            // Build Elasticsearch query - fetch ALL reviews for the location
-            // NOTE: Date filters are intentionally ignored to always show all available reviews
+            // Build Elasticsearch query
             const must = [
                 {
                     term: {
@@ -44,7 +43,19 @@ const googleLocationReviewsController = {
                     }
                 }
             ];
-            
+
+            // Add date range filter if startDate or endDate is provided
+            if (startDate || endDate) {
+                const range = {};
+                if (startDate) range.gte = startDate;
+                if (endDate) range.lte = endDate;
+                must.push({
+                    range: {
+                        p_created_time: range
+                    }
+                });
+            }
+
             // Add rating filter if specified
             if (rating) {
                 const ratingValue = parseInt(rating, 10);
@@ -108,17 +119,17 @@ const googleLocationReviewsController = {
             // Add debug logging if no reviews found
             if (reviews.length === 0) {
                 console.log('No reviews found for place ID:', placeId);
-                console.log('Note: Fetching ALL reviews regardless of date');
             }
-            
+
             return res.status(200).json({
                 success: true,
                 reviews,
                 total: reviews.length,
                 debug: {
-                    totalHits: results.hits.total.value,
+                    totalHits: typeof results.hits.total === 'object' ? results.hits.total.value : results.hits.total,
                     placeId,
-                    note: 'Fetching all reviews regardless of date filters'
+                    startDate: startDate || null,
+                    endDate: endDate || null
                 }
             });
             

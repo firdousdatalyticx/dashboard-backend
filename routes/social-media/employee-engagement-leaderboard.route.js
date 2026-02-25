@@ -6,10 +6,10 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
 const employee_engagement_leaderboardController= require("../../controllers/social-media/employee-engagement-leaderboard.controller")
 
 
-router.post('/get', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceLeaderBoard);
+router.post('/get', express.json(), transformCategoryData, audienceController.getCommentAudienceLeaderBoard);
 
 
-router.post('/getEmployeeData', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceLeaderBoardEmployeeData);
+router.post('/getEmployeeData', express.json(), transformCategoryData, audienceController.getCommentAudienceLeaderBoardEmployeeData);
 
 router.post('/getEmployeeDataOIA', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceLeaderBoardEmployeeDataOIA);
 

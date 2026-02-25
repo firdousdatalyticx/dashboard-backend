@@ -4,8 +4,10 @@ const axios = require('axios');
 const sgMail = require('@sendgrid/mail');
 const prisma = new PrismaClient();
 const { elasticClient } = require('../config/elasticsearch');
+const leaderboardCron = require("./schedule-employee-leaderboard.js");
 
 module.exports.index = async () => {
+  leaderboardCron.Index()
   try {
     const Alerts = await prisma.alerts.findMany({
       orderBy: {

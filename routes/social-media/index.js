@@ -63,6 +63,8 @@ const keywordLookupRoute = require("./keyword-lookup.route")
  *   name: Social Media
  *   description: Social media analytics endpoints for mentions, sentiments, and engagement across various platforms
  */
+router.use("/employee-engagement-leaderboard",employeeEngagementLeaderboard)
+
 
 // Apply auth middleware to all social media routes
 router.use(authMiddleware);
@@ -116,7 +118,6 @@ router.use("/business-location",businessLocationRoutes)
 router.use('/sentiments',sentimentAnalysisEduRoute);
 router.use("/engagement-distribution-trend",engagementDistributionTrendRoutes)
 router.use("/subsidiary-distributions",subsidiaryDistributions)
-router.use("/employee-engagement-leaderboard",employeeEngagementLeaderboard)
 router.use("/geographical-distribution",geographicalDistributionRoutes)
 router.use("/industry-distribution",industryDistributionRoutes)
 router.use("/keyword-lookup", keywordLookupRoute)

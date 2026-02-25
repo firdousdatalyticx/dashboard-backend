@@ -5,6 +5,8 @@ const { getSourceIcon } = require("../../utils/sourceHelper");
 const { processFilters } = require("./filter.utils");
 const processCategoryItems = require("../../helpers/processedCategoryItems");
 const prisma = require("../../config/database");
+const axios = require("axios");
+const employee_engagement_leaderboardController = require("../../controllers/social-media/employee-engagement-leaderboard.controller");
 const fs = require("fs").promises;
 const path = require("path");
 
@@ -307,7 +309,22 @@ const audienceController = {
           parseInt(topicId) === 2640
         ) {
           sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
-        } else if (parseInt(topicId) === 2641 || parseInt(topicId) === 2643 || parseInt(topicId) === 2644 || parseInt(topicId) === 2651 || parseInt(topicId) === 2652 || parseInt(topicId) === 2653 || parseInt(topicId) === 2654 || parseInt(topicId) === 2655 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662 || parseInt(topicId) === 2663) {
+        } else if (
+          parseInt(topicId) === 2641 ||
+          parseInt(topicId) === 2643 ||
+          parseInt(topicId) === 2644 ||
+          parseInt(topicId) === 2651 ||
+          parseInt(topicId) === 2652 ||
+          parseInt(topicId) === 2653 ||
+          parseInt(topicId) === 2654 ||
+          parseInt(topicId) === 2655 ||
+          parseInt(topicId) === 2658 ||
+          parseInt(topicId) === 2659 ||
+          parseInt(topicId) === 2660 ||
+          parseInt(topicId) === 2661 ||
+          parseInt(topicId) === 2662 ||
+          parseInt(topicId) === 2663
+        ) {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
         } else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
           sourcesQuery = ` AND source:("Facebook" OR "Twitter" OR "Instagram" OR "Youtube")`;
@@ -1099,6 +1116,7 @@ const audienceController = {
         categoryItems,
         source = "All",
         category = "all",
+        isCreateOrUpdateCpx = false,
         llm_mention_type,
       } = req.body;
 
@@ -1201,15 +1219,13 @@ const audienceController = {
         url.includes("linkedin.com/company"),
       );
 
-    //  return res.status(200).json(topicQueryString)
+      //  return res.status(200).json(topicQueryString)
       // Optimized query to only get the fields we need
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
           size: 10000, // Increased slightly to ensure we get all relevant posts
-          _source: [
-            "p_comments_data"
-          ],
+          _source: ["p_comments_data"],
           query: {
             bool: {
               must: [
@@ -1356,7 +1372,7 @@ const audienceController = {
                   sharesCount: comment.totalSocialActivityCounts.numShares,
                   ReactionCount:
                     comment.totalSocialActivityCounts.totalReactionCount,
-                     date: comment.createdAtString,
+                  date: comment.createdAtString,
                 });
               }
             }
@@ -1373,8 +1389,43 @@ const audienceController = {
           message: "No comments found",
         });
       }
-      console.log(req.body?.isCSV);
+      console.log("isCreateOrUpdateCpx", isCreateOrUpdateCpx);
+      if (isCreateOrUpdateCpx) {
+        const filteredComments = [];
+        for (let index = 0; index < commentsList.length; index++) {
+          const element = commentsList[index];
+          const isExistData =
+            await employee_engagement_leaderboardController.checkExist(
+              parseInt(topicId),
+              element.name,
+              element.date,
+            );
+          if (!isExistData) {
+            filteredComments.push(element);
+          }
+        }
+        if (filteredComments.length > 0) {
+          try {
+            const response = await axios.post(
+              "https://api.datalyticx.ai/copilot/score-comments",
+              filteredComments,
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              },
+            );
 
+            await employee_engagement_leaderboardController.CreateAutomateRecord(
+              parseInt(topicId),
+              response.data,
+            );
+            return res.status(200).json(response.data);
+          } catch (error) {
+            console.error("Error calling CPX API:", error.message);
+          }
+        }
+      }
       if (req.body.isCSV == false || req.body?.needCommentsData) {
         return res.status(200).json(commentsList);
       }
@@ -1483,18 +1534,19 @@ const audienceController = {
     }
   },
   getCommentAudienceLeaderBoardEmployeeData: async (req, res) => {
- 
+    const {
+      fromDate,
+      toDate,
+      topicId,
+      isCreateOrUpdateCpx = false,
+    } = req.body;
     try {
       // Initial search with scroll
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         scroll: "5m",
         body: {
-          _source: [
-         
-            "p_comments_data",
-           
-          ],
+          _source: ["p_comments_data"],
           size: 1000,
           query: {
             bool: {
@@ -1503,15 +1555,7 @@ const audienceController = {
                   match: {
                     p_company_name: "CPX",
                   },
-                }
-                // ,  {
-                //   range: {
-                //     p_created_time: {
-                //       gte: fromDate,
-                //       lte: toDate,
-                //     },
-                //   },
-                // },
+                },
               ],
               must_not: [
                 {
@@ -1525,6 +1569,16 @@ const audienceController = {
           },
         },
       };
+      if (fromDate && toDate) {
+        params?.body?.query?.bool?.must.push({
+          range: {
+            p_created_time: {
+              gte: fromDate,
+              lte: toDate,
+            },
+          },
+        });
+      }
 
       // Get all results
       let allResults = [];
@@ -1537,7 +1591,7 @@ const audienceController = {
       while (response.hits.hits.length > 0) {
         response = await elasticClient.scroll({
           scroll_id: scrollId,
-          scroll: "5m"
+          scroll: "5m",
         });
 
         scrollId = response._scroll_id;
@@ -1554,12 +1608,8 @@ const audienceController = {
       });
       console.log(`Total records retrieved: ${allResults.length}`);
 
- 
       const commentsList = [];
       for (const post of allResults) {
-
-      
-
         if (!post._source.p_comments_data) continue;
 
         let commentsData;
@@ -1573,8 +1623,6 @@ const audienceController = {
           continue;
         }
 
-
-      
         for (const comment of commentsData) {
           if (req.body?.needCommentsData) {
             commentsList.push(comment);
@@ -1594,119 +1642,184 @@ const audienceController = {
               date: comment.createdAtString,
             });
           }
-
-          // continue;
         }
       }
-        // Generate CSV from commentsList
-     if (commentsList.length === 0) {
-  return res.status(404).json({
-    success: false,
-    message: "No comments found",
-  });
-}
-        // console.log(req.body?.isCSV);
-        // return res.status(200).json(commentsList);
-        if (req.body.isCSV == false || req.body?.needCommentsData) {
-          return res.status(200).json(commentsList);
+      // Generate CSV from commentsList
+      if (commentsList.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No comments found",
+        });
+      }
+      if (isCreateOrUpdateCpx) {
+        const filteredComments = [];
+
+        for (let index = 0; index < commentsList.length; index++) {
+          const element = commentsList[index];
+
+          const text = element.text?.toLowerCase();
+          if (text?.includes("cpx") || text?.includes("hadi anwar")) {
+            const isExistData =
+              await employee_engagement_leaderboardController.checkExist(
+                parseInt(topicId),
+                element.name,
+                element.date,
+              );
+            if (!isExistData) {
+              filteredComments.push(element);
+            }
+          }
         }
 
-        // return res.status(200).json(commentsList);
+        if (filteredComments.length > 0) {
+          try {
+            const response = await axios.post(
+              "https://api.datalyticx.ai/copilot/score-comments",
+              filteredComments,
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              },
+            );
 
-        // Helper function to flatten nested objects
-        const flattenObject = (obj, prefix = "") => {
-          const flattened = {};
+            await employee_engagement_leaderboardController.CreateAutomateRecord(
+              parseInt(topicId),
+              response.data,
+            );
+            return res.status(200).json(response.data);
+          } catch (error) {
+            console.error("Error calling CPX API:", error.message);
+          }
+        }
 
-          for (const key in obj) {
-            if (obj[key] === null || obj[key] === undefined) {
-              flattened[prefix + key] = "";
-              continue;
-            }
+        let result = commentsList.reduce((acc, item) => {
+          const month = item.date.slice(0, 7); // YYYY-MM
+          const name = item.name;
 
-            if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
+          // engagement calculation
+          const engagement =
+            1 + (item.commentsCount || 0) + (item.ReactionCount || 0);
+
+          if (!acc[name]) acc[name] = {};
+          if (!acc[name][month]) acc[name][month] = 0;
+
+          acc[name][month] += engagement;
+
+          return acc;
+        }, {});
+
+        result = Object.entries(result).map(([name, months]) => ({
+          name,
+          data: Object.entries(months).map(([month, count]) => ({
+            month,
+            count,
+          })),
+        }));
+        await employee_engagement_leaderboardController.UpdateNonCpxCount(parseInt(topicId),result)
+        return res.status(200).json(filteredComments);
+      }
+      // console.log(req.body?.isCSV);
+      // return res.status(200).json(commentsList);
+      if (req.body.isCSV == false || req.body?.needCommentsData) {
+        return res.status(200).json(commentsList);
+      }
+
+      // return res.status(200).json(commentsList);
+
+      // Helper function to flatten nested objects
+      const flattenObject = (obj, prefix = "") => {
+        const flattened = {};
+
+        for (const key in obj) {
+          if (obj[key] === null || obj[key] === undefined) {
+            flattened[prefix + key] = "";
+            continue;
+          }
+
+          if (typeof obj[key] === "object" && !Array.isArray(obj[key])) {
+            Object.assign(
+              flattened,
+              flattenObject(obj[key], `${prefix}${key}.`),
+            );
+          } else if (Array.isArray(obj[key])) {
+            // Handle arrays by converting to JSON string or processing first element
+            if (obj[key].length > 0 && typeof obj[key][0] === "object") {
               Object.assign(
                 flattened,
-                flattenObject(obj[key], `${prefix}${key}.`),
+                flattenObject(obj[key][0], `${prefix}${key}.`),
               );
-            } else if (Array.isArray(obj[key])) {
-              // Handle arrays by converting to JSON string or processing first element
-              if (obj[key].length > 0 && typeof obj[key][0] === "object") {
-                Object.assign(
-                  flattened,
-                  flattenObject(obj[key][0], `${prefix}${key}.`),
-                );
-              } else {
-                flattened[prefix + key] = obj[key].join("; ");
-              }
             } else {
-              flattened[prefix + key] = obj[key];
+              flattened[prefix + key] = obj[key].join("; ");
             }
+          } else {
+            flattened[prefix + key] = obj[key];
           }
+        }
 
-          return flattened;
-        };
+        return flattened;
+      };
 
-        // Flatten all comments to get all possible keys
-        const flattenedComments = commentsList.map((comment) =>
-          flattenObject(comment),
-        );
+      // Flatten all comments to get all possible keys
+      const flattenedComments = commentsList.map((comment) =>
+        flattenObject(comment),
+      );
 
-        // Get all unique headers from all comments
-        const allHeaders = new Set();
-        flattenedComments.forEach((comment) => {
-          Object.keys(comment).forEach((key) => allHeaders.add(key));
-        });
+      // Get all unique headers from all comments
+      const allHeaders = new Set();
+      flattenedComments.forEach((comment) => {
+        Object.keys(comment).forEach((key) => allHeaders.add(key));
+      });
 
-        const csvHeaders = Array.from(allHeaders);
+      const csvHeaders = Array.from(allHeaders);
 
-        // Helper function to escape CSV values
-        const escapeCsvValue = (value) => {
-          if (value === null || value === undefined) return "";
+      // Helper function to escape CSV values
+      const escapeCsvValue = (value) => {
+        if (value === null || value === undefined) return "";
 
-          const stringValue = String(value);
-          // Escape double quotes and wrap in quotes if contains comma, newline, or quote
-          if (
-            stringValue.includes(",") ||
-            stringValue.includes("\n") ||
-            stringValue.includes('"')
-          ) {
-            return `"${stringValue.replace(/"/g, '""').replace(/\n/g, " ")}"`;
-          }
-          return stringValue;
-        };
+        const stringValue = String(value);
+        // Escape double quotes and wrap in quotes if contains comma, newline, or quote
+        if (
+          stringValue.includes(",") ||
+          stringValue.includes("\n") ||
+          stringValue.includes('"')
+        ) {
+          return `"${stringValue.replace(/"/g, '""').replace(/\n/g, " ")}"`;
+        }
+        return stringValue;
+      };
 
-        // Convert commentsList to CSV rows
-        const csvRows = flattenedComments.map((comment) => {
-          return csvHeaders
-            .map((header) => escapeCsvValue(comment[header]))
-            .join(",");
-        });
+      // Convert commentsList to CSV rows
+      const csvRows = flattenedComments.map((comment) => {
+        return csvHeaders
+          .map((header) => escapeCsvValue(comment[header]))
+          .join(",");
+      });
 
-        // Combine headers and rows
-        const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
+      // Combine headers and rows
+      const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
 
-        // Store CSV file to disk
-        const exportsDir = path.join(__dirname, "../../exports");
-        const timestamp = new Date()
-          .toISOString()
-          .replace(/:/g, "-")
-          .split(".")[0];
-        const filename = `comments-export-${timestamp}.csv`;
-        const filePath = path.join(exportsDir, filename);
+      // Store CSV file to disk
+      const exportsDir = path.join(__dirname, "../../exports");
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/:/g, "-")
+        .split(".")[0];
+      const filename = `comments-export-${timestamp}.csv`;
+      const filePath = path.join(exportsDir, filename);
 
-        // Create exports directory if it doesn't exist
-        await fs.mkdir(exportsDir, { recursive: true });
+      // Create exports directory if it doesn't exist
+      await fs.mkdir(exportsDir, { recursive: true });
 
-        // Write CSV file
-        await fs.writeFile(filePath, csvContent, "utf8");
+      // Write CSV file
+      await fs.writeFile(filePath, csvContent, "utf8");
 
-        return res.json({
-          success: true,
-          message: "CSV file stored successfully",
-          filePath: filePath,
-          filename: filename,
-        });
-      
+      return res.json({
+        success: true,
+        message: "CSV file stored successfully",
+        filePath: filePath,
+        filename: filename,
+      });
     } catch (error) {
       console.error("Error fetching comment audience trend:", error);
       return res.status(500).json({
@@ -2174,7 +2287,24 @@ const audienceController = {
         });
       }
       // CASE 2: If no LLM Mention Type given → apply must_not filter
-      else if (Number(topicId) == 2641 || Number(topicId) == 2643 || Number(topicId) == 2644 || Number(topicId) == 2651 || Number(topicId) == 2652 || Number(topicId) == 2653 || Number(topicId) == 2654 || Number(topicId) == 2655 || Number(topicId) == 2656 || Number(topicId) == 2657 || Number(topicId) == 2658 || Number(topicId) == 2659 || Number(topicId) == 2660 || Number(topicId) == 2661 || Number(topicId) == 2662 || Number(topicId) == 2663) {
+      else if (
+        Number(topicId) == 2641 ||
+        Number(topicId) == 2643 ||
+        Number(topicId) == 2644 ||
+        Number(topicId) == 2651 ||
+        Number(topicId) == 2652 ||
+        Number(topicId) == 2653 ||
+        Number(topicId) == 2654 ||
+        Number(topicId) == 2655 ||
+        Number(topicId) == 2656 ||
+        Number(topicId) == 2657 ||
+        Number(topicId) == 2658 ||
+        Number(topicId) == 2659 ||
+        Number(topicId) == 2660 ||
+        Number(topicId) == 2661 ||
+        Number(topicId) == 2662 ||
+        Number(topicId) == 2663
+      ) {
         params.body.query.bool.must.push({
           bool: {
             must_not: [

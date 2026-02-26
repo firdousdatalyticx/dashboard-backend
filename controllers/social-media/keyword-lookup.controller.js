@@ -149,6 +149,7 @@ function formatPostData(hit) {
   const likes = s.p_likes > 0 ? `${s.p_likes}` : '';
 
   const llm_emotion = s.llm_emotion || '';
+  const llm_emotion_arabic = s.llm_emotion_arabic || '';
 
   const commentsUrl =
     s.p_comments_text && s.p_comments_text.trim()
@@ -189,6 +190,7 @@ function formatPostData(hit) {
     posts,
     likes,
     llm_emotion,
+    llm_emotion_arabic,
     llm_language: s.llm_language,
     u_country: s.u_country,
     commentsUrl,

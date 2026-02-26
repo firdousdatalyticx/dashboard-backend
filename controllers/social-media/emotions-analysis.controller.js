@@ -331,6 +331,14 @@ const emotionsController = {
                 _count: "desc",
               },
             },
+            aggs: {
+              sample_doc: {
+                top_hits: {
+                  size: 1,
+                  _source: ["llm_emotion_arabic"],
+                },
+              },
+            },
           },
           time_intervals: {
             date_histogram: {
@@ -349,6 +357,14 @@ const emotionsController = {
                   field: "llm_emotion.keyword",
                   size: 10,
                   exclude: "",
+                },
+                aggs: {
+                  sample_doc: {
+                    top_hits: {
+                      size: 1,
+                      _source: ["llm_emotion_arabic"],
+                    },
+                  },
                 },
               },
             },
@@ -369,10 +385,14 @@ const emotionsController = {
 
       // Format the response with just the emotion counts
       const emotions = emotionBuckets
-        .map((bucket) => ({
-          name: bucket.key,
-          count: bucket.doc_count,
-        }))
+        .map((bucket) => {
+          const sampleDoc = bucket.sample_doc?.hits?.hits?.[0]?._source;
+          return {
+            name: bucket.key,
+            name_arabic: sampleDoc?.llm_emotion_arabic || "",
+            count: bucket.doc_count,
+          };
+        })
         .slice(0, 10); // Explicitly limit to top 4 emotions
 
       // Calculate total count
@@ -466,6 +486,8 @@ const emotionsController = {
         // For each emotion in this interval
         for (const emotionBucket of interval.emotions.buckets || []) {
           const emotionName = emotionBucket.key;
+          const sampleDoc = emotionBucket.sample_doc?.hits?.hits?.[0]?._source;
+          const emotionNameArabic = sampleDoc?.llm_emotion_arabic || "";
 
           // Skip emotions that aren't in the top 4
           if (!emotions.some((e) => e.name === emotionName)) {
@@ -478,6 +500,7 @@ const emotionsController = {
             // If there are no posts, add an entry with an empty posts array
             emotionsInInterval.push({
               name: emotionName,
+              name_arabic: emotionNameArabic,
               count: 0,
               posts: [],
             });
@@ -550,6 +573,7 @@ const emotionsController = {
             // Add to interval results with the count matching returned posts
             emotionsInInterval.push({
               name: emotionName,
+              name_arabic: emotionNameArabic,
               count: posts.length, // Use actual posts count
               posts: posts, // Limited to MAX_POSTS_PER_EMOTION
               
@@ -562,6 +586,7 @@ const emotionsController = {
             // Add empty array if there was an error, but keep the aggregation count
             emotionsInInterval.push({
               name: emotionName,
+              name_arabic: emotionNameArabic,
               count: emotionCount, // Keep the aggregation count even if we couldn't get posts
               posts: [],
             });
@@ -864,6 +889,7 @@ const formatPostData = (hit) => {
         ? "Frustrated"
         : "Neutral"
       : "");
+  const llm_emotion_arabic = source.llm_emotion_arabic || "";
 
   // Clean up comments URL if available
   const commentsUrl =
@@ -947,6 +973,7 @@ const formatPostData = (hit) => {
     posts,
     likes,
     llm_emotion,
+    llm_emotion_arabic,
     llm_language: source.llm_language,
     u_country: source.u_country,
     commentsUrl,

@@ -472,6 +472,7 @@ const formatPostData = (hit) => {
   const posts = s.u_posts > 0 ? `${s.u_posts}` : '';
   const likes = s.p_likes > 0 ? `${s.p_likes}` : '';
   const llm_emotion = s.llm_emotion || '';
+  const llm_emotion_arabic = s.llm_emotion_arabic || '';
   const commentsUrl = s.p_comments_text && s.p_comments_text.trim() ? s.p_url.trim().replace('https: // ', 'https://') : '';
   const comments = `${s.p_comments}`;
   const shares = s.p_shares > 0 ? `${s.p_shares}` : '';
@@ -499,6 +500,7 @@ const formatPostData = (hit) => {
     posts,
     likes,
     llm_emotion,
+    llm_emotion_arabic,
     llm_language: s.llm_language,
     commentsUrl,
     comments,

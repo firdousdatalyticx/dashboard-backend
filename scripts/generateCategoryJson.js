@@ -310,6 +310,7 @@ async function generateCategoryJson(topicId) {
                 // Calculate field counts
                 let predictedSentimentCount = 0;
                 let llmEmotionCount = 0;
+                let llmEmotionArabicCount = 0;
                 let llmSubtopicCount = 0;
                 let validTimestampCount = 0;
                 let uCountryCount = 0;
@@ -323,6 +324,11 @@ async function generateCategoryJson(topicId) {
                     // Count llm_emotion (non-null, non-empty)
                     if (post.llm_emotion && post.llm_emotion.trim() !== '') {
                         llmEmotionCount++;
+                    }
+
+                    // Count llm_emotion_arabic (non-null, non-empty)
+                    if (post.llm_emotion_arabic && post.llm_emotion_arabic.trim() !== '') {
+                        llmEmotionArabicCount++;
                     }
 
                     // Count llm_subtopic (non-null, non-empty)
@@ -353,6 +359,7 @@ async function generateCategoryJson(topicId) {
                     fieldCounts: {
                         predictedSentimentValue: predictedSentimentCount,
                         llmEmotion: llmEmotionCount,
+                        llmEmotionArabic: llmEmotionArabicCount,
                         llmSubtopic: llmSubtopicCount,
                         validIsoTimestamps: validTimestampCount,
                         uCountry: uCountryCount

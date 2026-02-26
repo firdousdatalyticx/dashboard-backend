@@ -1565,6 +1565,7 @@ const formatPostData = (hit) => {
                 : source.rating <= 2 ? 'Frustrated'
                     : 'Neutral')
             : '');
+    const llm_emotion_arabic = source.llm_emotion_arabic || '';
 
     // Clean up comments URL if available
     const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
@@ -1641,6 +1642,7 @@ const formatPostData = (hit) => {
         posts,
         likes,
         llm_emotion,
+        llm_emotion_arabic,
         llm_language: source.llm_language,
         u_country: source.u_country,
         commentsUrl,

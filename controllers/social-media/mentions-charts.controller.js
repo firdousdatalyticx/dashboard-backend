@@ -143,6 +143,7 @@ const formatPostData = (hit) => {
         ? "Frustrated"
         : "Neutral"
       : "");
+  const llm_emotion_arabic = source.llm_emotion_arabic || "";
 
   // Clean up comments URL if available
   const commentsUrl =
@@ -230,6 +231,7 @@ const formatPostData = (hit) => {
     posts,
     likes,
     llm_emotion,
+    llm_emotion_arabic,
     llm_language: source.llm_language,
     commentsUrl,
     comments,

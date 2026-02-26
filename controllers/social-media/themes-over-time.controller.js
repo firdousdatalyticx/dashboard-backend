@@ -339,6 +339,7 @@ const formatPostData = (hit) => {
     const posts = source.u_posts > 0 ? `${source.u_posts}` : '';
     const likes = source.p_likes > 0 ? `${source.p_likes}` : '';
     const llm_emotion = source.llm_emotion || '';
+    const llm_emotion_arabic = source.llm_emotion_arabic || '';
     const commentsUrl = source.p_comments_text && source.p_comments_text.trim() !== ''
         ? source.p_url.trim().replace('https: // ', 'https://')
         : '';
@@ -354,6 +355,7 @@ const formatPostData = (hit) => {
         userFullname: source.u_fullname,
         followers, following, posts, likes,
         llm_emotion,
+        llm_emotion_arabic,
         commentsUrl,
         content,
         image_url: imageUrl,

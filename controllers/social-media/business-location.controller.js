@@ -594,6 +594,7 @@ const businessLocationController = {
         let likes =
           esData._source.p_likes > 0 ? `${esData._source.p_likes}` : "";
         let llm_emotion = esData._source.llm_emotion || "";
+        let llm_emotion_arabic = esData._source.llm_emotion_arabic || "";
         let commentsUrl =
           esData._source.p_comments_text &&
           esData._source.p_comments_text.trim() !== ""
@@ -711,6 +712,7 @@ const businessLocationController = {
           posts: posts,
           likes: likes,
           llm_emotion: llm_emotion,
+          llm_emotion_arabic: llm_emotion_arabic,
           commentsUrl: commentsUrl,
           comments: comments,
           shares: shares,

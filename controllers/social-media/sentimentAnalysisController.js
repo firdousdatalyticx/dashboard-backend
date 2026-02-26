@@ -1167,6 +1167,14 @@ const sentimentAnalysisController = {
                   field: "llm_emotion.keyword",
                   size: 20,
                 },
+                aggs: {
+                  sample_doc: {
+                    top_hits: {
+                      size: 1,
+                      _source: ["llm_emotion_arabic"],
+                    },
+                  },
+                },
               },
               sample_doc: {
                 top_hits: {
@@ -1187,10 +1195,14 @@ const sentimentAnalysisController = {
       const buckets = response.aggregations.subtopics.buckets;
       const result = buckets
         .map((bucket) => {
-          const emotions = bucket.emotions.buckets.map((emotionBucket) => ({
-            emotion: emotionBucket.key,
-            count: emotionBucket.doc_count,
-          }));
+          const emotions = bucket.emotions.buckets.map((emotionBucket) => {
+            const emotionSampleDoc = emotionBucket.sample_doc?.hits?.hits?.[0]?._source;
+            return {
+              emotion: emotionBucket.key,
+              emotion_arabic: emotionSampleDoc?.llm_emotion_arabic || "",
+              count: emotionBucket.doc_count,
+            };
+          });
 
           const sampleDoc = bucket.sample_doc?.hits?.hits?.[0]?._source;
 

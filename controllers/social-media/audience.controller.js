@@ -1694,30 +1694,41 @@ const audienceController = {
         }
 
         let result = commentsList.reduce((acc, item) => {
-          const month = item.date.slice(0, 7); // YYYY-MM
-          const name = item.name;
+        const month = item.date.slice(0, 7); // YYYY-MM
+        const name = item.name;
 
-          // engagement calculation
-          const engagement =
-            1 + (item.commentsCount || 0) + (item.ReactionCount || 0);
+        const engagement =
+          1 + (item.commentsCount || 0) + (item.ReactionCount || 0);
 
-          if (!acc[name]) acc[name] = {};
-          if (!acc[name][month]) acc[name][month] = 0;
+        if (!acc[name]) {
+          acc[name] = {
+            position: item.position,
+            profile_url: item.profile_url,
+            months: {},
+          };
+        }
 
-          acc[name][month] += engagement;
+        if (!acc[name].months[month]) {
+          acc[name].months[month] = 0;
+        }
 
-          return acc;
-        }, {});
+        acc[name].months[month] += engagement;
 
-        result = Object.entries(result).map(([name, months]) => ({
-          name,
-          data: Object.entries(months).map(([month, count]) => ({
-            month,
-            count,
-          })),
-        }));
+        return acc;
+      }, {});
+
+      result = Object.entries(result).map(([name, value]) => ({
+        name,
+        position: value.position,
+        profile_url: value.profile_url,
+        data: Object.entries(value.months).map(([month, count]) => ({
+          month,
+          count,
+        })),
+      }));
+
         await employee_engagement_leaderboardController.UpdateNonCpxCount(parseInt(topicId),result)
-        return res.status(200).json(filteredComments);
+        return res.status(200).json(commentsList);
       }
       // console.log(req.body?.isCSV);
       // return res.status(200).json(commentsList);

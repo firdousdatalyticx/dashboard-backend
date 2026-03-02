@@ -179,7 +179,6 @@ const employee_engagement_leaderboardController = {
     }
   },
 UpdateNonCpxCount: async (topicId, data) => {
-
   for (let i = 0; i < data.length; i++) {
     const employee = data[i];
 
@@ -216,6 +215,19 @@ UpdateNonCpxCount: async (topicId, data) => {
             isPublic: true,
             date_string: `${month}-01 00:00:00`, // store first day of month
             non_cpx_comments: count,
+              
+            position: employee.position || "",
+            profile_url: employee.profile_url || null,
+            likes:  0,
+            comments:  0,
+            reshares:  0,
+            sum_quality: 0,
+            avg_quality:  0.0,
+            high_q: 0,
+            low_q:  0,
+            activity_score:0,
+            quality_score:  0.0,
+            final_engagement_score: 0.0,
             // default values for required fields if needed
           }
         });

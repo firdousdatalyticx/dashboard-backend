@@ -1117,6 +1117,7 @@ const audienceController = {
         source = "All",
         category = "all",
         isCreateOrUpdateCpx = false,
+        isCreateOrUpdateOIA=false,
         llm_mention_type,
       } = req.body;
 
@@ -1389,7 +1390,7 @@ const audienceController = {
           message: "No comments found",
         });
       }
-      console.log("isCreateOrUpdateCpx", isCreateOrUpdateCpx);
+     
       if (isCreateOrUpdateCpx) {
         const filteredComments = [];
         for (let index = 0; index < commentsList.length; index++) {
@@ -1399,6 +1400,7 @@ const audienceController = {
               parseInt(topicId),
               element.name,
               element.date,
+              true
             );
           if (!isExistData) {
             filteredComments.push(element);
@@ -1426,6 +1428,45 @@ const audienceController = {
           }
         }
       }
+      if(isCreateOrUpdateOIA){
+        const filteredComments = [];
+        for (let index = 0; index < commentsList.length; index++) {
+          const element = commentsList[index];
+          const isExistData =
+            await employee_engagement_leaderboardController.checkExist(
+              parseInt(topicId),
+              element.name,
+              false,
+              false,
+            );
+          if (!isExistData) {
+            filteredComments.push(element);
+          }
+        }
+         
+        if (filteredComments.length > 0) {
+          try {
+            const response = await axios.post(
+              "https://api.datalyticx.ai/copilot/score-comments",
+              filteredComments,
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              },
+            );
+
+            await employee_engagement_leaderboardController.CreateAutomateAIORecord(
+              parseInt(topicId),
+              response.data,
+            );
+            return res.status(200).json(response.data);
+          } catch (error) {
+            console.error("Error calling OIA API:", error.message);
+          }
+        }
+      }
+
       if (req.body.isCSV == false || req.body?.needCommentsData) {
         return res.status(200).json(commentsList);
       }
@@ -1664,6 +1705,7 @@ const audienceController = {
                 parseInt(topicId),
                 element.name,
                 element.date,
+                true
               );
             if (!isExistData) {
               filteredComments.push(element);
@@ -1853,45 +1895,65 @@ const audienceController = {
         source = "All",
         category = "all",
         llm_mention_type,
+        isCreateOrUpdateOIA=false
       } = req.body;
 
       // Initial search with scroll
-      const params = {
-        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-        scroll: "2m",
-        body: {
-          _source: [
-            "p_comments_text",
-            "p_message_text",
-            "comment",
-            "u_source",
-            "name",
-            "p_created_time",
-            "p_comments_data",
-            "p_id",
-          ],
-          size: 1000,
-          query: {
-            bool: {
-              must: [
-                {
-                  match: {
-                    p_company_name: "OIA",
-                  },
-                },
-              ],
-              must_not: [
-                {
-                  wildcard: {
-                    "u_source.keyword":
-                      "https://www.linkedin.com/company/oman-investment-authority*",
-                  },
-                },
-              ],
+let params = {
+  index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+  scroll: "2m",
+  body: {
+    _source: [
+      "p_comments_text",
+      "p_message_text",
+      "comment",
+      "u_source",
+      "name",
+      "p_created_time",
+      "p_comments_data",
+      "p_id",
+    ],
+    size: 1000,
+    query: {
+      bool: {
+        must_not: [
+          {
+            wildcard: {
+              "u_source.keyword":
+                "https://www.linkedin.com/company/oman-investment-authority*",
             },
           },
-        },
-      };
+        ],
+        should: [
+          {
+            match: {
+              p_company_name: "OIA",
+            },
+          },
+          {
+            term: {
+              _id: "linkedin_dummy_oman_investment_authority_employees",
+            },
+          },
+        ],
+        minimum_should_match: 1
+      },
+    },
+  },
+};
+
+// if (fromDate && toDate) {
+//   params.body.query.bool.must = [
+//     {
+//       range: {
+//         p_created_time: {
+//           gte: fromDate,
+//           lte: toDate,
+//         },
+//       },
+//     },
+//   ];
+// }
 
       // Get all results
       let allResults = [];
@@ -1970,10 +2032,10 @@ const audienceController = {
             commentsList.push(comment);
           } else {
             commentsList.push({
-              name:
+                 name:
                 comment?.author?.name ||
                 comment?.author?.firstName + " " + comment?.author?.lastName,
-              // text: comment.text,
+              text: comment.text,
               profile_url: comment?.author?.profilePicture,
               position: comment?.author?.title,
               commentsCount: comment.totalSocialActivityCounts.numComments,
@@ -1981,6 +2043,7 @@ const audienceController = {
               sharesCount: comment.totalSocialActivityCounts.numShares,
               ReactionCount:
                 comment.totalSocialActivityCounts.totalReactionCount,
+              date: comment.createdAtString,
             });
           }
 
@@ -1989,12 +2052,55 @@ const audienceController = {
         }
       }
 
+
+
       // Generate CSV from commentsList
       if (commentsList.length === 0) {
         return res.status(404).json({
           success: false,
           message: "No comments found",
         });
+      }
+
+         if (isCreateOrUpdateOIA) {
+
+  
+        let result = commentsList.reduce((acc, item) => {
+        const month = item.date.slice(0, 7); // YYYY-MM
+        const name = item.name;
+
+        const engagement =
+          1 + (item.commentsCount || 0) + (item.ReactionCount || 0);
+
+        if (!acc[name]) {
+          acc[name] = {
+            position: item.position,
+            profile_url: item.profile_url,
+            months: {},
+          };
+        }
+
+        if (!acc[name].months[month]) {
+          acc[name].months[month] = 0;
+        }
+
+        acc[name].months[month] += engagement;
+
+        return acc;
+      }, {});
+
+      result = Object.entries(result).map(([name, value]) => ({
+        name,
+        position: value.position,
+        profile_url: value.profile_url,
+        data: Object.entries(value.months).map(([month, count]) => ({
+          month,
+          count,
+        })),
+      }));
+
+        await employee_engagement_leaderboardController.UpdateNonOIACount(parseInt(topicId),result)
+        return res.status(200).json(result);
       }
       // console.log(req.body?.isCSV);
       // return res.status(200).json(commentsList);

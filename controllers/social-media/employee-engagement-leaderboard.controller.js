@@ -235,18 +235,181 @@ UpdateNonCpxCount: async (topicId, data) => {
   }
 }
 },
-  checkExist: async (topicId, name, date) => {
+
+  CreateAutomateAIORecord: async (topicId, data) => {
+    try {
+      if (!topicId || isNaN(topicId) || !data || !Array.isArray(data)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid request data. topicId (integer) and data array are required.",
+        });
+      }
+
+      for (let index = 0; index < data.length; index++) {
+        const element = data[index];
+
+
+        const existingRecord =
+          await prisma.employee_engagement_leaderboard.findFirst({
+            where: {
+              topic_id: topicId,
+              name: element.name,
+             
+            },
+          });
+
+   if (existingRecord) {
+    if(existingRecord.comments===0){
+  // ✅ UPDATE
+  await prisma.employee_engagement_leaderboard.update({
+    where: {
+      id: existingRecord.id, // must use unique field
+    },
+    data: {
+      comment_text: element.text,
+      position: element.position,
+      likes: existingRecord.likes + element.likeCount,
+      comments: existingRecord.comments + 1,
+      reshares: existingRecord.reshares + element.sharesCount,
+      reactions: existingRecord.reactions + element.ReactionCount,
+      activity_score: element.activity_score,
+      quality_score: element.quality_score,
+      final_engagement_score: element.final_engagement_score,
+      sum_quality:element.quality_score,
+      avg_quality:element.quality_score,
+      high_q: element.high_q ? 1 : 0,
+      low_q: element.low_q ? 1 : 0,
+      non_cpx_comments: existingRecord.non_cpx_comments,
+      replies: element.commentsCount,
+      // date_string: element.date
+    }
+  });
+}else{
+ await prisma.employee_engagement_leaderboard.update({
+    where: {
+      id: existingRecord.id, // must use unique field
+    },
+    data: {
+      comment_text: element.text,
+      position: element.position,
+      likes: existingRecord.likes + element.likeCount,
+      comments: existingRecord.comments + 1,
+      reshares: existingRecord.reshares + element.sharesCount,
+      reactions: existingRecord.reactions + element.ReactionCount,
+      activity_score: (element.activity_score+existingRecord.activity_score)/existingRecord.comments + 1,
+      quality_score: (element.quality_score+existingRecord.quality_score)/existingRecord.comments + 1,
+      final_engagement_score: (element.final_engagement_score+existingRecord.final_engagement_score)/existingRecord.comments + 1,
+      sum_quality:(element.quality_score+existingRecord.quality_score)/existingRecord.comments + 1,
+      avg_quality:(element.quality_score+existingRecord.quality_score)/existingRecord.comments + 1,
+      high_q: element.high_q ? 1 + existingRecord.high_q: 0+existingRecord.high_q,
+      low_q: element.low_q ? 1 + existingRecord.low_q: 0+ existingRecord.low_q,
+      non_cpx_comments: existingRecord.non_cpx_comments,
+      replies: element.commentsCount + existingRecord.replies,
+      // date_string: element.date
+    }
+  });
+}
+
+} else {
+  // ✅ CREATE
+  await prisma.employee_engagement_leaderboard.create({
+    data: {
+      topic_id: topicId,
+      name: element.name,
+      comment_text: element.text,
+      position: element.position,
+      likes: element.likeCount,
+      comments: 1,
+      reshares: element.sharesCount,
+      reactions: element.ReactionCount,
+      activity_score: element.activity_score,
+      quality_score: element.quality_score,
+      final_engagement_score: element.final_engagement_score,
+      high_q: element.high_q ? 1 : 0,
+      low_q: element.low_q ? 1 : 0,
+      isPublic: false,
+      non_cpx_comments: 0,
+      replies: element.commentsCount,
+      // date_string: element.date
+    }
+  });
+}
+      }
+
+      return {
+        success: true,
+        message: "Leaderboard processed successfully",
+      };
+    } catch (error) {
+      console.error(error);
+      return {
+        success: false,
+        message: "Internal server error",
+      };
+    }
+  },
+UpdateNonOIACount: async (topicId, data) => {
+  for (let i = 0; i < data.length; i++) {
+    const employee = data[i];
+
+    const name = employee.name;
+
+   const count = employee.data.reduce((sum, item) => sum + item.count, 0);
+
+       const result = await prisma.employee_engagement_leaderboard.updateMany({
+        where: {
+          topic_id: topicId,
+          name: name,
+          isPublic: false,
+        },
+        data: {
+          non_cpx_comments: count
+        }
+      });
+       if (result.count === 0) {
+        await prisma.employee_engagement_leaderboard.create({
+          data: {
+            topic_id: topicId,
+            name: employee.name,
+            isPublic: false,
+            // date_string: `${month}-01 00:00:00`, // store first day of month
+            non_cpx_comments: count,
+              
+            position: employee.position || "",
+            profile_url: employee.profile_url || null,
+            likes:  0,
+            comments:  0,
+            reshares:  0,
+            sum_quality: 0,
+            avg_quality:  0.0,
+            high_q: 0,
+            low_q:  0,
+            activity_score:0,
+            quality_score:  0.0,
+            final_engagement_score: 0.0,
+            // default values for required fields if needed
+          }
+        });
+    }
+  
+}
+},
+  checkExist: async (topicId, name, date,isPublic) => {
     const existingRecord =
       await prisma.employee_engagement_leaderboard.findFirst({
         where: {
           topic_id: topicId,
           name: name,
-          isPublic: true,
-          date_string: date,
+          isPublic: isPublic,
+           ...(date != false && { date_string: date })
         },
       });
 
     if (existingRecord) {
+      if(date == false ){
+       return existingRecord.comments>0
+      }
       return true;
     } else {
       return false;

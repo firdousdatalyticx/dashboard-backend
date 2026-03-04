@@ -5,6 +5,15 @@ console.log("cron job started")
 
 module.exports.Index = async () => {
 cron.schedule("0 23 * * *", async () => {
+try {
+  await cpxApiCall();
+
+} catch (error) {
+  console.error("Cron Error:", error.message);
+}
+});
+
+const cpxApiCall=async()=>{
   try {
     console.log("Running Employee Leaderboard Cron...");
 
@@ -55,5 +64,63 @@ cron.schedule("0 23 * * *", async () => {
   } catch (error) {
     console.error("Cron Error:", error.message);
   }
-});
 }
+
+const oiaApiCall=async()=>{
+  try {
+    console.log("Running Employee Leaderboard Cron...");
+
+    const today = new Date();
+
+    const toDate = today.toISOString().split("T")[0];
+
+    // subtract 1 month
+    const from = new Date();
+    from.setMonth(from.getMonth() - 1);
+    const fromDate = from.toISOString().split("T")[0];
+    const topicId = 2646;
+    const isCreateOrUpdateOIA = true;
+    const payload1 = {
+      topicId,
+      fromDate,
+      toDate,
+      categoryItems: [],
+      needCommentsData: false,
+      isCSV: false,
+      isCreateOrUpdateOIA,
+    };
+
+    const payload2 = {
+      topicId,
+      sentimentType: "",
+      fromDate,
+      toDate,
+      categoryItems: [],
+      needCommentsData: false,
+      isCSV: false,
+      isCreateOrUpdateOIA,
+    };
+
+    // Call First API
+    await axios.post(
+      `${process.env.BACKEND_SERVER}/social-media/employee-engagement-leaderboard/getEmployeeDataOIA`,
+      payload1,
+    );
+
+    // Call Second API
+    await axios.post(
+      `${process.env.BACKEND_SERVER}/social-media/employee-engagement-leaderboard/get`,
+      payload2,
+    );
+
+    console.log("Cron executed successfully");
+  } catch (error) {
+    console.error("Cron Error:", error.message);
+  }
+}
+}
+
+
+
+
+

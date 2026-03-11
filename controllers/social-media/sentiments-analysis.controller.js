@@ -533,8 +533,9 @@ const sentimentsController = {
                         // Add to interval results with the actual count from posts
                         sentimentsInInterval.push({
                             name: sentimentName,
-                            count: posts.length,  // Use actual posts count
-                            posts: posts  // Limited to MAX_POSTS_PER_SENTIMENT
+                            count: sentimentPostsResponse.hits?.total?.value,  // Use actual posts count
+                            posts: posts,
+                            // sentimentPostsQuery  // Limited to MAX_POSTS_PER_SENTIMENT
                         });
                
                 }
@@ -593,6 +594,7 @@ const sentimentsController = {
                 sentiments,
                 totalCount,
                 timeIntervals: timeIntervalsWithPosts,
+                
                 
             });
 

@@ -2061,7 +2061,8 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
     parseInt(topicId) === 2660 ||
     parseInt(topicId) === 2661 ||
     parseInt(topicId) === 2662 ||
-    parseInt(topicId) === 2663
+    parseInt(topicId) === 2663 ||
+    parseInt(topicId) === 2664
   ) {
     query.bool.must.push({
       bool: {

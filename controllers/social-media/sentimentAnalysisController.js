@@ -1453,7 +1453,7 @@ function buildAnalysisQuery(params) {
         minimum_should_match: 1
       }
     });
-  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644 || topicIdNum === 2651 || topicIdNum === 2652 || topicIdNum === 2653 || topicIdNum === 2654 || topicIdNum === 2655 || topicIdNum === 2658 || topicIdNum === 2659 || topicIdNum === 2660 || topicIdNum === 2661 || topicIdNum === 2662 || topicIdNum === 2663) {        
+  } else if (topicIdNum === 2641 || topicIdNum === 2643 || topicIdNum === 2644 || topicIdNum === 2651 || topicIdNum === 2652 || topicIdNum === 2653 || topicIdNum === 2654 || topicIdNum === 2655 || topicIdNum === 2658 || topicIdNum === 2659 || topicIdNum === 2660 || topicIdNum === 2661 || topicIdNum === 2662 || topicIdNum === 2663 || topicIdNum === 2664) {        
         query.bool.must.push({
             bool: {
                 should: [

@@ -868,7 +868,8 @@ function buildAnalysisQuery(params) {
     topicIdNum === 2663 ||
     topicIdNum === 2653 ||
     topicIdNum === 2654 ||
-    topicIdNum === 2655 
+    topicIdNum === 2655 || 
+    topicIdNum === 2664
   ) {
     query.bool.must.push({
       bool: {

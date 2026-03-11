@@ -186,7 +186,7 @@ const googleReviewTrendsController = {
                         minimum_should_match: 1,
                     },
                 });
-            } else if (parseInt(topicId) === 2651) {
+            } else if (parseInt(topicId) === 2651 || parseInt(topicId) === 2664) {
                 mustConditions.push({
                     bool: {
                         should: [

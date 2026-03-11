@@ -423,7 +423,7 @@ const socialsSubsidiaryDistributionsController = {
     }
     if (mentionTypesArray.length > 0) {
       query.bool.must.push({ bool: { should: mentionTypesArray.map(t => ({ match: { llm_mention_type: t } })), minimum_should_match: 1 } });
-    } else if ([2641, 2643, 2644, 2651, 2652, 2653, 2654, 2655, 2663].includes(Number(topicId))) {
+    } else if ([2641, 2643, 2644, 2651, 2652, 2653, 2654, 2655, 2663, 2664].includes(Number(topicId))) {
       query.bool.must.push({ bool: { must_not: [{ match: { llm_mention_type: "Promotion" } }, { match: { llm_mention_type: "Booking" } }, { match: { llm_mention_type: "Others" } }] } });
     }
 
@@ -656,7 +656,8 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false, topicId) {
     parseInt(topicId) === 2659 ||
     parseInt(topicId) === 2660 ||
     parseInt(topicId) === 2661 ||
-    parseInt(topicId) === 2662
+    parseInt(topicId) === 2662 ||
+    parseInt(topicId) === 2664
   ) {
     query.bool.must.push({
       bool: {

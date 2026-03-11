@@ -323,7 +323,8 @@ const audienceController = {
           parseInt(topicId) === 2660 ||
           parseInt(topicId) === 2661 ||
           parseInt(topicId) === 2662 ||
-          parseInt(topicId) === 2663
+          parseInt(topicId) === 2663 ||
+          parseInt(topicId) === 2664
         ) {
           sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
         } else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
@@ -2420,7 +2421,8 @@ let params = {
         Number(topicId) == 2660 ||
         Number(topicId) == 2661 ||
         Number(topicId) == 2662 ||
-        Number(topicId) == 2663
+        Number(topicId) == 2663 ||
+        Number(topicId) == 2664
       ) {
         params.body.query.bool.must.push({
           bool: {

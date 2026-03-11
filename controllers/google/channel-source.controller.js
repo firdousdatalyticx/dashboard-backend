@@ -264,7 +264,7 @@ const channelSourceController = {
                     }
 
                     // Special coordinate filters for topicIds 2641, 2651, 2652
-                    if (parseInt(topicId) === 2641 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662) {
+                    if (parseInt(topicId) === 2641 || parseInt(topicId) === 2658 || parseInt(topicId) === 2659 || parseInt(topicId) === 2660 || parseInt(topicId) === 2661 || parseInt(topicId) === 2662 || parseInt(topicId) === 2664) {
                         queryTemplate.query.bool.must.push({
                             bool: {
                                 should: [
@@ -294,7 +294,7 @@ const channelSourceController = {
                                 minimum_should_match: 1,
                             },
                         });
-                    } else if (parseInt(topicId) === 2651) {
+                    } else if (parseInt(topicId) === 2651 || parseInt(topicId) === 2664) {
                         queryTemplate.query.bool.must.push({
                             bool: {
                                 should: [
@@ -581,7 +581,7 @@ const channelSourceController = {
                             minimum_should_match: 1,
                         },
                     });
-                } else if (parseInt(topicId) === 2651) {
+                } else if (parseInt(topicId) === 2651 || parseInt(topicId) === 2664) {
                     basePostsQuery.query.bool.must.push({
                         bool: {
                             should: [

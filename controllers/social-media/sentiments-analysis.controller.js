@@ -1924,7 +1924,7 @@ function buildBaseQuery(dateRange, source, isSpecialTopic = false,topicIdNum) {
               }
           });
     }
-    else if(topicIdNum === 2641 || parseInt(topicIdNum) === 2643 || parseInt(topicIdNum) === 2644 || parseInt(topicIdNum) === 2651 || parseInt(topicIdNum) === 2652 || parseInt(topicIdNum) === 2653 || parseInt(topicIdNum) === 2654 || parseInt(topicIdNum) === 2655 || parseInt(topicIdNum) === 2658 || parseInt(topicIdNum) === 2659 || parseInt(topicIdNum) === 2660 || parseInt(topicIdNum) === 2661 || parseInt(topicIdNum) === 2662 || parseInt(topicIdNum) === 2663){
+    else if(topicIdNum === 2641 || parseInt(topicIdNum) === 2643 || parseInt(topicIdNum) === 2644 || parseInt(topicIdNum) === 2651 || parseInt(topicIdNum) === 2652 || parseInt(topicIdNum) === 2653 || parseInt(topicIdNum) === 2654 || parseInt(topicIdNum) === 2655 || parseInt(topicIdNum) === 2658 || parseInt(topicIdNum) === 2659 || parseInt(topicIdNum) === 2660 || parseInt(topicIdNum) === 2661 || parseInt(topicIdNum) === 2662 || parseInt(topicIdNum) === 2663 || parseInt(topicIdNum) === 2664){
       query.bool.must.push({
         bool: {
           should: [

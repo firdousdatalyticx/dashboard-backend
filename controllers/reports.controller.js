@@ -385,7 +385,7 @@ const reportsController = {
                       topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin OR Twitter)`;
         }else if(parseInt(req.body.topicId)==2646 || parseInt(req.body.topicId)==2650){
           topicQueryString += ` AND source:(linkedin OR LinkedIn OR Linkedin OR Twitter OR Web OR Instagram OR Facebook)`;
-        } else if(parseInt(req.body.topicId)== 2651 || parseInt(req.body.topicId)==2652) {
+        } else if(parseInt(req.body.topicId)== 2651 || parseInt(req.body.topicId)==2652 || parseInt(req.body.topicId)==2664) {
             topicQueryString += ` AND source:(Facebook OR Instagram  OR Twitter)`;
         }  
 

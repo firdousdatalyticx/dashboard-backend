@@ -13,6 +13,8 @@ async function scrollSearch(query) {
       body: query,
     });
 
+    //main
+
     let scrollId = firstResponse._scroll_id;
     const total = firstResponse.hits.total.value;
     let allResults = [];

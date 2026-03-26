@@ -113,5 +113,21 @@ router.post(
   llmCommentsController.getCommentsSourceDonut
 );
 
+router.post(
+  "/industry-subindustry-sentiment",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  llmCommentsController.getIndustrySubIndustrySentimentDistribution
+);
+
+router.post(
+  "/industry-subindustry-emotion",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  llmCommentsController.getIndustrySubIndustryEmotionDistribution
+);
+
 module.exports = router;
 

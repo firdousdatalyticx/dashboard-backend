@@ -361,6 +361,25 @@ function normalizeSentimentLabel(sentimentValue) {
   return null;
 }
 
+function normalizeIndustryLabel(parsedComment, fallbackPost = {}) {
+  const industry =
+    parsedComment?.industry ??
+    parsedComment?.llm_category ??
+    fallbackPost?.industry ??
+    null;
+  const subIndustry =
+    parsedComment?.sub_industry ??
+    parsedComment?.subIndustry ??
+    parsedComment?.llm_sub_category ??
+    fallbackPost?.sub_industry ??
+    null;
+
+  return {
+    industry: industry ? String(industry).trim() : "",
+    sub_industry: subIndustry ? String(subIndustry).trim() : "",
+  };
+}
+
 function bucketKey(pCreatedTime, interval) {
   const dt = new Date(pCreatedTime);
   if (Number.isNaN(dt.getTime())) return null;
@@ -1223,6 +1242,10 @@ const llmCommentsSentimentTrendController = {
         sentiment, // click sentiment (Positive/Negative/Neutral)
         emotion, // optional click emotion
         sourceName, // optional click source
+        field, // optional click dimension: industry | sub_industry
+        value, // optional click value for dimension
+        industry, // optional direct industry filter
+        sub_industry, // optional direct sub industry filter
         limit = 2000,
       } = req.body;
 
@@ -1375,6 +1398,12 @@ const llmCommentsSentimentTrendController = {
       const selectedDate = date ? String(date).trim() : null;
       const selectedSentiment = sentiment ? String(sentiment).trim().toLowerCase() : null;
       const selectedEmotion = emotion ? String(emotion).trim().toLowerCase() : null;
+      const selectedField = field ? String(field).trim().toLowerCase() : null;
+      const selectedValue = value ? String(value).trim().toLowerCase() : null;
+      const selectedIndustry = industry ? String(industry).trim().toLowerCase() : null;
+      const selectedSubIndustry = sub_industry
+        ? String(sub_industry).trim().toLowerCase()
+        : null;
 
       const comments = [];
 
@@ -1394,6 +1423,13 @@ const llmCommentsSentimentTrendController = {
           if (!parsed) continue;
 
           const normalized = normalizeCommentRecord(parsed, postContext);
+          const commentIndustryLabels = normalizeIndustryLabel(parsed, postContext);
+          const commentIndustry = String(commentIndustryLabels.industry || "")
+            .trim()
+            .toLowerCase();
+          const commentSubIndustry = String(commentIndustryLabels.sub_industry || "")
+            .trim()
+            .toLowerCase();
 
           if (selectedDate) {
             const commentBucket = bucketKey(normalized.p_created_time, interval);
@@ -1416,6 +1452,34 @@ const llmCommentsSentimentTrendController = {
             continue;
           }
 
+          if (selectedField && selectedValue) {
+            if (selectedField === "industry" && commentIndustry !== selectedValue) {
+              continue;
+            }
+            if (
+              (selectedField === "sub_industry" || selectedField === "subindustry") &&
+              commentSubIndustry !== selectedValue
+            ) {
+              continue;
+            }
+          }
+
+          if (
+            selectedIndustry &&
+            selectedIndustry !== "all" &&
+            commentIndustry !== selectedIndustry
+          ) {
+            continue;
+          }
+
+          if (
+            selectedSubIndustry &&
+            selectedSubIndustry !== "all" &&
+            commentSubIndustry !== selectedSubIndustry
+          ) {
+            continue;
+          }
+
           comments.push({
             // Frontend-friendly fields for filtering/drilldown
             source: normalized.source,
@@ -1424,6 +1488,8 @@ const llmCommentsSentimentTrendController = {
             p_url: normalized.p_url,
             predicted_sentiment_value: normalized.predicted_sentiment_value,
             llm_emotion: normalized.llm_emotion,
+            industry: commentIndustryLabels.industry || null,
+            sub_industry: commentIndustryLabels.sub_industry || null,
 
             ...parsed, // full llm comment object fields
             mapped_sentiment: normalized.mapped_sentiment,
@@ -1686,6 +1752,482 @@ const llmCommentsSentimentTrendController = {
     } catch (error) {
       console.error("Error in llm-comments source donut:", error);
       return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  },
+  getLlmCommentsIndustrySubIndustrySentimentDistribution: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        topicId,
+        llm_mention_type,
+      } = req.body;
+
+      if (!topicId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "topicId is required" });
+      }
+
+      const topicIdNum = parseInt(topicId);
+      const isSpecialTopic = topicIdNum === 2600 || topicIdNum === 2627;
+
+      let categoryData = {};
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({
+          success: true,
+          totalCount: 0,
+          industry: [],
+          subIndustry: [],
+        });
+      }
+
+      let workingCategory = category;
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (matchedKey) {
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          workingCategory = "all";
+        }
+      }
+
+      const now = new Date();
+      const dateRange = processTimeSlot(timeSlot, fromDate, toDate);
+      if (isSpecialTopic && !fromDate && !toDate) {
+        dateRange.greaterThanTime = "2020-01-01";
+        dateRange.lessThanTime = format(now, "yyyy-MM-dd");
+      }
+
+      const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (String(sentimentType).includes(",")) {
+          const sentimentArray = String(sentimentType)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+          query.bool.must.push({
+            bool: {
+              should: sentimentArray.map((s) => ({
+                match: { predicted_sentiment_value: s },
+              })),
+              minimum_should_match: 1,
+            },
+          });
+        } else {
+          query.bool.must.push({
+            match: { predicted_sentiment_value: String(sentimentType).trim() },
+          });
+        }
+      }
+
+      if (topicIdNum === 2651) {
+        query.bool.must.push({ term: { "p_tag_cat.keyword": "Healthcare" } });
+      }
+      if (topicIdNum === 2652 || topicIdNum === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" },
+        });
+      }
+
+      let mentionTypesArray = [];
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+      }
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      const { total, fetched, results: posts } = await scrollSearch({
+        query,
+        sourceFields: [
+          "p_id",
+          "p_url",
+          "source",
+          "p_created_time",
+          "predicted_sentiment_value",
+          "llm_emotion",
+          "industry",
+          "sub_industry",
+          "llm_comments",
+        ],
+        sort: [{ p_created_time: { order: "desc" } }],
+        maxDocs: 40000,
+      });
+
+      const industryMap = new Map();
+      const subIndustryMap = new Map();
+      let totalCount = 0;
+
+      for (const post of posts) {
+        const postContext = {
+          p_id: post.p_id,
+          p_url: post.p_url,
+          source: post.source,
+          p_created_time: post.p_created_time,
+          predicted_sentiment_value: post.predicted_sentiment_value,
+          llm_emotion: post.llm_emotion,
+          industry: post.industry,
+          sub_industry: post.sub_industry,
+        };
+
+        const comments = extractCommentsFromPost(post.llm_comments);
+        for (const c of comments) {
+          const parsed = safeParseJson(c);
+          if (!parsed) continue;
+
+          const normalized = normalizeCommentRecord(parsed, postContext);
+          const sentiment = normalizeSentimentLabel(normalized.mapped_sentiment);
+          if (!sentiment) continue;
+
+          const labels = normalizeIndustryLabel(parsed, postContext);
+
+          if (labels.industry) {
+            if (!industryMap.has(labels.industry)) {
+              industryMap.set(labels.industry, {
+                name: labels.industry,
+                industry: labels.industry,
+                Positive: 0,
+                Negative: 0,
+                Neutral: 0,
+                total: 0,
+              });
+            }
+            const item = industryMap.get(labels.industry);
+            item[sentiment] += 1;
+            item.total += 1;
+          }
+
+          if (labels.sub_industry) {
+            if (!subIndustryMap.has(labels.sub_industry)) {
+              subIndustryMap.set(labels.sub_industry, {
+                name: labels.sub_industry,
+                sub_industry: labels.sub_industry,
+                Positive: 0,
+                Negative: 0,
+                Neutral: 0,
+                total: 0,
+              });
+            }
+            const item = subIndustryMap.get(labels.sub_industry);
+            item[sentiment] += 1;
+            item.total += 1;
+          }
+
+          totalCount++;
+        }
+      }
+
+      const industry = Array.from(industryMap.values())
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10);
+      const subIndustry = Array.from(subIndustryMap.values())
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10);
+
+      return res.json({
+        success: true,
+        totalPostsMatched: total,
+        totalPostsFetched: fetched,
+        totalCount,
+        industry,
+        subIndustry,
+      });
+    } catch (error) {
+      console.error(
+        "Error in llm-comments industry/sub-industry sentiment distribution:",
+        error
+      );
+      return res
+        .status(500)
+        .json({ success: false, error: "Internal server error" });
+    }
+  },
+  getLlmCommentsIndustrySubIndustryEmotionDistribution: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        topicId,
+        llm_mention_type,
+      } = req.body;
+
+      if (!topicId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "topicId is required" });
+      }
+
+      const topicIdNum = parseInt(topicId);
+      const isSpecialTopic = topicIdNum === 2600 || topicIdNum === 2627;
+
+      let categoryData = {};
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({
+          success: true,
+          totalCount: 0,
+          industry: [],
+          subIndustry: [],
+        });
+      }
+
+      let workingCategory = category;
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (matchedKey) {
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          workingCategory = "all";
+        }
+      }
+
+      const now = new Date();
+      const dateRange = processTimeSlot(timeSlot, fromDate, toDate);
+      if (isSpecialTopic && !fromDate && !toDate) {
+        dateRange.greaterThanTime = "2020-01-01";
+        dateRange.lessThanTime = format(now, "yyyy-MM-dd");
+      }
+
+      const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (String(sentimentType).includes(",")) {
+          const sentimentArray = String(sentimentType)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+          query.bool.must.push({
+            bool: {
+              should: sentimentArray.map((s) => ({
+                match: { predicted_sentiment_value: s },
+              })),
+              minimum_should_match: 1,
+            },
+          });
+        } else {
+          query.bool.must.push({
+            match: { predicted_sentiment_value: String(sentimentType).trim() },
+          });
+        }
+      }
+
+      if (topicIdNum === 2651) {
+        query.bool.must.push({ term: { "p_tag_cat.keyword": "Healthcare" } });
+      }
+      if (topicIdNum === 2652 || topicIdNum === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" },
+        });
+      }
+
+      let mentionTypesArray = [];
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+      }
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      const { total, fetched, results: posts } = await scrollSearch({
+        query,
+        sourceFields: [
+          "p_id",
+          "p_url",
+          "source",
+          "p_created_time",
+          "predicted_sentiment_value",
+          "llm_emotion",
+          "industry",
+          "sub_industry",
+          "llm_comments",
+        ],
+        sort: [{ p_created_time: { order: "desc" } }],
+        maxDocs: 40000,
+      });
+
+      const industryMap = new Map();
+      const subIndustryMap = new Map();
+      let totalCount = 0;
+
+      for (const post of posts) {
+        const postContext = {
+          p_id: post.p_id,
+          p_url: post.p_url,
+          source: post.source,
+          p_created_time: post.p_created_time,
+          predicted_sentiment_value: post.predicted_sentiment_value,
+          llm_emotion: post.llm_emotion,
+          industry: post.industry,
+          sub_industry: post.sub_industry,
+        };
+
+        const comments = extractCommentsFromPost(post.llm_comments);
+        for (const c of comments) {
+          const parsed = safeParseJson(c);
+          if (!parsed) continue;
+
+          const normalized = normalizeCommentRecord(parsed, postContext);
+          const emotionKey = String(normalized.llm_emotion || "Unknown").trim();
+          if (!emotionKey) continue;
+
+          const labels = normalizeIndustryLabel(parsed, postContext);
+
+          if (labels.industry) {
+            if (!industryMap.has(labels.industry)) {
+              industryMap.set(labels.industry, {
+                name: labels.industry,
+                industry: labels.industry,
+                total: 0,
+                emotionMap: new Map(),
+              });
+            }
+            const item = industryMap.get(labels.industry);
+            item.total += 1;
+            item.emotionMap.set(
+              emotionKey,
+              (item.emotionMap.get(emotionKey) || 0) + 1
+            );
+          }
+
+          if (labels.sub_industry) {
+            if (!subIndustryMap.has(labels.sub_industry)) {
+              subIndustryMap.set(labels.sub_industry, {
+                name: labels.sub_industry,
+                sub_industry: labels.sub_industry,
+                total: 0,
+                emotionMap: new Map(),
+              });
+            }
+            const item = subIndustryMap.get(labels.sub_industry);
+            item.total += 1;
+            item.emotionMap.set(
+              emotionKey,
+              (item.emotionMap.get(emotionKey) || 0) + 1
+            );
+          }
+
+          totalCount++;
+        }
+      }
+
+      const normalizeEmotionBuckets = (arr, keyName) =>
+        arr
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 10)
+          .map((item) => ({
+            name: item.name,
+            [keyName]: item[keyName],
+            total: item.total,
+            emotions: Array.from(item.emotionMap.entries())
+              .map(([name, count]) => ({ name, count }))
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 10),
+          }));
+
+      const industry = normalizeEmotionBuckets(
+        Array.from(industryMap.values()),
+        "industry"
+      );
+      const subIndustry = normalizeEmotionBuckets(
+        Array.from(subIndustryMap.values()),
+        "sub_industry"
+      );
+
+      return res.json({
+        success: true,
+        totalPostsMatched: total,
+        totalPostsFetched: fetched,
+        totalCount,
+        industry,
+        subIndustry,
+      });
+    } catch (error) {
+      console.error(
+        "Error in llm-comments industry/sub-industry emotion distribution:",
+        error
+      );
+      return res
+        .status(500)
+        .json({ success: false, error: "Internal server error" });
     }
   },
 };

@@ -500,6 +500,7 @@ const formatPostData = (hit) => {
     p_comments_data: s.p_comments_data,
     llm_comments: s.llm_comments,
     llm_category_confidence: s.llm_category_confidence,
+    u_verified: s.u_verified,
     p_id: s.p_id,
   };
 };

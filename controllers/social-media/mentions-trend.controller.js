@@ -354,6 +354,7 @@ const mentionsTrendController = {
                           "p_picture",
                           "llm_comments",
                           "llm_category_confidence",
+                          "u_verified",
                         ],
                       },
                 },
@@ -630,6 +631,7 @@ const mentionsTrendController = {
                               "p_picture",
                               "llm_comments",
                               "llm_category_confidence",
+                              "u_verified",
                             ],
                           },
                     },
@@ -1407,6 +1409,7 @@ const formatPostData = (hit) => {
     p_comments_data: source.p_comments_data,
     llm_comments: source.llm_comments,
     llm_category_confidence: source.llm_category_confidence,
+    u_verified: source.u_verified,
     p_id: source.p_id,
   };
 };

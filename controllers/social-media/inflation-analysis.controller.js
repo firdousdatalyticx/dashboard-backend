@@ -292,7 +292,8 @@ const inflationAnalysisController = {
                     "p_picture",
                     "p_id",
                     "llm_comments",
-                    "llm_category_confidence"
+                    "llm_category_confidence",
+                    "u_verified"
                 ]
             };
 
@@ -358,7 +359,8 @@ const inflationAnalysisController = {
                                 created_at: new Date(source.p_created_time).toLocaleString(),
                                 p_id: source.p_id,
                                 llm_comments: source.llm_comments,
-                                llm_category_confidence: source.llm_category_confidence
+                                llm_category_confidence: source.llm_category_confidence,
+                                u_verified: source.u_verified
                             };
                             
                             // Gather all filter terms
@@ -716,7 +718,8 @@ const inflationAnalysisController = {
                     "p_picture",
                     "p_id",
                     "llm_comments",
-                    "llm_category_confidence"
+                    "llm_category_confidence",
+                    "u_verified"
                 ]
             };
 
@@ -775,7 +778,8 @@ const inflationAnalysisController = {
                                 created_at: new Date(source.p_created_time).toLocaleString(),
                                 p_id: source.p_id,
                                 llm_comments: source.llm_comments,
-                                llm_category_confidence: source.llm_category_confidence
+                                llm_category_confidence: source.llm_category_confidence,
+                                u_verified: source.u_verified
                             };
                             
                             // Gather all filter terms
@@ -1100,7 +1104,8 @@ const inflationAnalysisController = {
                         "p_picture",
                         "p_id",
                         "llm_comments",
-                        "llm_category_confidence"
+                        "llm_category_confidence",
+                    "u_verified"
                     ]
                 }
             });
@@ -1152,7 +1157,8 @@ const inflationAnalysisController = {
                                 created_at: new Date(source.p_created_time).toLocaleString(),
                                 p_id: source.p_id,
                                 llm_comments: source.llm_comments,
-                                llm_category_confidence: source.llm_category_confidence
+                                llm_category_confidence: source.llm_category_confidence,
+                                u_verified: source.u_verified
                             };
                             
                             // Gather all filter terms

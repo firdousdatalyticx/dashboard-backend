@@ -573,7 +573,8 @@ const fieldCountsController = {
                     'business_response',
                     'u_country',
                     'llm_comments',
-                    'llm_category_confidence'
+                    'llm_category_confidence',
+                    'u_verified'
                 ],
                 track_total_hits: true,
                 timeout: '10s'
@@ -730,7 +731,8 @@ const formatPostData = (hit) => {
         country: source.u_country,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
         llm_comments: source.llm_comments,
-        llm_category_confidence: source.llm_category_confidence
+        llm_category_confidence: source.llm_category_confidence,
+        u_verified: source.u_verified
     };
 };
 

@@ -518,6 +518,7 @@ const formatPostData = (hit) => {
     comment: s.comment,
     businessResponse: s.business_response,
     uSource: s.u_source,
+    u_verified: s.u_verified,
     googleName: s.name,
     created_at: new Date(s.p_created_time || s.created_at).toLocaleString(),
     p_comments_data:s.p_comments_data,

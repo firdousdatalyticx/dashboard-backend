@@ -226,6 +226,7 @@ createCountryWiseAggregations = (categoryData) => {
                   "p_picture",
                   "llm_comments",
                   "llm_category_confidence",
+                  "u_verified",
                 ],
               },
             },
@@ -652,6 +653,7 @@ const audienceController = {
               "p_picture",
               "llm_comments",
               "llm_category_confidence",
+              "u_verified",
             ],
           },
           query: {
@@ -2377,6 +2379,7 @@ let params = {
                         "p_id",
                         "llm_comments",
                         "llm_category_confidence",
+                        "u_verified",
                       ],
                     },
                     sort: [{ p_created_time: { order: "desc" } }],
@@ -3825,6 +3828,7 @@ const formatPostData = (hit, allFilterTerms = []) => {
     p_comments_data: source.p_comments_data,
     llm_comments: source.llm_comments,
     llm_category_confidence: source.llm_category_confidence,
+    u_verified: source.u_verified,
     matched_terms,
     p_id: source.p_id,
   };

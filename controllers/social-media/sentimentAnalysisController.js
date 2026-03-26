@@ -266,6 +266,7 @@ const sentimentAnalysisController = {
             "share_count",
             "llm_comments",
             "llm_category_confidence",
+            "u_verified",
           ];
 
       // Fetch posts
@@ -968,6 +969,7 @@ const sentimentAnalysisController = {
                           "retweet_count",
                           "llm_comments",
                           "llm_category_confidence",
+                          "u_verified",
                         ],
                       },
                     },
@@ -1960,6 +1962,7 @@ const formatPostData = (hit) => {
     comment: source.comment,
     businessResponse: source.business_response,
     uSource: source.u_source,
+    u_verified: source.u_verified,
     googleName: source.name,
     created_at: new Date(
       source.p_created_time || source.created_at

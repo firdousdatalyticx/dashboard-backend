@@ -429,6 +429,7 @@ const formatPostData = (hit) => {
         comment: source.comment,
         businessResponse: source.business_response,
         uSource: source.u_source,
+        u_verified: source.u_verified,
         googleName: source.name,
         country: source.u_country,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),

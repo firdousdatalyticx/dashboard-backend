@@ -546,6 +546,7 @@ const formatPostData = async (hit) => {
         created_at: new Date(source.p_created_time).toLocaleString(),
         llm_comments: source.llm_comments,
         llm_category_confidence: source.llm_category_confidence,
+        u_verified: source.u_verified,
         p_id: source.p_id
     };
 };

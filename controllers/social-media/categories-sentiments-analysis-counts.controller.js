@@ -783,6 +783,7 @@ const sentimentsMultipleCategoriesController = {
           created_at: new Date(esData._source.p_created_time).toLocaleString(),
           llm_comments: esData._source.llm_comments,
           llm_category_confidence: esData._source.llm_category_confidence,
+          u_verified: esData._source.u_verified,
         };
         // Add matched_terms
         const textFields = [

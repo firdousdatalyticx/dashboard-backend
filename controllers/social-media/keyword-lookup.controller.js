@@ -212,6 +212,9 @@ function formatPostData(hit) {
     googleName: s.name,
     created_at: new Date(s.p_created_time || s.created_at).toLocaleString(),
     p_comments_data: s.p_comments_data,
+    llm_comments: s.llm_comments,
+    llm_category_confidence: s.llm_category_confidence,
+    u_verified: s.u_verified,
     p_id: s.p_id
   };
 }

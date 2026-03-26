@@ -398,7 +398,7 @@ const leaderboardAnalysisController = {
                                         sample_reviews: {
                                             top_hits: {
                                                 size: 5,
-                                                _source: ['p_message', 'created_at', 'predicted_sentiment_value', 'keywords', 'p_id', 'llm_comments', 'llm_category_confidence'],
+                                                _source: ['p_message', 'created_at', 'predicted_sentiment_value', 'keywords', 'p_id', 'llm_comments', 'llm_category_confidence', 'u_verified'],
                                                 sort: [{ _score: 'desc' }]
                                             }
                                         }

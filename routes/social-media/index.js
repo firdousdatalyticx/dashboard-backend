@@ -57,6 +57,7 @@ const geographicalDistributionRoutes = require("./geographical-distribution.rout
 const industryDistributionRoutes = require("./industry-distribution.route")
 const keywordLookupRoute = require("./keyword-lookup.route")
 const latestPostsRoute = require("./latest-posts.route")
+const llmCommentsRoute = require("./llm-comments.route")
 /// migration-topics.routes.js
 /**
  * @swagger
@@ -123,4 +124,5 @@ router.use("/geographical-distribution",geographicalDistributionRoutes)
 router.use("/industry-distribution",industryDistributionRoutes)
 router.use("/keyword-lookup", keywordLookupRoute)
 router.use("/latest-posts", latestPostsRoute)
+router.use("/llm-comments", llmCommentsRoute)
 module.exports = router; 

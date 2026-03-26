@@ -508,6 +508,8 @@ const formatPostData = (hit) => {
         googleName: source.name,
         llm_polarity: source.llm_polarity,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+        llm_comments: source.llm_comments,
+        llm_category_confidence: source.llm_category_confidence,
         p_id: source.p_id
     };
 };

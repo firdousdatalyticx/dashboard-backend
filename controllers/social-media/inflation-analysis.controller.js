@@ -290,7 +290,9 @@ const inflationAnalysisController = {
                     "p_created_time",
                     "video_embed_url",
                     "p_picture",
-                    "p_id"
+                    "p_id",
+                    "llm_comments",
+                    "llm_category_confidence"
                 ]
             };
 
@@ -354,7 +356,9 @@ const inflationAnalysisController = {
                                 message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
                                 source: source.source,
                                 created_at: new Date(source.p_created_time).toLocaleString(),
-                                p_id: source.p_id
+                                p_id: source.p_id,
+                                llm_comments: source.llm_comments,
+                                llm_category_confidence: source.llm_category_confidence
                             };
                             
                             // Gather all filter terms
@@ -710,7 +714,9 @@ const inflationAnalysisController = {
                     "p_created_time",
                     "video_embed_url",
                     "p_picture",
-                    "p_id"
+                    "p_id",
+                    "llm_comments",
+                    "llm_category_confidence"
                 ]
             };
 
@@ -767,7 +773,9 @@ const inflationAnalysisController = {
                                 message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
                                 source: source.source,
                                 created_at: new Date(source.p_created_time).toLocaleString(),
-                                p_id: source.p_id
+                                p_id: source.p_id,
+                                llm_comments: source.llm_comments,
+                                llm_category_confidence: source.llm_category_confidence
                             };
                             
                             // Gather all filter terms
@@ -1090,7 +1098,9 @@ const inflationAnalysisController = {
                         "p_created_time",
                         "video_embed_url",
                         "p_picture",
-                        "p_id"
+                        "p_id",
+                        "llm_comments",
+                        "llm_category_confidence"
                     ]
                 }
             });
@@ -1140,7 +1150,9 @@ const inflationAnalysisController = {
                                 message_text: source.p_message_text ? source.p_message_text.replace(/<\/?[^>]+(>|$)/g, '') : '',
                                 source: source.source,
                                 created_at: new Date(source.p_created_time).toLocaleString(),
-                                p_id: source.p_id
+                                p_id: source.p_id,
+                                llm_comments: source.llm_comments,
+                                llm_category_confidence: source.llm_category_confidence
                             };
                             
                             // Gather all filter terms

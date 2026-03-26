@@ -767,7 +767,9 @@ getTrustDimensionsWordCloudPosts: async (req, res) => {
                 'p_picture_url', 
                 'predicted_sentiment_value', 
                 'predicted_category',
-                'u_source'
+                'u_source',
+                'llm_comments',
+                'llm_category_confidence'
             ],
             track_total_hits: true
         };
@@ -1223,7 +1225,7 @@ getTrustDimensionsAnalysisWordCloud: async (req, res) => {
                 query,
                 sort: [{ p_created_time: { order: 'desc' } }],
                 _source: [
-                    'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response'
+                    'trust_dimensions','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_fullname','p_url','p_id','p_picture','p_picture_url','predicted_sentiment_value','predicted_category','llm_emotion','u_followers','u_following','u_posts','p_likes','p_comments_text','p_comments','p_shares','p_engagement','p_content','u_source','name','rating','comment','business_response','llm_comments','llm_category_confidence'
                 ],
                 track_total_hits: true,
                 timeout: '10s'
@@ -1367,6 +1369,8 @@ const formatPostData = (hit) => {
         uSource: source.u_source,
         googleName: source.name,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+        llm_comments: source.llm_comments,
+        llm_category_confidence: source.llm_category_confidence,
         p_id: source.p_id
     };
 };

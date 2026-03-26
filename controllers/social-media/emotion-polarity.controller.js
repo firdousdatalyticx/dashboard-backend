@@ -1193,6 +1193,8 @@ const formatPostData = async (hit) => {
         uSource: source.u_source,
         created_at: new Date(source.p_created_time).toLocaleString(),
         p_comments_data:source.p_comments_data,
+        llm_comments: source.llm_comments,
+        llm_category_confidence: source.llm_category_confidence,
         p_id: source.p_id,
     };
 };

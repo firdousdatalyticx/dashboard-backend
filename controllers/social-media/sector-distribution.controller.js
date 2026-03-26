@@ -332,7 +332,9 @@ const sectorDistributionController = {
                     'rating',
                     'comment',
                     'business_response',
-                    'u_country'
+                    'u_country',
+                    'llm_comments',
+                    'llm_category_confidence'
                 ]
             };
 
@@ -483,6 +485,8 @@ const formatPostData = (hit) => {
         uSource: source.u_source,
         googleName: source.name,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
+        llm_comments: source.llm_comments,
+        llm_category_confidence: source.llm_category_confidence,
         p_id: source.p_id
     };
 };

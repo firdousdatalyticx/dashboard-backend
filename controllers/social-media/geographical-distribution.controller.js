@@ -715,6 +715,8 @@ const geographicalDistributionController = {
             "like_count",
             "comment_count",
             "share_count",
+            "llm_comments",
+            "llm_category_confidence",
           ];
 
       // Fetch posts
@@ -1370,6 +1372,8 @@ const formatPostData = (hit) => {
     llm_subtopic: source.llm_subtopic,
     llm_emotion: source.llm_emotion,
     llm_keywords: source.llm_keywords,
+    llm_comments: source.llm_comments,
+    llm_category_confidence: source.llm_category_confidence,
     p_id: source.p_id
   };
 };

@@ -111,7 +111,9 @@ function formatTrustPost(hit) {
     uSource: src.u_source,
     googleName: src.name,
     country: src.u_country,
-    created_at: new Date(src.p_created_time || src.created_at).toLocaleString()
+    created_at: new Date(src.p_created_time || src.created_at).toLocaleString(),
+    llm_comments: src.llm_comments,
+    llm_category_confidence: src.llm_category_confidence
   };
 }
 
@@ -253,6 +255,8 @@ const formatPostData = (hit) => {
     created_at: new Date(
       source.p_created_time || source.created_at
     ).toLocaleString(),
+    llm_comments: source.llm_comments,
+    llm_category_confidence: source.llm_category_confidence,
     p_id: source.p_id,
   };
 };
@@ -1090,6 +1094,8 @@ const getPosts = async (
       googleName: esData._source.name,
       created_at: new Date(esData._source.p_created_time).toLocaleString(), 
       p_comments_data:esData._source.p_comments_data,
+      llm_comments: esData._source.llm_comments,
+      llm_category_confidence: esData._source.llm_category_confidence,
     };
 
     responseArray.push(cardData);
@@ -1317,6 +1323,8 @@ const formatPostDataForLanguage = (hit, req) => {
     ).toLocaleString(),
     p_id: source.p_id,
     language: source.llm_language, // Include the detected language
+    llm_comments: source.llm_comments,
+    llm_category_confidence: source.llm_category_confidence,
   };
 };
 
@@ -2122,7 +2130,7 @@ const mentionsChartController = {
                     "llm_emotion", "llm_language", "u_country", "p_comments_text",
                     "p_shares", "p_engagement", "p_content", "p_picture_url",
                     "predicted_category", "rating", "comment", "business_response",
-                    "u_source", "name", "created_at", "p_comments_data",
+                    "u_source", "name", "created_at", "p_comments_data", "llm_comments", "llm_category_confidence",
                     "video_embed_url", "p_picture"
                   ]
                 }
@@ -6261,7 +6269,9 @@ const mentionsChartController = {
       uSource: src.u_source,
       googleName: src.name,
       country: src.u_country,
-      created_at: new Date(src.p_created_time || src.created_at).toLocaleString()
+      created_at: new Date(src.p_created_time || src.created_at).toLocaleString(),
+      llm_comments: src.llm_comments,
+      llm_category_confidence: src.llm_category_confidence
     };
   },
 
@@ -6575,7 +6585,7 @@ const mentionsChartController = {
         query: { bool: { must, must_not: [{ term: { 'trust_dimensions.keyword': '' } }] } },
         sort: [{ p_created_time: { order: 'desc' } }],
         _source: [
-          'trust_dimensions','llm_emotion','predicted_sentiment_value','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_followers','u_following','u_posts','p_likes','p_comments_text','p_url','p_comments','p_shares','p_engagement','p_content','p_picture_url','predicted_category','u_fullname','video_embed_url','p_picture','p_id','rating','comment','business_response','u_source','name','u_country'
+          'trust_dimensions','llm_emotion','predicted_sentiment_value','created_at','p_created_time','source','p_message','p_message_text','u_profile_photo','u_followers','u_following','u_posts','p_likes','p_comments_text','p_url','p_comments','p_shares','p_engagement','p_content','p_picture_url','predicted_category','u_fullname','video_embed_url','p_picture','p_id','rating','comment','business_response','u_source','name','u_country','llm_comments','llm_category_confidence'
         ]
       };
 

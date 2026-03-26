@@ -732,6 +732,8 @@ const businessLocationController = {
           googleName: esData._source.name,
           created_at: new Date(esData._source.p_created_time).toLocaleString(),
           p_comments_data: esData._source.p_comments_data,
+          llm_comments: esData._source.llm_comments,
+          llm_category_confidence: esData._source.llm_category_confidence,
           p_id: esData._source.p_id,
         };
 

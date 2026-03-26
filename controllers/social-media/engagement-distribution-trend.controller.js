@@ -289,6 +289,8 @@ const engagementDistributionTrendController = {
                 "video_embed_url",
                 "p_id",
                 "p_picture",
+                "llm_comments",
+                "llm_category_confidence",
               ],
             },
           },
@@ -1325,6 +1327,8 @@ const formatPostData = (hit) => {
       source.p_created_time || source.created_at
     ).toLocaleString(),
     p_comments_data: source.p_comments_data,
+    llm_comments: source.llm_comments,
+    llm_category_confidence: source.llm_category_confidence,
     p_id: source.p_id,
   };
 };

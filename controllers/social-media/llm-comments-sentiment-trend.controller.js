@@ -345,6 +345,14 @@ function normalizeCommentRecord(parsedComment, postContext = {}) {
   };
 }
 
+function normalizeSentimentLabel(sentimentValue) {
+  const normalized = String(sentimentValue || "").trim().toLowerCase();
+  if (normalized === "positive") return "Positive";
+  if (normalized === "negative") return "Negative";
+  if (normalized === "neutral") return "Neutral";
+  return null;
+}
+
 function bucketKey(pCreatedTime, interval) {
   const dt = new Date(pCreatedTime);
   if (Number.isNaN(dt.getTime())) return null;
@@ -603,7 +611,7 @@ const llmCommentsSentimentTrendController = {
           }
 
           const bucketObj = countsByBucket.get(bucket);
-          const sentiment = normalized.mapped_sentiment || "Neutral";
+          const sentiment = normalizeSentimentLabel(normalized.mapped_sentiment) || "Neutral";
           bucketObj[sentiment] = (bucketObj[sentiment] || 0) + 1;
           totalParsedComments++;
         }
@@ -977,7 +985,7 @@ const llmCommentsSentimentTrendController = {
           if (!parsed) continue;
 
           const normalized = normalizeCommentRecord(parsed, postContext);
-          const key = normalized.mapped_sentiment || "Unknown";
+          const key = normalizeSentimentLabel(normalized.mapped_sentiment) || "Unknown";
           counts.set(key, (counts.get(key) || 0) + 1);
           totalCount++;
         }

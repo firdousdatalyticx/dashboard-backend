@@ -317,22 +317,30 @@ function extractCommentsFromPost(llmCommentsValue) {
 }
 
 function normalizeCommentRecord(parsedComment, postContext = {}) {
-  const source = parsedComment?.source || postContext?.source || "Unknown";
+  const source =
+    postContext?.source ??
+    parsedComment?.source ??
+    parsedComment?.post_context?.source ??
+    "Unknown";
   const p_created_time =
-    parsedComment?.p_created_time || postContext?.p_created_time || null;
-  const p_id = parsedComment?.p_id || postContext?.p_id || null;
-  const p_url = parsedComment?.p_url || postContext?.p_url || null;
+    parsedComment?.p_created_time ??
+    parsedComment?.post_context?.p_created_time ??
+    null;
+  const p_id =
+    parsedComment?.p_id ??
+    parsedComment?.post_context?.p_id ??
+    postContext?.p_id ??
+    null;
+  const p_url =
+    parsedComment?.p_url ??
+    parsedComment?.post_context?.p_url ??
+    postContext?.p_url ??
+    null;
   const predicted_sentiment_value =
-    parsedComment?.predicted_sentiment_value ||
-    postContext?.predicted_sentiment_value ||
-    null;
-  const llm_emotion =
-    parsedComment?.llm_emotion || postContext?.llm_emotion || null;
-
+    parsedComment?.predicted_sentiment_value ?? null;
+  const llm_emotion = parsedComment?.llm_emotion ?? null;
   const mapped_sentiment =
-    parsedComment?.mapped_sentiment ||
-    predicted_sentiment_value ||
-    null;
+    parsedComment?.mapped_sentiment ?? predicted_sentiment_value ?? null;
 
   return {
     source,
@@ -581,6 +589,7 @@ const llmCommentsSentimentTrendController = {
       });
 
       const countsByBucket = new Map();
+      const countsBySource = new Map();
       let totalParsedComments = 0;
 
       for (const post of posts) {
@@ -613,6 +622,9 @@ const llmCommentsSentimentTrendController = {
           const bucketObj = countsByBucket.get(bucket);
           const sentiment = normalizeSentimentLabel(normalized.mapped_sentiment) || "Neutral";
           bucketObj[sentiment] = (bucketObj[sentiment] || 0) + 1;
+
+          const sourceKey = normalized.source || "Unknown";
+          countsBySource.set(sourceKey, (countsBySource.get(sourceKey) || 0) + 1);
           totalParsedComments++;
         }
       }
@@ -621,12 +633,19 @@ const llmCommentsSentimentTrendController = {
         if (interval === "monthly") return a.date.localeCompare(b.date);
         return a.date.localeCompare(b.date);
       });
+      const sourceDistribution = Array.from(countsBySource.entries())
+        .map(([sourceName, count]) => ({
+          source: sourceName,
+          count,
+        }))
+        .sort((a, b) => b.count - a.count);
 
       return res.json({
         success: true,
         totalPostsMatched: total,
         totalPostsFetched: fetched,
         totalParsedComments,
+        sourceDistribution,
         timeIntervals,
       });
     } catch (error) {
@@ -1285,12 +1304,6 @@ const llmCommentsSentimentTrendController = {
         }
       }
 
-      if (emotion && emotion !== "undefined" && emotion !== "null" && String(emotion).trim() !== "") {
-        query.bool.must.push({
-          match: { llm_emotion: String(emotion).trim() },
-        });
-      }
-
       if (sourceName && String(sourceName).trim() !== "") {
         if (String(sourceName).trim().toLowerCase() === "linkedin") {
           query.bool.must.push({
@@ -1356,11 +1369,12 @@ const llmCommentsSentimentTrendController = {
           "llm_comments",
         ],
         sort: [{ p_created_time: { order: "desc" } }],
-        maxDocs: Math.max(Number(limit) || 2000, 2000),
+        maxDocs: 40000,
       });
 
       const selectedDate = date ? String(date).trim() : null;
       const selectedSentiment = sentiment ? String(sentiment).trim().toLowerCase() : null;
+      const selectedEmotion = emotion ? String(emotion).trim().toLowerCase() : null;
 
       const comments = [];
 
@@ -1389,6 +1403,15 @@ const llmCommentsSentimentTrendController = {
           if (
             selectedSentiment &&
             String(normalized.mapped_sentiment).toLowerCase() !== selectedSentiment
+          ) {
+            continue;
+          }
+
+          if (
+            selectedEmotion &&
+            selectedEmotion !== "undefined" &&
+            selectedEmotion !== "null" &&
+            String(normalized.llm_emotion || "").toLowerCase() !== selectedEmotion
           ) {
             continue;
           }
@@ -1629,14 +1652,29 @@ const llmCommentsSentimentTrendController = {
           }
 
           const srcKey = normalized.source || "Unknown";
-          countsBySource.set(srcKey, (countsBySource.get(srcKey) || 0) + 1);
+          const sentimentKey =
+            normalizeSentimentLabel(normalized.mapped_sentiment) || "Neutral";
+
+          if (!countsBySource.has(srcKey)) {
+            countsBySource.set(srcKey, {
+              source: srcKey,
+              Positive: 0,
+              Negative: 0,
+              Neutral: 0,
+              total: 0,
+            });
+          }
+
+          const srcObj = countsBySource.get(srcKey);
+          srcObj[sentimentKey] = (srcObj[sentimentKey] || 0) + 1;
+          srcObj.total += 1;
           totalParsedComments++;
         }
       }
 
-      const sourceCounts = Array.from(countsBySource.entries())
-        .map(([src, count]) => ({ source: src, count }))
-        .sort((a, b) => b.count - a.count);
+      const sourceCounts = Array.from(countsBySource.values()).sort(
+        (a, b) => b.total - a.total
+      );
 
       return res.json({
         success: true,

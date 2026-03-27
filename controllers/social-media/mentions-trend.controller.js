@@ -752,6 +752,1262 @@ const mentionsTrendController = {
       });
     }
   },
+    getMentionsTrendBySource: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        source = "All",
+        unTopic = "false",
+        topicId,
+        llm_mention_type,
+        categoryItems = [],
+      } = req.body;
+
+      // If both toDate and fromDate are null, set to last 365 days
+      let effectiveFromDate = fromDate;
+      let effectiveToDate = toDate;
+
+
+
+      if (!fromDate && !toDate) {
+  
+  const topic = parseInt(topicId);
+
+  // Topics requiring last 1 year
+  const lastYearTopics = [2641, 2643, 2644];
+
+  // Topics requiring last 90 days
+  const last90DayTopics = [2619, 2639, 2640];
+
+  const today = new Date();
+
+  // If topic requires 1-year range
+  if (lastYearTopics.includes(topic)) {
+    const lastYear = new Date();
+    lastYear.setFullYear(today.getFullYear() - 1);
+
+    effectiveFromDate = lastYear.toISOString().split('T')[0];
+    effectiveToDate = today.toISOString().split('T')[0];
+  }
+
+  // If topic requires 90-day range
+  else  {
+    const last90 = new Date();
+    last90.setDate(today.getDate() - 90);
+
+    effectiveFromDate = last90.toISOString().split('T')[0];
+    effectiveToDate = today.toISOString().split('T')[0];
+  }
+}
+
+
+      let category = req.body.category || "all";
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2627) || parseInt(topicId) === 2600;
+
+      // Determine which category data to use
+      let categoryData = {};
+
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(categoryItems);
+        category = "custom";
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({
+          success: true,
+          error: "No category data available",
+          mentionsGraphData: "",
+          maxMentionData: "0",
+        });
+      }
+      let workingCategory = category;
+      if (category !== "all" && category !== "" && category !== "custom") {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (matchedKey) {
+          workingCategory = matchedKey;
+        } else {
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData
+      );
+
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate: effectiveFromDate,
+        toDate: effectiveToDate,
+        queryString: baseQueryString,
+      });
+
+      // Handle special case for unTopic
+      let queryTimeRange = {
+        gte: filters.greaterThanTime,
+        lte: filters.lessThanTime,
+      };
+
+      if (Number(req.body.topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        {
+          greaterThanTime: queryTimeRange.gte,
+          lessThanTime: queryTimeRange.lte,
+        },
+        source,
+        isSpecialTopic,
+        Number(req.body.topicId)
+      );
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Apply LLM Mention Type filter if provided
+      if (
+        llm_mention_type != "" &&
+        llm_mention_type &&
+        Array.isArray(llm_mention_type) &&
+        llm_mention_type.length > 0
+      ) {
+        const mentionTypeFilter = {
+          bool: {
+            should: llm_mention_type.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(mentionTypeFilter);
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+        query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
+      }
+
+        // Special filter for topicId 2651 - only fetch Healthcare results
+        if (parseInt(topicId) === 2651) {
+          query.bool.must.push({
+            term: { "p_tag_cat.keyword": "Healthcare" }
+          });
+        }
+
+        // Special filter for topicId 2652 - only fetch Food and Beverages results
+        if (parseInt(topicId) === 2652 || parseInt(topicId) === 2663) {
+          query.bool.must.push({
+            term: { "p_tag_cat.keyword": "Food and Beverages" }
+          });
+        }
+
+      // Execute combined aggregation query with posts grouped by source
+      const combinedQuery = {
+        query: query,
+        size: 0,
+        aggs: {
+          by_source: {
+            terms: {
+              field: "source.keyword",
+              size: 50,
+            },
+            aggs: {
+              daily_counts: {
+                date_histogram: {
+                  field: "p_created_time",
+                  fixed_interval: "1d",
+                  min_doc_count: 0,
+                  extended_bounds: {
+                    min: queryTimeRange.gte,
+                    max: queryTimeRange.lte,
+                  },
+                },
+                aggs: {
+                  top_posts: {
+                    top_hits: {
+                      size: 10,
+                      _source: {
+                        includes: [
+                          "u_profile_photo",
+                          "u_followers",
+                          "u_following",
+                          "u_posts",
+                          "p_likes",
+                          "llm_emotion",
+                          "llm_emotion_arabic",
+                          "llm_language",
+                          "u_country",
+                          "p_comments_text",
+                          "p_url",
+                          "p_comments",
+                          "p_shares",
+                          "p_engagement",
+                          "p_content",
+                          "p_picture_url",
+                          "predicted_sentiment_value",
+                          "predicted_category",
+                          "source",
+                          "rating",
+                          "u_fullname",
+                          "p_message_text",
+                          "comment",
+                          "business_response",
+                          "u_source",
+                          "name",
+                          "p_created_time",
+                          "created_at",
+                          "p_comments_data",
+                          "video_embed_url",
+                          "p_id",
+                          "p_picture",
+                          "llm_comments",
+                          "llm_category_confidence",
+                          "u_verified",
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Execute combined query
+      const response = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: combinedQuery,
+      });
+
+      // Gather all filter terms
+      let allFilterTerms = [];
+      if (categoryData) {
+        Object.values(categoryData).forEach((data) => {
+          if (data.keywords && data.keywords.length > 0)
+            allFilterTerms.push(...data.keywords);
+          if (data.hashtags && data.hashtags.length > 0)
+            allFilterTerms.push(...data.hashtags);
+          if (data.urls && data.urls.length > 0)
+            allFilterTerms.push(...data.urls);
+        });
+      }
+
+      // Process results - grouped by source
+      const sourcesTrend = {};
+      const sourceBuckets = response?.aggregations?.by_source?.buckets || [];
+
+      for (const sourceBucket of sourceBuckets) {
+        const sourceName = sourceBucket.key;
+        const datesWithPosts = [];
+        const dailyBuckets = sourceBucket?.daily_counts?.buckets || [];
+
+        for (const bucket of dailyBuckets) {
+          const docCount = bucket.doc_count;
+          const keyAsString = new Date(bucket.key_as_string)
+            .toISOString()
+            .split("T")[0];
+
+          const bucketDate = new Date(keyAsString);
+          const startDate = new Date(queryTimeRange.gte);
+          const endDate = new Date(queryTimeRange.lte);
+
+          if (bucketDate >= startDate && bucketDate <= endDate) {
+            const posts = bucket.top_posts.hits.hits.map((hit) =>
+              formatPostData(hit)
+            );
+
+            // Add matched_terms to each post
+            const postsWithTerms = posts.map((post) => {
+              const textFields = [
+                post.message_text,
+                post.content,
+                post.keywords,
+                post.title,
+                post.hashtags,
+                post.uSource,
+                post.source,
+                post.p_url,
+                post.userFullname,
+              ];
+              return {
+                ...post,
+                matched_terms: allFilterTerms.filter((term) =>
+                  textFields.some((field) => {
+                    if (!field) return false;
+                    if (Array.isArray(field)) {
+                      return field.some(
+                        (f) =>
+                          typeof f === "string" &&
+                          f.toLowerCase().includes(term.toLowerCase())
+                      );
+                    }
+                    return (
+                      typeof field === "string" &&
+                      field.toLowerCase().includes(term.toLowerCase())
+                    );
+                  })
+                ),
+              };
+            });
+
+            datesWithPosts.push({
+              date: keyAsString,
+              count: docCount,
+              posts: postsWithTerms,
+            });
+          }
+        }
+
+        // Sort dates in descending order
+        datesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+        sourcesTrend[sourceName] = datesWithPosts;
+      }
+
+      // Process SCAD trend if SCAD data exists
+      let scadTrend = null;
+      if (req.processedScadData) {
+        try {
+          // Build SCAD query string for filters processing
+          const scadQueryString = buildScadQueryString(req.processedScadData);
+
+          // Process filters for SCAD trend
+          const scadFilters = processFilters({
+            sentimentType,
+            timeSlot,
+            fromDate: effectiveFromDate,
+            toDate: effectiveToDate,
+            queryString: scadQueryString,
+          });
+
+          // Handle special case for unTopic
+          let scadQueryTimeRange = {
+            gte: scadFilters.greaterThanTime,
+            lte: scadFilters.lessThanTime,
+          };
+
+          if (Number(req.body.topicId) == 2473) {
+            scadQueryTimeRange = {
+              gte: "2023-01-01",
+              lte: "2023-04-30",
+            };
+          }
+
+          // Build base query for SCAD trend
+          const scadQuery = buildBaseQuery(
+            {
+              greaterThanTime: scadQueryTimeRange.gte,
+              lessThanTime: scadQueryTimeRange.lte,
+            },
+            source,
+            isSpecialTopic,
+            Number(req.body.topicId)
+          );
+
+          // Add SCAD filters
+          addScadFilters(scadQuery, req.processedScadData);
+
+          if (workingCategory == "all" && category !== "all") {
+            const categoryFilter = {
+              bool: {
+                should: [
+                  {
+                    multi_match: {
+                      query: category,
+                      fields: [
+                        "p_message_text",
+                        "p_message",
+                        "hashtags",
+                        "u_source",
+                        "p_url",
+                      ],
+                      type: "phrase",
+                    },
+                  },
+                ],
+                minimum_should_match: 1,
+              },
+            };
+            scadQuery.bool.must.push(categoryFilter);
+          }
+
+          // Apply sentiment filter if provided
+          if (
+            sentimentType &&
+            sentimentType !== "undefined" &&
+            sentimentType !== "null"
+          ) {
+            if (sentimentType.includes(",")) {
+              const sentimentArray = sentimentType.split(",");
+              const sentimentFilter = {
+                bool: {
+                  should: sentimentArray.map((sentiment) => ({
+                    match: { predicted_sentiment_value: sentiment.trim() },
+                  })),
+                  minimum_should_match: 1,
+                },
+              };
+              scadQuery.bool.must.push(sentimentFilter);
+            } else {
+              scadQuery.bool.must.push({
+                match: { predicted_sentiment_value: sentimentType.trim() },
+              });
+            }
+          }
+
+          // Apply LLM Mention Type filter if provided
+          if (
+            llm_mention_type != "" &&
+            llm_mention_type &&
+            Array.isArray(llm_mention_type) &&
+            llm_mention_type.length > 0
+          ) {
+            const mentionTypeFilter = {
+              bool: {
+                should: llm_mention_type.map((type) => ({
+                  match: { llm_mention_type: type },
+                })),
+                minimum_should_match: 1,
+              },
+            };
+            scadQuery.bool.must.push(mentionTypeFilter);
+          }
+
+          // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+          if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+            scadQuery.bool.must.push({
+              term: { is_public_opinion: true }
+            });
+          }
+
+          // Gather SCAD filter terms
+          let scadAllFilterTerms = [];
+          if (req.processedScadData.scad_keywords && req.processedScadData.scad_keywords.length > 0)
+            scadAllFilterTerms.push(...req.processedScadData.scad_keywords);
+          if (req.processedScadData.scad_hashtags && req.processedScadData.scad_hashtags.length > 0)
+            scadAllFilterTerms.push(...req.processedScadData.scad_hashtags);
+
+          // Execute SCAD combined aggregation query with posts grouped by source
+          const scadCombinedQuery = {
+            query: scadQuery,
+            size: 0,
+            aggs: {
+              by_source: {
+                terms: {
+                  field: "source.keyword",
+                  size: 50,
+                },
+                aggs: {
+                  daily_counts: {
+                    date_histogram: {
+                      field: "p_created_time",
+                      fixed_interval: "1d",
+                      min_doc_count: 0,
+                      extended_bounds: {
+                        min: scadQueryTimeRange.gte,
+                        max: scadQueryTimeRange.lte,
+                      },
+                    },
+                    aggs: {
+                      top_posts: {
+                        top_hits: {
+                          size: 10,
+                          _source: {
+                            includes: [
+                              "u_profile_photo",
+                              "u_followers",
+                              "u_following",
+                              "u_posts",
+                              "p_likes",
+                              "llm_emotion",
+                              "llm_emotion_arabic",
+                              "llm_language",
+                              "u_country",
+                              "p_comments_text",
+                              "p_url",
+                              "p_comments",
+                              "p_shares",
+                              "p_engagement",
+                              "p_content",
+                              "p_picture_url",
+                              "predicted_sentiment_value",
+                              "predicted_category",
+                              "source",
+                              "rating",
+                              "u_fullname",
+                              "p_message_text",
+                              "comment",
+                              "business_response",
+                              "u_source",
+                              "name",
+                              "p_created_time",
+                              "created_at",
+                              "p_comments_data",
+                              "video_embed_url",
+                              "p_id",
+                              "p_picture",
+                              "llm_comments",
+                              "llm_category_confidence",
+                              "u_verified",
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          };
+
+          // Execute SCAD combined query
+          const scadResponse = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: scadCombinedQuery,
+          });
+
+          // Process SCAD results - grouped by source
+          const scadSourcesTrend = {};
+          const scadSourceBuckets = scadResponse?.aggregations?.by_source?.buckets || [];
+
+          for (const sourceBucket of scadSourceBuckets) {
+            const sourceName = sourceBucket.key;
+            const scadDatesWithPosts = [];
+            const scadBuckets = sourceBucket?.daily_counts?.buckets || [];
+
+            for (const bucket of scadBuckets) {
+              const docCount = bucket.doc_count;
+              const keyAsString = new Date(bucket.key_as_string)
+                .toISOString()
+                .split("T")[0];
+
+              const bucketDate = new Date(keyAsString);
+              const startDate = new Date(scadQueryTimeRange.gte);
+              const endDate = new Date(scadQueryTimeRange.lte);
+
+              if (bucketDate >= startDate && bucketDate <= endDate) {
+                const posts = bucket.top_posts.hits.hits.map((hit) =>
+                  formatPostData(hit)
+                );
+
+                const postsWithTerms = posts.map((post) => {
+                  const textFields = [
+                    post.message_text,
+                    post.content,
+                    post.keywords,
+                    post.title,
+                    post.hashtags,
+                    post.uSource,
+                    post.source,
+                    post.p_url,
+                    post.userFullname,
+                  ];
+                  return {
+                    ...post,
+                    matched_terms: scadAllFilterTerms.filter((term) =>
+                      textFields.some((field) => {
+                        if (!field) return false;
+                        if (Array.isArray(field)) {
+                          return field.some(
+                            (f) =>
+                              typeof f === "string" &&
+                              f.toLowerCase().includes(term.toLowerCase())
+                          );
+                        }
+                        return (
+                          typeof field === "string" &&
+                          field.toLowerCase().includes(term.toLowerCase())
+                        );
+                      })
+                    ),
+                  };
+                });
+
+                scadDatesWithPosts.push({
+                  date: keyAsString,
+                  count: docCount,
+                  posts: postsWithTerms,
+                });
+              }
+            }
+
+            scadDatesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+            scadSourcesTrend[sourceName] = scadDatesWithPosts;
+          }
+
+          scadTrend = scadSourcesTrend;
+        } catch (scadError) {
+          console.error("Error processing SCAD trend:", scadError);
+          // Continue with main trend even if SCAD fails
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        sourcesTrend: sourcesTrend,
+        scadTrend: scadTrend,
+      });
+    } catch (error) {
+      console.error("Error fetching social media mentions trend data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+
+  getMentionsTrendBySourceComments: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        source = "All",
+        unTopic = "false",
+        topicId,
+        llm_mention_type,
+        categoryItems = [],
+      } = req.body;
+
+      // If both toDate and fromDate are null, set to last 365 days
+      let effectiveFromDate = fromDate;
+      let effectiveToDate = toDate;
+
+
+
+      if (!fromDate && !toDate) {
+  
+  const topic = parseInt(topicId);
+
+  // Topics requiring last 1 year
+  const lastYearTopics = [2641, 2643, 2644];
+
+  // Topics requiring last 90 days
+  const last90DayTopics = [2619, 2639, 2640];
+
+  const today = new Date();
+
+  // If topic requires 1-year range
+  if (lastYearTopics.includes(topic)) {
+    const lastYear = new Date();
+    lastYear.setFullYear(today.getFullYear() - 1);
+
+    effectiveFromDate = lastYear.toISOString().split('T')[0];
+    effectiveToDate = today.toISOString().split('T')[0];
+  }
+
+  // If topic requires 90-day range
+  else  {
+    const last90 = new Date();
+    last90.setDate(today.getDate() - 90);
+
+    effectiveFromDate = last90.toISOString().split('T')[0];
+    effectiveToDate = today.toISOString().split('T')[0];
+  }
+}
+
+
+      let category = req.body.category || "all";
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2627) || parseInt(topicId) === 2600;
+
+      // Determine which category data to use
+      let categoryData = {};
+
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(categoryItems);
+        category = "custom";
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({
+          success: true,
+          error: "No category data available",
+          mentionsGraphData: "",
+          maxMentionData: "0",
+        });
+      }
+      let workingCategory = category;
+      if (category !== "all" && category !== "" && category !== "custom") {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (matchedKey) {
+          workingCategory = matchedKey;
+        } else {
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData
+      );
+
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate: effectiveFromDate,
+        toDate: effectiveToDate,
+        queryString: baseQueryString,
+      });
+
+      // Handle special case for unTopic
+      let queryTimeRange = {
+        gte: filters.greaterThanTime,
+        lte: filters.lessThanTime,
+      };
+
+      if (Number(req.body.topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        {
+          greaterThanTime: queryTimeRange.gte,
+          lessThanTime: queryTimeRange.lte,
+        },
+        source,
+        isSpecialTopic,
+        Number(req.body.topicId)
+      );
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Apply LLM Mention Type filter if provided
+      if (
+        llm_mention_type != "" &&
+        llm_mention_type &&
+        Array.isArray(llm_mention_type) &&
+        llm_mention_type.length > 0
+      ) {
+        const mentionTypeFilter = {
+          bool: {
+            should: llm_mention_type.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(mentionTypeFilter);
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+      if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+        query.bool.must.push({
+          term: { is_public_opinion: true }
+        });
+      }
+
+        // Special filter for topicId 2651 - only fetch Healthcare results
+        if (parseInt(topicId) === 2651) {
+          query.bool.must.push({
+            term: { "p_tag_cat.keyword": "Healthcare" }
+          });
+        }
+
+        // Special filter for topicId 2652 - only fetch Food and Beverages results
+        if (parseInt(topicId) === 2652 || parseInt(topicId) === 2663) {
+          query.bool.must.push({
+            term: { "p_tag_cat.keyword": "Food and Beverages" }
+          });
+        }
+
+      // Fetch posts with llm_comments to count comments by date per source
+      const startDate = new Date(queryTimeRange.gte);
+      const endDate = new Date(queryTimeRange.lte);
+
+      const firstResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
+        body: {
+          query: query,
+          size: 500,
+          _source: { includes: ["source", "llm_comments", "p_id"] },
+        },
+      });
+
+      let allHits = [...(firstResponse.hits?.hits || [])];
+      let scrollId = firstResponse._scroll_id;
+
+      while (scrollId) {
+        const scrollResponse = await elasticClient.scroll({
+          scroll_id: scrollId,
+          scroll: "2m",
+        });
+        if (!scrollResponse.hits?.hits?.length) break;
+        allHits = [...allHits, ...scrollResponse.hits.hits];
+        scrollId = scrollResponse._scroll_id;
+      }
+
+      // Count comments per source per date and collect comment data
+      const commentDateMap = {};
+
+      for (const hit of allHits) {
+        const sourceName = hit._source?.source;
+        const llmComments = hit._source?.llm_comments || [];
+        if (!sourceName) continue;
+
+        if (!commentDateMap[sourceName]) commentDateMap[sourceName] = {};
+
+        for (const commentStr of llmComments) {
+          try {
+            const comment =
+              typeof commentStr === "string"
+                ? JSON.parse(commentStr)
+                : commentStr;
+            const rawDate = comment.p_created_time;
+            if (!rawDate) continue;
+            const commentDate = new Date(rawDate).toISOString().split("T")[0];
+            const bucketDate = new Date(commentDate);
+            if (bucketDate < startDate || bucketDate > endDate) continue;
+
+            if (!commentDateMap[sourceName][commentDate]) {
+              commentDateMap[sourceName][commentDate] = { count: 0, comments: [] };
+            }
+            commentDateMap[sourceName][commentDate].count += 1;
+            commentDateMap[sourceName][commentDate].comments.push(comment);
+          } catch (_) {
+            // skip malformed comment
+          }
+        }
+      }
+
+      // Build sourcesTrend in the same shape as before
+      const sourcesTrend = {};
+      for (const [sourceName, dateCounts] of Object.entries(commentDateMap)) {
+        const datesWithPosts = Object.entries(dateCounts).map(
+          ([date, { count, comments }]) => ({ date, count, posts: comments })
+        );
+        datesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+        sourcesTrend[sourceName] = datesWithPosts;
+      }
+
+      // Process SCAD trend if SCAD data exists
+      let scadTrend = null;
+      if (req.processedScadData) {
+        try {
+          // Build SCAD query string for filters processing
+          const scadQueryString = buildScadQueryString(req.processedScadData);
+
+          // Process filters for SCAD trend
+          const scadFilters = processFilters({
+            sentimentType,
+            timeSlot,
+            fromDate: effectiveFromDate,
+            toDate: effectiveToDate,
+            queryString: scadQueryString,
+          });
+
+          // Handle special case for unTopic
+          let scadQueryTimeRange = {
+            gte: scadFilters.greaterThanTime,
+            lte: scadFilters.lessThanTime,
+          };
+
+          if (Number(req.body.topicId) == 2473) {
+            scadQueryTimeRange = {
+              gte: "2023-01-01",
+              lte: "2023-04-30",
+            };
+          }
+
+          // Build base query for SCAD trend
+          const scadQuery = buildBaseQuery(
+            {
+              greaterThanTime: scadQueryTimeRange.gte,
+              lessThanTime: scadQueryTimeRange.lte,
+            },
+            source,
+            isSpecialTopic,
+            Number(req.body.topicId)
+          );
+
+          // Add SCAD filters
+          addScadFilters(scadQuery, req.processedScadData);
+
+          if (workingCategory == "all" && category !== "all") {
+            const categoryFilter = {
+              bool: {
+                should: [
+                  {
+                    multi_match: {
+                      query: category,
+                      fields: [
+                        "p_message_text",
+                        "p_message",
+                        "hashtags",
+                        "u_source",
+                        "p_url",
+                      ],
+                      type: "phrase",
+                    },
+                  },
+                ],
+                minimum_should_match: 1,
+              },
+            };
+            scadQuery.bool.must.push(categoryFilter);
+          }
+
+          // Apply sentiment filter if provided
+          if (
+            sentimentType &&
+            sentimentType !== "undefined" &&
+            sentimentType !== "null"
+          ) {
+            if (sentimentType.includes(",")) {
+              const sentimentArray = sentimentType.split(",");
+              const sentimentFilter = {
+                bool: {
+                  should: sentimentArray.map((sentiment) => ({
+                    match: { predicted_sentiment_value: sentiment.trim() },
+                  })),
+                  minimum_should_match: 1,
+                },
+              };
+              scadQuery.bool.must.push(sentimentFilter);
+            } else {
+              scadQuery.bool.must.push({
+                match: { predicted_sentiment_value: sentimentType.trim() },
+              });
+            }
+          }
+
+          // Apply LLM Mention Type filter if provided
+          if (
+            llm_mention_type != "" &&
+            llm_mention_type &&
+            Array.isArray(llm_mention_type) &&
+            llm_mention_type.length > 0
+          ) {
+            const mentionTypeFilter = {
+              bool: {
+                should: llm_mention_type.map((type) => ({
+                  match: { llm_mention_type: type },
+                })),
+                minimum_should_match: 1,
+              },
+            };
+            scadQuery.bool.must.push(mentionTypeFilter);
+          }
+
+          // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+          if ( parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
+            scadQuery.bool.must.push({
+              term: { is_public_opinion: true }
+            });
+          }
+
+          // Gather SCAD filter terms
+          let scadAllFilterTerms = [];
+          if (req.processedScadData.scad_keywords && req.processedScadData.scad_keywords.length > 0)
+            scadAllFilterTerms.push(...req.processedScadData.scad_keywords);
+          if (req.processedScadData.scad_hashtags && req.processedScadData.scad_hashtags.length > 0)
+            scadAllFilterTerms.push(...req.processedScadData.scad_hashtags);
+
+          // Execute SCAD combined aggregation query with posts grouped by source
+          const scadCombinedQuery = {
+            query: scadQuery,
+            size: 0,
+            aggs: {
+              by_source: {
+                terms: {
+                  field: "source.keyword",
+                  size: 50,
+                },
+                aggs: {
+                  daily_counts: {
+                    date_histogram: {
+                      field: "p_created_time",
+                      fixed_interval: "1d",
+                      min_doc_count: 0,
+                      extended_bounds: {
+                        min: scadQueryTimeRange.gte,
+                        max: scadQueryTimeRange.lte,
+                      },
+                    },
+                    aggs: {
+                      top_posts: {
+                        top_hits: {
+                          size: 10,
+                          _source: {
+                            includes: [
+                              "u_profile_photo",
+                              "u_followers",
+                              "u_following",
+                              "u_posts",
+                              "p_likes",
+                              "llm_emotion",
+                              "llm_emotion_arabic",
+                              "llm_language",
+                              "u_country",
+                              "p_comments_text",
+                              "p_url",
+                              "p_comments",
+                              "p_shares",
+                              "p_engagement",
+                              "p_content",
+                              "p_picture_url",
+                              "predicted_sentiment_value",
+                              "predicted_category",
+                              "source",
+                              "rating",
+                              "u_fullname",
+                              "p_message_text",
+                              "comment",
+                              "business_response",
+                              "u_source",
+                              "name",
+                              "p_created_time",
+                              "created_at",
+                              "p_comments_data",
+                              "video_embed_url",
+                              "p_id",
+                              "p_picture",
+                              "llm_comments",
+                              "llm_category_confidence",
+                              "u_verified",
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          };
+
+          // Execute SCAD combined query
+          const scadResponse = await elasticClient.search({
+            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+            body: scadCombinedQuery,
+          });
+
+          // Process SCAD results - grouped by source
+          const scadSourcesTrend = {};
+          const scadSourceBuckets = scadResponse?.aggregations?.by_source?.buckets || [];
+
+          for (const sourceBucket of scadSourceBuckets) {
+            const sourceName = sourceBucket.key;
+            const scadDatesWithPosts = [];
+            const scadBuckets = sourceBucket?.daily_counts?.buckets || [];
+
+            for (const bucket of scadBuckets) {
+              const docCount = bucket.doc_count;
+              const keyAsString = new Date(bucket.key_as_string)
+                .toISOString()
+                .split("T")[0];
+
+              const bucketDate = new Date(keyAsString);
+              const startDate = new Date(scadQueryTimeRange.gte);
+              const endDate = new Date(scadQueryTimeRange.lte);
+
+              if (bucketDate >= startDate && bucketDate <= endDate) {
+                const posts = bucket.top_posts.hits.hits.map((hit) =>
+                  formatPostData(hit)
+                );
+
+                const postsWithTerms = posts.map((post) => {
+                  const textFields = [
+                    post.message_text,
+                    post.content,
+                    post.keywords,
+                    post.title,
+                    post.hashtags,
+                    post.uSource,
+                    post.source,
+                    post.p_url,
+                    post.userFullname,
+                  ];
+                  return {
+                    ...post,
+                    matched_terms: scadAllFilterTerms.filter((term) =>
+                      textFields.some((field) => {
+                        if (!field) return false;
+                        if (Array.isArray(field)) {
+                          return field.some(
+                            (f) =>
+                              typeof f === "string" &&
+                              f.toLowerCase().includes(term.toLowerCase())
+                          );
+                        }
+                        return (
+                          typeof field === "string" &&
+                          field.toLowerCase().includes(term.toLowerCase())
+                        );
+                      })
+                    ),
+                  };
+                });
+
+                scadDatesWithPosts.push({
+                  date: keyAsString,
+                  count: docCount,
+                  posts: postsWithTerms,
+                });
+              }
+            }
+
+            scadDatesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+            scadSourcesTrend[sourceName] = scadDatesWithPosts;
+          }
+
+          scadTrend = scadSourcesTrend;
+        } catch (scadError) {
+          console.error("Error processing SCAD trend:", scadError);
+          // Continue with main trend even if SCAD fails
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        sourcesTrend: sourcesTrend,
+        scadTrend: scadTrend,
+      });
+    } catch (error) {
+      console.error("Error fetching social media mentions trend data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
 
   getMentionsOverTime: async (req, res) => {
     try {

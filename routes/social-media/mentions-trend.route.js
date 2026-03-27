@@ -21,7 +21,8 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
  *             $ref: '#/components/schemas/MentionsTrendRequest'
  */
 router.post('/', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrend);
-
+router.post('/by-sources', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendBySource);
+router.post('/by-sources-comments', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendBySourceComments);
 router.get('/posts', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendPost);
 
 module.exports = router; 

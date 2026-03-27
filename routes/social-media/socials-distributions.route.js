@@ -32,6 +32,8 @@ const transformCategoryData = require('../../middleware/categoryTransform.middle
 // Counts-only endpoint (same body structure as before, returns just counts)
 router.post('/', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getDistributions);
 
+router.post('/content-distribution-by-source', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getContentDistributionBySource);
+
 // New posts-only endpoint: same params plus "source" to fetch posts for a single source
 router.post('/posts', express.json(), authMiddleware, transformCategoryData, postsController.getDistributionPosts);
 

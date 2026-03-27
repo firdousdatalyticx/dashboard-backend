@@ -5,6 +5,7 @@ console.log("cron job started")
 
 module.exports.Index = async () => {
 cron.schedule("0 23 * * *", async () => {
+  // cron.schedule("*/5 * * * *", async () => {
 try {
   await cpxApiCall();
 

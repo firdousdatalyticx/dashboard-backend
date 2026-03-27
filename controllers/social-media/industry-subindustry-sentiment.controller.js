@@ -514,6 +514,42 @@ const aggregateFieldEmotion = (buckets = [], keyName) =>
     }))
     .sort((a, b) => b.total - a.total);
 
+const aggregateEntitySentiment = (buckets = []) =>
+  buckets
+    .filter((bucket) => bucket.key && String(bucket.key).trim() !== "")
+    .map((bucket) => {
+      const sentiments = { positive: 0, negative: 0, neutral: 0 };
+      (bucket.sentiments?.buckets || []).forEach((sentBucket) => {
+        const key = String(sentBucket.key || "").toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(sentiments, key)) {
+          sentiments[key] = sentBucket.doc_count;
+        }
+      });
+      return {
+        name: bucket.key,
+        llm_entity: bucket.key,
+        ...sentiments,
+        total: bucket.doc_count,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+
+const aggregateEntityEmotion = (buckets = []) =>
+  buckets
+    .filter((bucket) => bucket.key && String(bucket.key).trim() !== "")
+    .map((bucket) => ({
+      name: bucket.key,
+      llm_entity: bucket.key,
+      emotions: (bucket.emotions?.buckets || [])
+        .map((emotionBucket) => ({
+          emotion: emotionBucket.key,
+          count: emotionBucket.doc_count,
+        }))
+        .sort((a, b) => b.count - a.count),
+      total: bucket.doc_count,
+    }))
+    .sort((a, b) => b.total - a.total);
+
 const normalizeSentimentLabel = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
   if (normalized === "positive") return "positive";
@@ -714,6 +750,7 @@ const formatPostData = (hit) => {
     p_comments_data: s.p_comments_data,
     llm_comments: s.llm_comments,
     llm_category_confidence: s.llm_category_confidence,
+    llm_entity: s.llm_entity,
     u_verified: s.u_verified,
     p_id: s.p_id,
   };
@@ -979,6 +1016,8 @@ const industrySubindustrySentimentController = {
         topicId,
         industry,
         sub_industry,
+        entity,
+        llm_entity,
         location,
         llm_location,
         field,
@@ -1036,6 +1075,8 @@ const industrySubindustrySentimentController = {
         query.bool.must.push({ term: { "sub_industry.keyword": value } });
       } else if (clickedField === "location" && value) {
         query.bool.must.push({ term: { "llm_location.keyword": value } });
+      } else if (clickedField === "entity" && value) {
+        query.bool.must.push({ term: { "llm_entity.keyword": value } });
       } else {
         if (industry && industry !== "All") {
           query.bool.must.push({ term: { "industry.keyword": industry } });
@@ -1046,6 +1087,10 @@ const industrySubindustrySentimentController = {
         const selectedLocation = llm_location || location;
         if (selectedLocation && selectedLocation !== "All") {
           query.bool.must.push({ term: { "llm_location.keyword": selectedLocation } });
+        }
+        const selectedEntity = llm_entity || entity;
+        if (selectedEntity && selectedEntity !== "All") {
+          query.bool.must.push({ term: { "llm_entity.keyword": selectedEntity } });
         }
       }
 
@@ -1063,6 +1108,188 @@ const industrySubindustrySentimentController = {
     } catch (error) {
       console.error("Error fetching industry/sub_industry posts:", error);
       return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  },
+  getPostEntitySentimentDistribution: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        category = "all",
+        sources = "All",
+        llm_mention_type,
+        countries,
+        keywords,
+        organizations,
+        cities,
+        dataSource = "All",
+        sentimentType,
+        emotion,
+        topicId,
+      } = req.body;
+
+      let categoryData = {};
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        const processCategoryItems = require("../../helpers/processedCategoryItems");
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json([]);
+      }
+
+      let selectedCategory = category;
+      if (category && category !== "all" && category !== "" && category !== "custom") {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        selectedCategory = matchedKey || "all";
+      }
+
+      const query = buildAnalysisQuery({
+        categoryData,
+        category: selectedCategory,
+        timeSlot,
+        fromDate,
+        toDate,
+        sources,
+        llm_mention_type,
+        countries,
+        keywords,
+        organizations,
+        cities,
+        dataSource,
+        topicId,
+      });
+
+      applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
+
+      const response = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          query,
+          size: 0,
+          aggs: {
+            entities: {
+              terms: {
+                field: "llm_entity.keyword",
+                size: 10,
+                exclude: "null",
+              },
+              aggs: {
+                sentiments: {
+                  terms: {
+                    field: "predicted_sentiment_value.keyword",
+                    size: 10,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const entityBuckets = response.aggregations?.entities?.buckets || [];
+      return res.json(aggregateEntitySentiment(entityBuckets));
+    } catch (error) {
+      console.error("Error fetching post entity sentiment distribution:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+  getPostEntityEmotionDistribution: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        category = "all",
+        sources = "All",
+        llm_mention_type,
+        countries,
+        keywords,
+        organizations,
+        cities,
+        dataSource = "All",
+        sentimentType,
+        emotion,
+        topicId,
+      } = req.body;
+
+      let categoryData = {};
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        const processCategoryItems = require("../../helpers/processedCategoryItems");
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json([]);
+      }
+
+      let selectedCategory = category;
+      if (category && category !== "all" && category !== "" && category !== "custom") {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        selectedCategory = matchedKey || "all";
+      }
+
+      const query = buildAnalysisQuery({
+        categoryData,
+        category: selectedCategory,
+        timeSlot,
+        fromDate,
+        toDate,
+        sources,
+        llm_mention_type,
+        countries,
+        keywords,
+        organizations,
+        cities,
+        dataSource,
+        topicId,
+      });
+
+      applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
+
+      const response = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          query,
+          size: 0,
+          aggs: {
+            entities: {
+              terms: {
+                field: "llm_entity.keyword",
+                size: 10,
+                exclude: "null",
+              },
+              aggs: {
+                emotions: {
+                  terms: {
+                    field: "llm_emotion.keyword",
+                    size: 10,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const entityBuckets = response.aggregations?.entities?.buckets || [];
+      return res.json(aggregateEntityEmotion(entityBuckets));
+    } catch (error) {
+      console.error("Error fetching post entity emotion distribution:", error);
+      return res.status(500).json({ error: "Internal server error" });
     }
   },
 

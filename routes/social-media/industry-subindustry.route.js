@@ -76,4 +76,20 @@ router.post(
   industrySubindustryController.getCommentLocationEmotionDistribution
 );
 
+router.post(
+  "/post-entity-sentiment",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  industrySubindustryController.getPostEntitySentimentDistribution
+);
+
+router.post(
+  "/post-entity-emotion",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  industrySubindustryController.getPostEntityEmotionDistribution
+);
+
 module.exports = router;

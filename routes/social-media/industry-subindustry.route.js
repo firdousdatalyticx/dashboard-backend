@@ -28,4 +28,52 @@ router.post(
   industrySubindustryController.getIndustrySubIndustryPosts
 );
 
+router.post(
+  "/location-sentiment",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  industrySubindustryController.getLocationSentimentDistribution
+);
+
+router.post(
+  "/location-emotion",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  industrySubindustryController.getLocationEmotionDistribution
+);
+
+router.post(
+  "/post-location-sentiment",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  industrySubindustryController.getPostLocationSentimentDistribution
+);
+
+router.post(
+  "/comment-location-sentiment",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  industrySubindustryController.getCommentLocationSentimentDistribution
+);
+
+router.post(
+  "/post-location-emotion",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  industrySubindustryController.getPostLocationEmotionDistribution
+);
+
+router.post(
+  "/comment-location-emotion",
+  express.json(),
+  authMiddleware,
+  transformCategoryData,
+  industrySubindustryController.getCommentLocationEmotionDistribution
+);
+
 module.exports = router;

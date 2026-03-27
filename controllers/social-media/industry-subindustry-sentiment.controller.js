@@ -514,6 +514,84 @@ const aggregateFieldEmotion = (buckets = [], keyName) =>
     }))
     .sort((a, b) => b.total - a.total);
 
+const normalizeSentimentLabel = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "positive") return "positive";
+  if (normalized === "negative") return "negative";
+  if (normalized === "neutral") return "neutral";
+  return null;
+};
+
+const isValidLocation = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized === "unknown") return false;
+  if (normalized === "not specified") return false;
+  return true;
+};
+
+const safeParseJson = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "object") return value;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+};
+
+const extractCommentsFromPost = (llmCommentsValue) => {
+  if (Array.isArray(llmCommentsValue)) return llmCommentsValue;
+  if (typeof llmCommentsValue === "string") {
+    const parsed = safeParseJson(llmCommentsValue);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === "object") return [parsed];
+    return [];
+  }
+  if (llmCommentsValue && typeof llmCommentsValue === "object") return [llmCommentsValue];
+  return [];
+};
+
+const scrollSearch = async ({
+  query,
+  sourceFields,
+  sort,
+  scroll = "2m",
+  pageSize = 2000,
+  maxDocs = 40000,
+}) => {
+  const firstResponse = await elasticClient.search({
+    index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+    scroll,
+    size: pageSize,
+    _source: sourceFields,
+    body: { query, sort },
+  });
+
+  let scrollId = firstResponse._scroll_id;
+  const total = firstResponse.hits.total.value;
+  let allResults = firstResponse.hits.hits.map((hit) => hit._source);
+
+  while (scrollId && allResults.length < total && allResults.length < maxDocs) {
+    const scrollResponse = await elasticClient.scroll({ scroll_id: scrollId, scroll });
+    if (!scrollResponse.hits.hits.length) break;
+    allResults.push(...scrollResponse.hits.hits.map((hit) => hit._source));
+  }
+
+  if (scrollId) {
+    try {
+      await elasticClient.clearScroll({ scroll_id: scrollId });
+    } catch (error) {
+      // non-critical
+    }
+  }
+
+  return { total, fetched: allResults.length, results: allResults };
+};
+
 const applyCommonOptionalFilters = (query, { sentimentType, emotion, category, selectedCategory }) => {
   if (sentimentType && sentimentType !== "undefined" && sentimentType !== "null") {
     if (sentimentType.includes(",")) {
@@ -640,6 +718,23 @@ const formatPostData = (hit) => {
     p_id: s.p_id,
   };
 };
+
+async function runHandlerAndCaptureJson(handler, req) {
+  let statusCode = 200;
+  let payload;
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json(data) {
+      payload = data;
+      return data;
+    },
+  };
+  await handler(req, res);
+  return { statusCode, payload };
+}
 
 const industrySubindustrySentimentController = {
   getIndustrySubIndustrySentimentDistribution: async (req, res) => {
@@ -864,6 +959,7 @@ const industrySubindustrySentimentController = {
       return res.status(500).json({ error: "Internal server error" });
     }
   },
+  
   getIndustrySubIndustryPosts: async (req, res) => {
     try {
       const {
@@ -883,6 +979,8 @@ const industrySubindustrySentimentController = {
         topicId,
         industry,
         sub_industry,
+        location,
+        llm_location,
         field,
         value,
         limit = 30,
@@ -936,12 +1034,18 @@ const industrySubindustrySentimentController = {
         value
       ) {
         query.bool.must.push({ term: { "sub_industry.keyword": value } });
+      } else if (clickedField === "location" && value) {
+        query.bool.must.push({ term: { "llm_location.keyword": value } });
       } else {
         if (industry && industry !== "All") {
           query.bool.must.push({ term: { "industry.keyword": industry } });
         }
         if (sub_industry && sub_industry !== "All") {
           query.bool.must.push({ term: { "sub_industry.keyword": sub_industry } });
+        }
+        const selectedLocation = llm_location || location;
+        if (selectedLocation && selectedLocation !== "All") {
+          query.bool.must.push({ term: { "llm_location.keyword": selectedLocation } });
         }
       }
 
@@ -960,6 +1064,331 @@ const industrySubindustrySentimentController = {
       console.error("Error fetching industry/sub_industry posts:", error);
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
+  },
+
+  getLocationSentimentDistribution: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        category = "all",
+        sources = "All",
+        llm_mention_type,
+        countries,
+        keywords,
+        organizations,
+        cities,
+        dataSource = "All",
+        sentimentType,
+        emotion,
+        topicId,
+      } = req.body;
+
+      let categoryData = {};
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        const processCategoryItems = require("../../helpers/processedCategoryItems");
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({ post: [], comment: [] });
+      }
+
+      let selectedCategory = category;
+      if (category && category !== "all" && category !== "" && category !== "custom") {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        selectedCategory = matchedKey || "all";
+      }
+
+      const query = buildAnalysisQuery({
+        categoryData,
+        category: selectedCategory,
+        timeSlot,
+        fromDate,
+        toDate,
+        sources,
+        llm_mention_type,
+        countries,
+        keywords,
+        organizations,
+        cities,
+        dataSource,
+        topicId,
+      });
+
+      applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
+
+      const postResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          query,
+          size: 0,
+          aggs: {
+            locations: {
+              terms: {
+                field: "llm_location.keyword",
+                size: 10,
+                missing: "Unknown",
+              },
+              aggs: {
+                sentiments: {
+                  terms: {
+                    field: "predicted_sentiment_value.keyword",
+                    size: 10,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const post = (postResponse.aggregations?.locations?.buckets || []).map((bucket) => {
+        const sentiments = { positive: 0, negative: 0, neutral: 0 };
+        (bucket.sentiments?.buckets || []).forEach((b) => {
+          const key = normalizeSentimentLabel(b.key);
+          if (key) sentiments[key] = b.doc_count;
+        });
+        const locationKey = bucket.key || "";
+        if (!isValidLocation(locationKey)) return null;
+        return {
+          name: locationKey,
+          location: locationKey,
+          ...sentiments,
+          total: bucket.doc_count,
+        };
+      }).filter(Boolean);
+
+      const { results: posts } = await scrollSearch({
+        query,
+        sourceFields: [
+          "llm_location",
+          "predicted_sentiment_value",
+          "llm_comments",
+          "p_created_time",
+        ],
+        sort: [{ p_created_time: { order: "desc" } }],
+        maxDocs: 40000,
+      });
+
+      const commentLocationMap = new Map();
+      for (const p of posts) {
+        const fallbackLocation = String(p.llm_location || "").trim();
+        const comments = extractCommentsFromPost(p.llm_comments);
+        for (const comment of comments) {
+          const parsed = safeParseJson(comment);
+          if (!parsed) continue;
+          const location = String(parsed.llm_location || fallbackLocation || "").trim();
+          if (!isValidLocation(location)) continue;
+          const sentiment = normalizeSentimentLabel(
+            parsed.predicted_sentiment_value || p.predicted_sentiment_value
+          );
+          if (!sentiment) continue;
+
+          if (!commentLocationMap.has(location)) {
+            commentLocationMap.set(location, {
+              name: location,
+              location,
+              positive: 0,
+              negative: 0,
+              neutral: 0,
+              total: 0,
+            });
+          }
+          const row = commentLocationMap.get(location);
+          row[sentiment] += 1;
+          row.total += 1;
+        }
+      }
+
+      const comment = Array.from(commentLocationMap.values())
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10);
+
+      return res.json({ post, comment });
+    } catch (error) {
+      console.error("Error fetching llm_location sentiment distribution:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+  getLocationEmotionDistribution: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        category = "all",
+        sources = "All",
+        llm_mention_type,
+        countries,
+        keywords,
+        organizations,
+        cities,
+        dataSource = "All",
+        sentimentType,
+        emotion,
+        topicId,
+      } = req.body;
+
+      let categoryData = {};
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        const processCategoryItems = require("../../helpers/processedCategoryItems");
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({ post: [], comment: [] });
+      }
+
+      let selectedCategory = category;
+      if (category && category !== "all" && category !== "" && category !== "custom") {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        selectedCategory = matchedKey || "all";
+      }
+
+      const query = buildAnalysisQuery({
+        categoryData,
+        category: selectedCategory,
+        timeSlot,
+        fromDate,
+        toDate,
+        sources,
+        llm_mention_type,
+        countries,
+        keywords,
+        organizations,
+        cities,
+        dataSource,
+        topicId,
+      });
+
+      applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
+
+      const postResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          query,
+          size: 0,
+          aggs: {
+            locations: {
+              terms: {
+                field: "llm_location.keyword",
+                size: 10,
+                missing: "Unknown",
+              },
+              aggs: {
+                emotions: {
+                  terms: {
+                    field: "llm_emotion.keyword",
+                    size: 10,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const post = (postResponse.aggregations?.locations?.buckets || []).map((bucket) => ({
+        name: bucket.key || "",
+        location: bucket.key || "",
+        emotions: (bucket.emotions?.buckets || [])
+          .map((e) => ({ name: e.key, count: e.doc_count }))
+          .sort((a, b) => b.count - a.count),
+        total: bucket.doc_count,
+      })).filter((row) => isValidLocation(row.location));
+
+      const { results: posts } = await scrollSearch({
+        query,
+        sourceFields: ["llm_location", "llm_emotion", "llm_comments", "p_created_time"],
+        sort: [{ p_created_time: { order: "desc" } }],
+        maxDocs: 40000,
+      });
+
+      const commentLocationMap = new Map();
+      for (const p of posts) {
+        const fallbackLocation = String(p.llm_location || "").trim();
+        const comments = extractCommentsFromPost(p.llm_comments);
+        for (const comment of comments) {
+          const parsed = safeParseJson(comment);
+          if (!parsed) continue;
+          const location = String(parsed.llm_location || fallbackLocation || "").trim();
+          if (!isValidLocation(location)) continue;
+          const emotionKey = String(parsed.llm_emotion || p.llm_emotion || "Unknown").trim() || "Unknown";
+
+          if (!commentLocationMap.has(location)) {
+            commentLocationMap.set(location, {
+              name: location,
+              location,
+              total: 0,
+              emotionMap: new Map(),
+            });
+          }
+          const row = commentLocationMap.get(location);
+          row.total += 1;
+          row.emotionMap.set(emotionKey, (row.emotionMap.get(emotionKey) || 0) + 1);
+        }
+      }
+
+      const comment = Array.from(commentLocationMap.values())
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10)
+        .map((row) => ({
+          name: row.name,
+          location: row.location,
+          total: row.total,
+          emotions: Array.from(row.emotionMap.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10),
+        }));
+
+      return res.json({ post, comment });
+    } catch (error) {
+      console.error("Error fetching llm_location emotion distribution:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  },
+  getPostLocationSentimentDistribution: async (req, res) => {
+    const { statusCode, payload } = await runHandlerAndCaptureJson(
+      industrySubindustrySentimentController.getLocationSentimentDistribution,
+      req
+    );
+    return res.status(statusCode).json(payload?.post || []);
+  },
+  getCommentLocationSentimentDistribution: async (req, res) => {
+    const { statusCode, payload } = await runHandlerAndCaptureJson(
+      industrySubindustrySentimentController.getLocationSentimentDistribution,
+      req
+    );
+    return res.status(statusCode).json(payload?.comment || []);
+  },
+  getPostLocationEmotionDistribution: async (req, res) => {
+    const { statusCode, payload } = await runHandlerAndCaptureJson(
+      industrySubindustrySentimentController.getLocationEmotionDistribution,
+      req
+    );
+    return res.status(statusCode).json(payload?.post || []);
+  },
+  getCommentLocationEmotionDistribution: async (req, res) => {
+    const { statusCode, payload } = await runHandlerAndCaptureJson(
+      industrySubindustrySentimentController.getLocationEmotionDistribution,
+      req
+    );
+    return res.status(statusCode).json(payload?.comment || []);
   },
 };
 

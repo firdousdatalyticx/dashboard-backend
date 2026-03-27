@@ -1246,6 +1246,8 @@ const llmCommentsSentimentTrendController = {
         value, // optional click value for dimension
         industry, // optional direct industry filter
         sub_industry, // optional direct sub industry filter
+        location, // optional direct location filter
+        llm_location, // optional direct location filter
         limit = 2000,
       } = req.body;
 
@@ -1404,6 +1406,9 @@ const llmCommentsSentimentTrendController = {
       const selectedSubIndustry = sub_industry
         ? String(sub_industry).trim().toLowerCase()
         : null;
+      const selectedLocation = (llm_location || location)
+        ? String(llm_location || location).trim().toLowerCase()
+        : null;
 
       const comments = [];
 
@@ -1428,6 +1433,9 @@ const llmCommentsSentimentTrendController = {
             .trim()
             .toLowerCase();
           const commentSubIndustry = String(commentIndustryLabels.sub_industry || "")
+            .trim()
+            .toLowerCase();
+          const commentLocation = String(parsed.llm_location || post.llm_location || "")
             .trim()
             .toLowerCase();
 
@@ -1462,6 +1470,9 @@ const llmCommentsSentimentTrendController = {
             ) {
               continue;
             }
+            if (selectedField === "location" && commentLocation !== selectedValue) {
+              continue;
+            }
           }
 
           if (
@@ -1480,6 +1491,14 @@ const llmCommentsSentimentTrendController = {
             continue;
           }
 
+          if (
+            selectedLocation &&
+            selectedLocation !== "all" &&
+            commentLocation !== selectedLocation
+          ) {
+            continue;
+          }
+
           comments.push({
             // Frontend-friendly fields for filtering/drilldown
             source: normalized.source,
@@ -1490,6 +1509,7 @@ const llmCommentsSentimentTrendController = {
             llm_emotion: normalized.llm_emotion,
             industry: commentIndustryLabels.industry || null,
             sub_industry: commentIndustryLabels.sub_industry || null,
+            llm_location: parsed.llm_location || post.llm_location || null,
 
             ...parsed, // full llm comment object fields
             mapped_sentiment: normalized.mapped_sentiment,

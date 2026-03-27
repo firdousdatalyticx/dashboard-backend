@@ -55,6 +55,12 @@ function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
     return matchedKey || null;
 }
 
+const applyCountryLocationFilterToBoolQuery = (boolQuery, country) => {
+    const countryValue = String(country || '').trim();
+    if (!countryValue) return;
+    boolQuery.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
+
 const poiSentimentDistributionController = {
     getDistribution: async (req, res) => {
         try {
@@ -64,6 +70,7 @@ const poiSentimentDistributionController = {
           fromDate,
         toDate,
         sentiment,
+        country,
         llm_mention_type } = req.body || {};
             
             // Check if this is the special topicId
@@ -387,6 +394,8 @@ const poiSentimentDistributionController = {
                     }
                 }
             };
+
+            applyCountryLocationFilterToBoolQuery(params.body.query.bool, country);
 
 
              if (sentiment && sentiment!=="" && sentiment !== 'undefined' && sentiment !== 'null') {

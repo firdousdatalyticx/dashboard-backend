@@ -74,6 +74,15 @@ function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
     return matchedKey || null;
 }
 
+const applyCountryLocationFilterToQuery = (query, country) => {
+    const countryValue = String(country || '').trim();
+    if (!countryValue) return;
+    const filterMust = query?.bool?.filter?.bool?.must;
+    if (Array.isArray(filterMust)) {
+        filterMust.push({ term: { 'llm_location.keyword': countryValue } });
+    }
+};
+
 const leaderboardAnalysisController = {
     getLeaderboardAnalysis: async (req, res) => {
         try {
@@ -82,6 +91,7 @@ const leaderboardAnalysisController = {
         fromDate,
         toDate,
         sentiment,
+        country,
         llm_mention_type, } = req.body || {};
             
             // Check if this is the special topicId
@@ -409,6 +419,8 @@ const leaderboardAnalysisController = {
                     }
                 }
             };
+
+            applyCountryLocationFilterToQuery(params.body.query, country);
 
                          if (sentiment && sentiment!="" && sentiment !== 'undefined' && sentiment !== 'null') {
                 if (sentiment.includes(',')) {

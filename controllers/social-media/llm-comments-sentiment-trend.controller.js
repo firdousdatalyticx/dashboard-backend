@@ -380,6 +380,12 @@ function normalizeIndustryLabel(parsedComment, fallbackPost = {}) {
   };
 }
 
+function applyCountryLocationFilter(query, country) {
+  const countryValue = String(country || "").trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { "llm_location.keyword": countryValue } });
+}
+
 function bucketKey(pCreatedTime, interval) {
   const dt = new Date(pCreatedTime);
   if (Number.isNaN(dt.getTime())) return null;
@@ -465,6 +471,7 @@ const llmCommentsSentimentTrendController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
         interval = "daily",
@@ -525,6 +532,7 @@ const llmCommentsSentimentTrendController = {
 
       // Build base query for posts based on topicId + filters
       const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      applyCountryLocationFilter(query, country);
       addCategoryFilters(query, workingCategory, categoryData);
 
       // predicted sentiment filter (post-level) if provided
@@ -684,6 +692,7 @@ const llmCommentsSentimentTrendController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
         interval = "daily",
@@ -739,6 +748,7 @@ const llmCommentsSentimentTrendController = {
       }
 
       const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      applyCountryLocationFilter(query, country);
       addCategoryFilters(query, workingCategory, categoryData);
 
       if (
@@ -878,6 +888,7 @@ const llmCommentsSentimentTrendController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
       } = req.body;
@@ -929,6 +940,7 @@ const llmCommentsSentimentTrendController = {
       }
 
       const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      applyCountryLocationFilter(query, country);
       addCategoryFilters(query, workingCategory, categoryData);
 
       // Post-level sentiment filter (optional)
@@ -1057,6 +1069,7 @@ const llmCommentsSentimentTrendController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
       } = req.body;
@@ -1108,6 +1121,7 @@ const llmCommentsSentimentTrendController = {
       }
 
       const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      applyCountryLocationFilter(query, country);
       addCategoryFilters(query, workingCategory, categoryData);
 
       // Post-level sentiment filter (optional)
@@ -1235,6 +1249,7 @@ const llmCommentsSentimentTrendController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
         interval = "daily",
@@ -1301,6 +1316,7 @@ const llmCommentsSentimentTrendController = {
       }
 
       const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      applyCountryLocationFilter(query, country);
       addCategoryFilters(query, workingCategory, categoryData);
 
       if (
@@ -1545,6 +1561,7 @@ const llmCommentsSentimentTrendController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
         // optional drill-down filters
@@ -1608,6 +1625,7 @@ const llmCommentsSentimentTrendController = {
       }
 
       const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      applyCountryLocationFilter(query, country);
       addCategoryFilters(query, workingCategory, categoryData);
 
       // Post-level sentiment filter
@@ -1783,6 +1801,7 @@ const llmCommentsSentimentTrendController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
       } = req.body;
@@ -1839,6 +1858,7 @@ const llmCommentsSentimentTrendController = {
       }
 
       const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      applyCountryLocationFilter(query, country);
       addCategoryFilters(query, workingCategory, categoryData);
 
       if (
@@ -2012,6 +2032,7 @@ const llmCommentsSentimentTrendController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
       } = req.body;
@@ -2068,6 +2089,7 @@ const llmCommentsSentimentTrendController = {
       }
 
       const query = buildBaseQuery(dateRange, source, isSpecialTopic, topicIdNum);
+      applyCountryLocationFilter(query, country);
       addCategoryFilters(query, workingCategory, categoryData);
 
       if (

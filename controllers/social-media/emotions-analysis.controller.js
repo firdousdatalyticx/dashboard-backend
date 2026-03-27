@@ -63,6 +63,12 @@ const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
     return matchedKey || null;
 };
 
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || "").trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { "llm_location.keyword": countryValue } });
+};
+
 const emotionsController = {
   /**
    * Get emotions analysis data for social media posts
@@ -80,6 +86,7 @@ const emotionsController = {
         fromDate,
         toDate,
         sentiment,
+        country,
         llm_mention_type,
       } = req.body;
 
@@ -184,6 +191,7 @@ const emotionsController = {
         isSpecialTopic,
         parseInt(topicId)
       );
+      applyCountryLocationFilter(query, country);
 
 
       // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
@@ -626,6 +634,7 @@ const emotionsController = {
       toDate,
       sentiment,
       emotion,
+      country,
       page = 1,
       limit = 30,
       llm_mention_type
@@ -695,6 +704,7 @@ const emotionsController = {
       isSpecialTopic,
       parseInt(topicId)
     );
+    applyCountryLocationFilter(query, country);
 
     // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
     if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {

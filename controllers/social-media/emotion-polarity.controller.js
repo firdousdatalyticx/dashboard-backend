@@ -502,6 +502,12 @@ const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
     return matchedKey || null;
 };
 
+const buildCountryLocationFilter = (country) => {
+    const countryValue = String(country || '').trim();
+    if (!countryValue) return null;
+    return { term: { 'llm_location.keyword': countryValue } };
+};
+
 const emotionPolarityController = {
     getEmotionPolarity: async (req, res) => {
         try {
@@ -526,6 +532,7 @@ const emotionPolarityController = {
                 timeSlot,
                 toDate,
                 category = 'all',
+                country,
                 llm_mention_type
             } = params;
 
@@ -747,6 +754,11 @@ const emotionPolarityController = {
             // Add sentiment filter if exists
             if (sentimentFilter) {
                 queryFilters.push(sentimentFilter);
+            }
+
+            const countryFilter = buildCountryLocationFilter(country);
+            if (countryFilter) {
+                queryFilters.push(countryFilter);
             }
 
             // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true

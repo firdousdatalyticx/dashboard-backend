@@ -57,6 +57,12 @@ const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
   return matchedKey || null;
 };
 
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || '').trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
+
 const getSentimentTrendData = async ({ query, formattedMinDate, formattedMaxDate, calendarInterval, formatPattern, analysisType }) => {
   const aggregations = {
     time_intervals: {
@@ -126,6 +132,7 @@ const sentimentsController = {
                  fromDate,
                 toDate,
                 sentiment,
+                country,
                 llm_mention_type
             } = req.body;
             
@@ -229,6 +236,7 @@ const sentimentsController = {
                 greaterThanTime,
                 lessThanTime
             }, source, isSpecialTopic, parseInt(topicId));
+            applyCountryLocationFilter(query, country);
 
             // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
             if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {
@@ -616,6 +624,7 @@ const sentimentsController = {
             fromDate,
             toDate,
             sentiment,
+            country,
             llm_mention_type,
             limit = 30,
             offset = 0
@@ -681,6 +690,7 @@ const sentimentsController = {
             greaterThanTime,
             lessThanTime
         }, source, isSpecialTopic, parseInt(topicId));
+        applyCountryLocationFilter(query, country);
 
         // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
         if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644 ) {

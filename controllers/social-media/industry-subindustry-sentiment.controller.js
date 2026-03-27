@@ -566,6 +566,12 @@ const isValidLocation = (value) => {
   return true;
 };
 
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || "").trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { "llm_location.keyword": countryValue } });
+};
+
 const safeParseJson = (value) => {
   if (value === null || value === undefined) return null;
   if (typeof value === "object") return value;
@@ -790,6 +796,7 @@ const industrySubindustrySentimentController = {
         dataSource = "All",
         sentimentType,
         emotion,
+        country,
         topicId,
       } = req.body;
 
@@ -830,6 +837,7 @@ const industrySubindustrySentimentController = {
         dataSource,
         topicId,
       });
+      applyCountryLocationFilter(query, country);
 
       applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
 
@@ -901,6 +909,7 @@ const industrySubindustrySentimentController = {
         dataSource = "All",
         sentimentType,
         emotion,
+        country,
         topicId,
       } = req.body;
 
@@ -941,6 +950,7 @@ const industrySubindustrySentimentController = {
         dataSource,
         topicId,
       });
+      applyCountryLocationFilter(query, country);
 
       applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
 
@@ -1013,6 +1023,7 @@ const industrySubindustrySentimentController = {
         dataSource = "All",
         sentimentType,
         emotion,
+        country,
         topicId,
         industry,
         sub_industry,
@@ -1062,6 +1073,7 @@ const industrySubindustrySentimentController = {
         dataSource,
         topicId,
       });
+      applyCountryLocationFilter(query, country);
 
       applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
 
@@ -1126,6 +1138,7 @@ const industrySubindustrySentimentController = {
         dataSource = "All",
         sentimentType,
         emotion,
+        country,
         topicId,
       } = req.body;
 
@@ -1166,6 +1179,7 @@ const industrySubindustrySentimentController = {
         dataSource,
         topicId,
       });
+      applyCountryLocationFilter(query, country);
 
       applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
 
@@ -1217,6 +1231,7 @@ const industrySubindustrySentimentController = {
         dataSource = "All",
         sentimentType,
         emotion,
+        country,
         topicId,
       } = req.body;
 
@@ -1257,6 +1272,7 @@ const industrySubindustrySentimentController = {
         dataSource,
         topicId,
       });
+      applyCountryLocationFilter(query, country);
 
       applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
 
@@ -1309,6 +1325,7 @@ const industrySubindustrySentimentController = {
         dataSource = "All",
         sentimentType,
         emotion,
+        country,
         topicId,
       } = req.body;
 
@@ -1349,6 +1366,7 @@ const industrySubindustrySentimentController = {
         dataSource,
         topicId,
       });
+      applyCountryLocationFilter(query, country);
 
       applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
 
@@ -1461,6 +1479,7 @@ const industrySubindustrySentimentController = {
         dataSource = "All",
         sentimentType,
         emotion,
+        country,
         topicId,
       } = req.body;
 
@@ -1501,6 +1520,7 @@ const industrySubindustrySentimentController = {
         dataSource,
         topicId,
       });
+      applyCountryLocationFilter(query, country);
 
       applyCommonOptionalFilters(query, { sentimentType, emotion, category, selectedCategory });
 
@@ -1545,6 +1565,7 @@ const industrySubindustrySentimentController = {
         maxDocs: 40000,
       });
 
+      const countryFilter = String(country || "").trim();
       const commentLocationMap = new Map();
       for (const p of posts) {
         const fallbackLocation = String(p.llm_location || "").trim();
@@ -1554,6 +1575,10 @@ const industrySubindustrySentimentController = {
           if (!parsed) continue;
           const location = String(parsed.llm_location || fallbackLocation || "").trim();
           if (!isValidLocation(location)) continue;
+
+          // If a country filter is active, only include comments matching that location
+          if (countryFilter && location !== countryFilter) continue;
+
           const emotionKey = String(parsed.llm_emotion || p.llm_emotion || "Unknown").trim() || "Unknown";
 
           if (!commentLocationMap.has(location)) {
@@ -1601,7 +1626,15 @@ const industrySubindustrySentimentController = {
       industrySubindustrySentimentController.getLocationSentimentDistribution,
       req
     );
-    return res.status(statusCode).json(payload?.comment || []);
+    const countryValue = String(req?.body?.country || "").trim().toLowerCase();
+    const comments = payload?.comment || [];
+    if (!countryValue) {
+      return res.status(statusCode).json(comments);
+    }
+    const filteredComments = comments.filter(
+      (row) => String(row?.location || "").trim().toLowerCase() === countryValue
+    );
+    return res.status(statusCode).json(filteredComments);
   },
   getPostLocationEmotionDistribution: async (req, res) => {
     const { statusCode, payload } = await runHandlerAndCaptureJson(

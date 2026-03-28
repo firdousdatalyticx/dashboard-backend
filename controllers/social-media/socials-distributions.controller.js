@@ -2597,7 +2597,20 @@ return res.json({ posts });
             aggs: {
               total_comments: {
                 sum: {
-                  field: "p_comments",
+                  script: {
+                    source: `
+                      def val = params._source['llm_comments'];
+                      if (val == null) return 0;
+                      if (val instanceof List) return val.size();
+                      def s = val.toString();
+                      int cnt = 0;
+                      int i = 0;
+                      String marker = '"comment_id"';
+                      while ((i = s.indexOf(marker, i)) != -1) { cnt++; i += marker.length(); }
+                      return cnt;
+                    `,
+                    lang: "painless",
+                  },
                 },
               },
               total_engagement: {

@@ -1410,11 +1410,11 @@ applyCountryLocationFilter(query,country)
           size: Math.min(Number(limit) || 30, 100),
           query,
           sort: [{ p_created_time: { order: "desc" } }],
-          _source: { includes: ["p_message_text","source","p_created_time","u_fullname","u_profile_photo","p_url","predicted_sentiment_value","llm_entity","p_id"] },
+          _source: { includes: ["p_message_text","source","p_created_time","u_fullname","u_profile_photo","p_url","predicted_sentiment_value","llm_entity","llm_comments","p_id"] },
         },
       });
 
-      const posts = postsResponse.hits.hits.map((hit) => hit._source);
+      const posts = postsResponse.hits.hits.map(hit => formatPostData(hit));
       return res.json({ posts });
     } catch (error) {
       console.error("Error fetching entity distribution posts:", error);

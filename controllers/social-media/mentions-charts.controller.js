@@ -43,6 +43,11 @@ function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
     return matchedKey || null;
 }
 
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || '').trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
 // Dedicated formatter for trust-dimension posts (top-level so it can be reused anywhere)
 function formatTrustPost(hit) {
   const src = hit._source || {};
@@ -1657,6 +1662,7 @@ const mentionsChartController = {
         sources = "All",
         categoryItems,
         category = 'all',
+        country,
         llm_mention_type
       } = req.body;
 
@@ -1691,6 +1697,7 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
+      applyCountryLocationFilter(topicQueryString,country)
       // Apply source filtering using helper function
       const sourceFilter = buildSourceFilterString(sources, topicId, isSpecialTopic);
       topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
@@ -1865,7 +1872,7 @@ const mentionsChartController = {
 
   recurrenceMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All', llm_mention_type } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All',courtry, llm_mention_type } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -1898,11 +1905,13 @@ const mentionsChartController = {
         isScadUser,
         selectedTab
       );
+  
+ 
       // Apply source filtering using helper function
       const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
       topicQueryString = `${topicQueryString} AND ${sourceFilter}`;
 
-   
+    const countryValue = String(courtry || '').trim();
       // **Single Aggregation Query**
       const query = {
         size: 0,
@@ -1910,6 +1919,9 @@ const mentionsChartController = {
           bool: {
             must: [
               { query_string: { query: topicQueryString } },
+               ...(countryValue
+        ? [{ term: { "llm_location.keyword": countryValue } }]
+        : []),
             ],
             must_not: [{ term: { "llm_mention_recurrence.keyword": "" } }],
           },
@@ -1920,6 +1932,10 @@ const mentionsChartController = {
           },
         },
       };
+
+
+
+  
 
       // Add date range filter only if dates are provided
       if (fromDate || toDate) {
@@ -2044,6 +2060,7 @@ const mentionsChartController = {
         });
       }
     
+
       // Execute query
       const result = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -2065,7 +2082,7 @@ const mentionsChartController = {
 
   urgencyMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All', llm_mention_type } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, category = 'all', source = 'All',courtry, llm_mention_type } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -2099,6 +2116,7 @@ const mentionsChartController = {
         selectedTab
       );
 
+      
       if (topicQueryString == "") {
         return res.status(200).json({ responseOutput: {} });
       }
@@ -2143,6 +2161,7 @@ const mentionsChartController = {
           },
         },
       };
+      applyCountryLocationFilter(query.query,courtry)
 
       // Add date range filter - default to 90 days if no dates provided (except for topic 2641)
       if (fromDate || toDate) {
@@ -3234,7 +3253,7 @@ const mentionsChartController = {
 
   languageMentions: async (req, res) => {
     try {
-      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems, source = 'All',category="all" } = req.body;
+      const { fromDate, toDate, subtopicId, topicId, sentimentType, categoryItems,country, source = 'All',category="all" } = req.body;
 
       // Determine which category data to use
       let categoryData = {};
@@ -3281,6 +3300,7 @@ const mentionsChartController = {
           must_not: [{ term: { "llm_language.keyword": "" } }],
         },
       };
+      applyCountryLocationFilter(baseQuery,country)
 
       // Add date range filter only if dates are provided
       if (fromDate || toDate) {
@@ -3535,6 +3555,7 @@ const mentionsChartController = {
         source,
         sources,
         field,
+        country,
         type,
         value,
         interval,
@@ -3555,6 +3576,7 @@ const mentionsChartController = {
         selectedTab
       );
 
+      applyCountryLocationFilter(topicQueryString,country)
       // Apply source filtering using helper function
       const sourceFilter = buildSourceFilterString(sourceParam, topicId, isSpecialTopic);
       topicQueryString = `${topicQueryString} AND ${sourceFilter}`;

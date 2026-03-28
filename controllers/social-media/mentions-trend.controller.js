@@ -69,6 +69,12 @@ const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
   return matchedKey || null;
 };
 
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || '').trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
+
 const mentionsTrendController = {
   /**
    * Get social media mentions trend data
@@ -82,6 +88,7 @@ const mentionsTrendController = {
         sentimentType,
         source = "All",
         unTopic = "false",
+        country,
         topicId,
         llm_mention_type,
         categoryItems = [],
@@ -208,6 +215,8 @@ const mentionsTrendController = {
         isSpecialTopic,
         Number(req.body.topicId)
       );
+
+      applyCountryLocationFilter(query,country)
       // Add category filters
       addCategoryFilters(query, workingCategory, categoryData);
       if (workingCategory == "all" && category !== "all") {
@@ -500,6 +509,9 @@ const mentionsTrendController = {
             Number(req.body.topicId)
           );
 
+
+         applyCountryLocationFilter(scadQuery,country)
+
           // Add SCAD filters
           addScadFilters(scadQuery, req.processedScadData);
 
@@ -761,6 +773,7 @@ const mentionsTrendController = {
         sentimentType,
         source = "All",
         unTopic = "false",
+        country,
         topicId,
         llm_mention_type,
         categoryItems = [],
@@ -932,6 +945,7 @@ const mentionsTrendController = {
           });
         }
       }
+       applyCountryLocationFilter(query, country);
 
       // Apply LLM Mention Type filter if provided
       if (
@@ -1436,6 +1450,8 @@ const mentionsTrendController = {
         sentimentType,
         source = "All",
         unTopic = "false",
+        country,
+        
         topicId,
         llm_mention_type,
         categoryItems = [],
@@ -1556,6 +1572,8 @@ const mentionsTrendController = {
         isSpecialTopic,
         Number(req.body.topicId)
       );
+
+       applyCountryLocationFilter(query,country)
       // Add category filters
       addCategoryFilters(query, workingCategory, categoryData);
       if (workingCategory == "all" && category !== "all") {
@@ -2018,6 +2036,7 @@ const mentionsTrendController = {
         sentimentType,
         source = "All",
         unTopic = "false",
+        country,
         topicId,
         llm_mention_type,
         categoryItems,
@@ -2105,6 +2124,8 @@ const mentionsTrendController = {
         Number(req.body.topicId)
       );
 
+
+         applyCountryLocationFilter(query,country)
       // Add category filters
       addCategoryFilters(query, category, categoryData);
 

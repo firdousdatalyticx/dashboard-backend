@@ -5,6 +5,11 @@ const { processFilters } = require("./filter.utils");
 const processCategoryItems = require('../../helpers/processedCategoryItems');
 const prisma = require("../../config/database");
 
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || '').trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
 const INFLUENCER_TYPES = [
   { type: "Nano", from: 1000, to: 10000 },
   { type: "Micro", from: 10000, to: 50000 },
@@ -295,6 +300,7 @@ const influencersController = {
         sentimentType,
         isScadUser = "false",
         topicId,
+        courtry,
         category: inputCategory = 'all',
       } = req.body;
 
@@ -327,6 +333,7 @@ const influencersController = {
 
       const topicQueryString = buildTopicQueryString(categoryData);
 
+     
       // Process filters for time range and sentiment
       const filters = processFilters({
         timeSlot,
@@ -491,6 +498,8 @@ const influencersController = {
           },
         };
 
+         applyCountryLocationFilter(params.body.query,courtry)
+
           if(inputCategory!=="all"){
                          const categoryFilter = {
                                     bool: {
@@ -593,6 +602,7 @@ const influencersController = {
         isScadUser = "false",
         selectedTab = "",
         topicId,
+        courtry,
         category: inputCategory = 'all',
       } = req.body;
 
@@ -639,6 +649,12 @@ const influencersController = {
       // Handle source filtering based on user type and selected tab
       const source = req.body.source || 'All';
       let finalQueryString = filters.queryString;
+  const countryValue = String(courtry || '').trim();
+      if (countryValue) {
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND llm_location:("${countryValue}")`
+          : `llm_location:("${countryValue}")`;
+      }
       
       if (isScadUser === "true" && selectedTab === "GOOGLE") {
         finalQueryString = finalQueryString
@@ -650,6 +666,9 @@ const influencersController = {
           ? `${finalQueryString} AND ${sourceFilter}`
           : sourceFilter;
       }
+
+
+
 
       // Execute Elasticsearch queries concurrently for each category
       const results = await Promise.all(
@@ -697,13 +716,13 @@ const influencersController = {
         selectedTab = "",
         type,
         topicId,
+        country,
         category: inputCategory = 'all',
       } = req.query;
 
       // Check if this is the special topicId
       const isSpecialTopic = topicId && parseInt(topicId) === 2600;
 
-      console.log(req.query);
 
       let categoryData = {};
       
@@ -733,6 +752,7 @@ const influencersController = {
       // Build initial topic query string
       let topicQueryString = buildTopicQueryString(categoryData);
 
+
       // Process filters for time range and sentiment
       const filters = processFilters({
         timeSlot,
@@ -746,6 +766,12 @@ const influencersController = {
       const source = req.query.source || 'All';
       let finalQueryString = filters.queryString;
       
+       const countryValue = String(country || '').trim();
+      if (countryValue) {
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND llm_location:("${countryValue}")`
+          : `llm_location:("${countryValue}")`;
+      }
       if (isScadUser === "true" && selectedTab === "GOOGLE") {
         finalQueryString = finalQueryString
           ? `${finalQueryString} AND source:("GoogleMyBusiness")`

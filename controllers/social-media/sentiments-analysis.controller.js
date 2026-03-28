@@ -24,6 +24,7 @@ const normalizeSourceInput = (sourceParam) => {
   return [];
 };
 
+
 const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
   if (!selectedCategory || selectedCategory === 'all' || selectedCategory === 'custom' || selectedCategory === '') {
     return selectedCategory;
@@ -853,6 +854,8 @@ const sentimentsController = {
     }
 },
 
+
+
 getLatestPosts: async (req, res) => {
     try {
         const {
@@ -864,7 +867,8 @@ getLatestPosts: async (req, res) => {
             sentiment,
             llm_mention_type,
             limit = 30,
-            offset = 0
+            offset = 0,
+            countrys
         } = req.body;
         
         // Check if this is the special topicId
@@ -923,11 +927,13 @@ getLatestPosts: async (req, res) => {
         const lessThanTime = format(endDate, 'yyyy-MM-dd');
 
         // Build base query with special topic source filtering
-        const query = buildBaseQuery({
+        let query = buildBaseQuery({
             greaterThanTime,
             lessThanTime
         }, source, isSpecialTopic, parseInt(topicId));
 
+
+        applyCountryLocationFilter(query,countrys)
         // Special filter for topicId 2643 and 2644 - only fetch posts where is_public_opinion is true
         if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
             query.bool.must.push({

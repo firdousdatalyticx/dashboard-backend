@@ -715,6 +715,12 @@ function addCategoryItemsFilters(query, selectedCategory, categoryData) {
   });
 }
 
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || '').trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
+
 const postsController = {
   /**
    * Get posts based on filtering criteria.
@@ -732,6 +738,7 @@ const postsController = {
         emotion,
         keyword,
         country,
+        countrys,
         greaterThanTime: inputGreaterThanTime,
         lessThanTime: inputLessThanTime,
         timeSlot,
@@ -968,6 +975,9 @@ const postsController = {
         }
       ];
       }
+      
+applyCountryLocationFilter(esQuery.query,countrys);
+      
 
       // Execute the Elasticsearch query.
       const results = await elasticClient.search({

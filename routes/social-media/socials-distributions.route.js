@@ -34,6 +34,27 @@ router.post('/', express.json(), authMiddleware, transformCategoryData, socialsD
 
 router.post('/content-distribution-by-source', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getContentDistributionBySource);
 
+
+router.post('/industry-subindustry-distribution-by-source', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getIndustrySubIndustryDistributionBySource);
+
+router.post('/industry-subindustry-distribution-by-comments', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getIndustrySubIndustryDistributionByComments);
+
+router.post('/industry-subindustry-distribution-by-comments-data', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getIndustrySubIndustryDistributionByCommentsData);
+
+router.post('/location-distribution', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getLocationDistribution);
+
+router.post('/entity-distribution', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistribution);
+router.post('/entity-distribution-posts-data', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistributionPostsData);
+router.post('/entity-distribution-comments', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistributionComments);
+router.post('/entity-distribution-comments-data', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistributionCommentsData);
+
+
+router.post('/location-distribution-comments', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getLocationDistributionComments);
+router.post('/location-distribution-comments-data', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getLocationDistributionCommentsData);
+
+
+
+router.post('/location-distribution-posts', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getLocationDistributionPosts);
 // New posts-only endpoint: same params plus "source" to fetch posts for a single source
 router.post('/posts', express.json(), authMiddleware, transformCategoryData, postsController.getDistributionPosts);
 

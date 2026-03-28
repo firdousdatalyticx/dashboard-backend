@@ -57,6 +57,11 @@ const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
 
     return matchedKey || null;
 };
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || '').trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
 
 const sentimentAnalysisController = {
   getPosts: async (req, res) => {
@@ -73,6 +78,7 @@ const sentimentAnalysisController = {
         organizations,
         cities,
         dataSource,
+        country,
         // New filter parameters
         sentimentType,
         subtopic,
@@ -127,6 +133,7 @@ const sentimentAnalysisController = {
         topicId
       });
 
+      applyCountryLocationFilter(query,country)
       // Add specific filters based on click context
       if (sentimentType && sentimentType !== 'undefined' && sentimentType !== 'null') {
         if (sentimentType.includes(',')) {
@@ -316,6 +323,7 @@ const sentimentAnalysisController = {
         llm_mention_type,
         countries,
         keywords,
+        country,
         organizations,
         cities,
         dataSource,
@@ -369,6 +377,7 @@ const sentimentAnalysisController = {
         topicId
       });
 
+        applyCountryLocationFilter(query,country)
        if(selectedCategory=="all" && category!=="all"){
                          const categoryFilter = {
                                     bool: {
@@ -483,6 +492,7 @@ const sentimentAnalysisController = {
         llm_mention_type,
         countries,
         keywords,
+        country,
         organizations,
         cities,
         dataSource,
@@ -530,6 +540,7 @@ const sentimentAnalysisController = {
         dataSource,
         topicId
       });
+        applyCountryLocationFilter(query,country)
        if(selectedCategory=="all" && category!=="all"){
                          const categoryFilter = {
                                     bool: {
@@ -632,6 +643,7 @@ const sentimentAnalysisController = {
         category = "all",
         sources = "All",
         llm_mention_type,
+        country,
         countries,
         keywords,
         organizations,
@@ -681,7 +693,7 @@ const sentimentAnalysisController = {
         dataSource,
         topicId
       });
-
+      applyCountryLocationFilter(query,country)
         if(selectedCategory=="all" && category!=="all"){
                          const categoryFilter = {
                                     bool: {
@@ -807,6 +819,7 @@ const sentimentAnalysisController = {
         keywords,
         organizations,
         cities,
+        country,
         dataSource,
         sentimentType,
         interval = "month", // day, week, month, year
@@ -869,7 +882,7 @@ const sentimentAnalysisController = {
         topicId,
         excludeTopic2641Logic: true // Exclude topicId 2641 special logic for getTrendOverTime
       });
-
+  applyCountryLocationFilter(query,country)
        if(selectedCategory=="all" && category!=="all"){
                          const categoryFilter = {
                                     bool: {
@@ -1070,6 +1083,7 @@ const sentimentAnalysisController = {
         llm_mention_type,
         countries,
         keywords,
+        country,
         organizations,
         cities,
         dataSource,
@@ -1110,7 +1124,7 @@ const sentimentAnalysisController = {
         dataSource,
         topicId
       });
-
+  applyCountryLocationFilter(query,country)
           if(selectedCategory=="all" && category!=="all"){
                          const categoryFilter = {
                                     bool: {
@@ -1242,6 +1256,7 @@ const sentimentAnalysisController = {
         keywords,
         organizations,
         cities,
+        country,
         dataSource,
         sentimentType,
         topicId
@@ -1287,6 +1302,7 @@ const sentimentAnalysisController = {
         dataSource,
         topicId
       });
+        applyCountryLocationFilter(query,country)
 
           if(selectedCategory=="all" && category!=="all"){
                          const categoryFilter = {

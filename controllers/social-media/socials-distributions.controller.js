@@ -24,6 +24,71 @@ const normalizeSourceInput = (sourceParam) => {
   return [];
 };
 
+
+const formatPostData = (hit) => {
+  const s = hit._source;
+  const profilePic = s.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+  const followers = s.u_followers > 0 ? `${s.u_followers}` : '';
+  const following = s.u_following > 0 ? `${s.u_following}` : '';
+  const posts = s.u_posts > 0 ? `${s.u_posts}` : '';
+  const likes = s.p_likes > 0 ? `${s.p_likes}` : '';
+  const llm_emotion = s.llm_emotion || '';
+  const llm_emotion_arabic = s.llm_emotion_arabic || '';
+  const commentsUrl = s.p_comments_text && s.p_comments_text.trim() ? s.p_url.trim().replace('https: // ', 'https://') : '';
+  const comments = `${s.p_comments}`;
+  const shares = s.p_shares > 0 ? `${s.p_shares}` : '';
+  const engagements = s.p_engagement > 0 ? `${s.p_engagement}` : '';
+  const content = s.p_content?.trim() || '';
+  const imageUrl = s.p_picture_url?.trim() || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+  let predicted_sentiment = s.predicted_sentiment_value || '';
+  const predicted_category = s.predicted_category || '';
+  let youtubeVideoUrl = '';
+  let profilePicture2 = '';
+  if (s.source === 'Youtube') {
+    youtubeVideoUrl = s.video_embed_url ? s.video_embed_url : (s.p_id ? `https://www.youtube.com/embed/${s.p_id}` : '');
+  } else {
+    profilePicture2 = s.p_picture || '';
+  }
+  const sourceIcon = ['Web', 'DeepWeb'].includes(s.source) ? 'Web' : s.source;
+  const message_text = (s.p_message_text || '').replace(/<\/?[^>]+(>|$)/g, '');
+  return {
+    profilePicture: profilePic,
+    profilePicture2,
+    userFullname: s.u_fullname,
+    user_data_string: '',
+    followers,
+    following,
+    posts,
+    likes,
+    llm_emotion,
+    llm_emotion_arabic,
+    llm_language: s.llm_language,
+    u_country: s.u_country,
+    commentsUrl,
+    comments,
+    shares,
+    engagements,
+    content,
+    image_url: imageUrl,
+    predicted_sentiment,
+    predicted_category,
+    youtube_video_url: youtubeVideoUrl,
+    source_icon: `${s.p_url},${sourceIcon}`,
+    message_text,
+    source: s.source,
+    rating: s.rating,
+    comment: s.comment,
+    businessResponse: s.business_response,
+    uSource: s.u_source,
+    googleName: s.name,
+    created_at: new Date(s.p_created_time || s.created_at).toLocaleString(),
+    p_comments_data: s.p_comments_data,
+    llm_comments: s.llm_comments,
+    llm_category_confidence: s.llm_category_confidence,
+    u_verified: s.u_verified,
+    p_id: s.p_id,
+  };
+};
 const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
   if (
     !selectedCategory ||
@@ -67,6 +132,11 @@ const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
   return matchedKey || null;
 };
 
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || '').trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
 const socialsDistributionsController = {
   getDistributions: async (req, res) => {
     try {
@@ -77,6 +147,7 @@ const socialsDistributionsController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
       } = req.body;
@@ -176,7 +247,8 @@ const socialsDistributionsController = {
         isSpecialTopic,
         parseInt(topicId)
       );
-
+applyCountryLocationFilter(query,country)
+      
       if (workingCategory == "all" && category !== "all") {
         const categoryFilter = {
           bool: {
@@ -367,6 +439,1913 @@ const socialsDistributionsController = {
       });
     }
   },
+  getLocationDistribution: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        country,
+        topicId,
+        llm_mention_type,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId)
+      );
+
+      applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      //    return res.send(query)
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text
+            )
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (topic === 2651) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      // Aggregate by llm_location for heatmap
+      const aggQuery = {
+        query: query,
+        size: 0,
+        aggs: {
+          locations: {
+            terms: {
+              field: "llm_location.keyword",
+              size: 200,
+              exclude: ["null", "Not Specified", "not specified", ""],
+            },
+          },
+        },
+      };
+
+      const aggResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: aggQuery,
+      });
+
+      const buckets = aggResponse.aggregations.locations.buckets;
+
+      const formattedCounts = buckets.reduce((acc, bucket) => {
+        if (bucket.doc_count > 0 && bucket.key && bucket.key.trim() !== "") {
+          acc[bucket.key] = (acc[bucket.key] || 0) + bucket.doc_count;
+        }
+        return acc;
+      }, {});
+
+      return res.json(formattedCounts);
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+   getEntityDistribution: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        country,
+        topicId,
+        llm_mention_type,
+        llm_entity,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId)
+      );
+
+       applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      //    return res.send(query)
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text
+            )
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (topic === 2651) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      // Filter by llm_entity if provided
+      if (llm_entity && llm_entity !== "" && llm_entity !== "null" && llm_entity !== "undefined") {
+        const entitiesArray = Array.isArray(llm_entity)
+          ? llm_entity
+          : llm_entity.split(",").map((s) => s.trim()).filter(Boolean);
+        if (entitiesArray.length > 0) {
+          query.bool.must.push({
+            bool: {
+              should: entitiesArray.map((e) => ({ match: { "llm_entity.keyword": e } })),
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Aggregate by llm_entity
+      const aggQuery = {
+        query: query,
+        size: 0,
+        aggs: {
+          entities: {
+            terms: {
+              field: "llm_entity.keyword",
+              size: 200,
+              exclude: ["null", "Not Specified", "not specified", ""],
+            },
+          },
+        },
+      };
+
+      const aggResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: aggQuery,
+      });
+
+      const buckets = aggResponse.aggregations.entities.buckets;
+
+      const formattedCounts = buckets.reduce((acc, bucket) => {
+        if (bucket.doc_count > 0 && bucket.key && bucket.key.trim() !== "") {
+          acc[bucket.key] = (acc[bucket.key] || 0) + bucket.doc_count;
+        }
+        return acc;
+      }, {});
+
+      return res.json(formattedCounts);
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+   getEntityDistributionComments: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        llm_location,
+        category = "all",
+        country,
+        source = "All",
+        topicId,
+        llm_mention_type,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId)
+      );
+       applyCountryLocationFilter(query,country)
+
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      //    return res.send(query)
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text
+            )
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (topic === 2651) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      if (llm_location && llm_location !== "" && llm_location !== "null" && llm_location !== "undefined") {
+        const locationsArray = Array.isArray(llm_location)
+          ? llm_location
+          : llm_location.split(",").map((s) => s.trim()).filter(Boolean);
+
+        if (locationsArray.length > 0) {
+          query.bool.must.push({
+            bool: {
+              should: locationsArray.map((loc) => ({
+                match: { "llm_location.keyword": loc },
+              })),
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Scroll posts and aggregate llm_location from inside llm_comments
+      const firstResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
+        body: {
+          query: query,
+          size: 500,
+          _source: { includes: ["source", "llm_comments"] },
+        },
+      });
+
+      let allHits = [...(firstResponse.hits?.hits || [])];
+      let scrollId = firstResponse._scroll_id;
+
+      while (scrollId) {
+        const scrollResponse = await elasticClient.scroll({
+          scroll_id: scrollId,
+          scroll: "2m",
+        });
+        if (!scrollResponse.hits?.hits?.length) break;
+        allHits = [...allHits, ...scrollResponse.hits.hits];
+        scrollId = scrollResponse._scroll_id;
+      }
+
+      // Count llm_entity per comment
+      const entityMap = {};
+
+      for (const hit of allHits) {
+        const llmComments = hit._source?.llm_comments || [];
+
+        for (const commentStr of llmComments) {
+          try {
+            const comment = typeof commentStr === "string" ? JSON.parse(commentStr) : commentStr;
+            const entity = comment.llm_entity;
+            if (entity && entity !== "null" && entity !== "Not Specified" && entity !== "not specified" && entity.trim() !== "") {
+              entityMap[entity] = (entityMap[entity] || 0) + 1;
+            }
+          } catch (_) {
+            // skip malformed comment
+          }
+        }
+      }
+
+      return res.json(entityMap);
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+  getEntityDistributionPostsData: async (req, res) => {
+    try {
+      const {
+        timeSlot, fromDate, toDate, sentimentType,
+        category = "all", source = "All", topicId,country,
+        llm_mention_type, llm_entity, sourceName, limit = 30,
+      } = req.body;
+
+      const isSpecialTopic = (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+      let categoryData = {};
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+      if (Object.keys(categoryData).length === 0) return res.json({ posts: [] });
+
+      let workingCategory = category;
+      if (workingCategory !== "all" && workingCategory !== "" && workingCategory !== "custom") {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (matchedKey) { categoryData = { [matchedKey]: categoryData[matchedKey] }; workingCategory = matchedKey; }
+        else { workingCategory = "all"; }
+      }
+
+      const baseQueryString = buildBaseQueryString(workingCategory, categoryData);
+      const filters = processFilters({ sentimentType, timeSlot, fromDate, toDate, queryString: baseQueryString });
+
+      const noDateProvided = parseInt(topicId) === 2641
+        ? (fromDate == null || fromDate === "") && (toDate == null || toDate === "")
+        : (timeSlot == null || timeSlot === "") && (fromDate == null || fromDate === "") && (toDate == null || toDate === "");
+      let queryTimeRange = noDateProvided ? null : { gte: filters.greaterThanTime, lte: filters.lessThanTime };
+      if (Number(topicId) == 2473) queryTimeRange = { gte: "2023-01-01", lte: "2023-04-30" };
+
+      const query = buildBaseQuery(
+        queryTimeRange ? { greaterThanTime: queryTimeRange.gte, lessThanTime: queryTimeRange.lte } : null,
+        source, isSpecialTopic, parseInt(topicId),
+      );
+
+      applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        query.bool.must.push({ bool: { should: [{ multi_match: { query: category, fields: ["p_message_text","p_message","hashtags","u_source","p_url"], type: "phrase" } }], minimum_should_match: 1 } });
+      }
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+      const termToAdd = topic === 2646 ? { term: { "customer_name.keyword": "oia" } } : topic === 2650 ? { term: { "customer_name.keyword": "omantel" } } : null;
+      if (termToAdd) {
+        const block = query.bool.must.find((m) => m.bool && Array.isArray(m.bool.should) && m.bool.should.some((s) => s.match_phrase && s.match_phrase.p_message_text));
+        if (block) { block.bool.should.push(termToAdd); block.bool.minimum_should_match = 1; }
+        else { query.bool.must.push({ bool: { should: [termToAdd], minimum_should_match: 1 } }); }
+      }
+      if (topic === 2651) query.bool.must.push({ term: { "p_tag_cat.keyword": "Healthcare" } });
+      if (topic === 2652 || topic === 2663) query.bool.must.push({ term: { "p_tag_cat.keyword": "Food and Beverages" } });
+
+      if (sentimentType && sentimentType !== "undefined" && sentimentType !== "null") {
+        if (sentimentType.includes(",")) {
+          query.bool.must.push({ bool: { should: sentimentType.split(",").map((s) => ({ match: { predicted_sentiment_value: s.trim() } })), minimum_should_match: 1 } });
+        } else {
+          query.bool.must.push({ match: { predicted_sentiment_value: sentimentType.trim() } });
+        }
+      }
+
+      let mentionTypesArray = [];
+      if (llm_mention_type) {
+        mentionTypesArray = Array.isArray(llm_mention_type) ? llm_mention_type : llm_mention_type.split(",").map((s) => s.trim());
+      }
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({ bool: { should: mentionTypesArray.map((t) => ({ match: { llm_mention_type: t } })), minimum_should_match: 1 } });
+      }
+
+      // Filter by llm_entity
+      if (llm_entity && llm_entity !== "" && llm_entity !== "null" && llm_entity !== "undefined") {
+        const entitiesArray = Array.isArray(llm_entity) ? llm_entity : llm_entity.split(",").map((s) => s.trim()).filter(Boolean);
+        if (entitiesArray.length > 0) {
+          query.bool.must.push({ bool: { should: entitiesArray.map((e) => ({ match: { "llm_entity.keyword": e } })), minimum_should_match: 1 } });
+        }
+      }
+
+      if (sourceName) {
+        if (sourceName === "LinkedIn") {
+          query.bool.must.push({ bool: { should: [{ match_phrase: { source: "LinkedIn" } }, { match_phrase: { source: "Linkedin" } }], minimum_should_match: 1 } });
+        } else {
+          query.bool.must.push({ match_phrase: { source: sourceName } });
+        }
+      }
+
+      const postsResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          size: Math.min(Number(limit) || 30, 100),
+          query,
+          sort: [{ p_created_time: { order: "desc" } }],
+          _source: { includes: ["p_message_text","source","p_created_time","u_fullname","u_profile_photo","p_url","predicted_sentiment_value","llm_entity","p_id"] },
+        },
+      });
+
+      const posts = postsResponse.hits.hits.map((hit) => hit._source);
+      return res.json({ posts });
+    } catch (error) {
+      console.error("Error fetching entity distribution posts:", error);
+      return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  },
+  getEntityDistributionCommentsData: async (req, res) => {
+    try {
+      const {
+        timeSlot, fromDate, toDate, sentimentType,
+        category = "all", source = "All", topicId,country,
+        llm_mention_type, llm_entity, sourceName, limit = 30,
+      } = req.body;
+
+      const isSpecialTopic = (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+      let categoryData = {};
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+      if (Object.keys(categoryData).length === 0) return res.json({ posts: [] });
+
+      let workingCategory = category;
+      if (workingCategory !== "all" && workingCategory !== "" && workingCategory !== "custom") {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (matchedKey) { categoryData = { [matchedKey]: categoryData[matchedKey] }; workingCategory = matchedKey; }
+        else { workingCategory = "all"; }
+      }
+
+      const baseQueryString = buildBaseQueryString(workingCategory, categoryData);
+      const filters = processFilters({ sentimentType, timeSlot, fromDate, toDate, queryString: baseQueryString });
+
+      const noDateProvided = parseInt(topicId) === 2641
+        ? (fromDate == null || fromDate === "") && (toDate == null || toDate === "")
+        : (timeSlot == null || timeSlot === "") && (fromDate == null || fromDate === "") && (toDate == null || toDate === "");
+      let queryTimeRange = noDateProvided ? null : { gte: filters.greaterThanTime, lte: filters.lessThanTime };
+      if (Number(topicId) == 2473) queryTimeRange = { gte: "2023-01-01", lte: "2023-04-30" };
+
+      const query = buildBaseQuery(
+        queryTimeRange ? { greaterThanTime: queryTimeRange.gte, lessThanTime: queryTimeRange.lte } : null,
+        source, isSpecialTopic, parseInt(topicId),
+      );
+
+       applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        query.bool.must.push({ bool: { should: [{ multi_match: { query: category, fields: ["p_message_text","p_message","hashtags","u_source","p_url"], type: "phrase" } }], minimum_should_match: 1 } });
+      }
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+      const termToAdd = topic === 2646 ? { term: { "customer_name.keyword": "oia" } } : topic === 2650 ? { term: { "customer_name.keyword": "omantel" } } : null;
+      if (termToAdd) {
+        const block = query.bool.must.find((m) => m.bool && Array.isArray(m.bool.should) && m.bool.should.some((s) => s.match_phrase && s.match_phrase.p_message_text));
+        if (block) { block.bool.should.push(termToAdd); block.bool.minimum_should_match = 1; }
+        else { query.bool.must.push({ bool: { should: [termToAdd], minimum_should_match: 1 } }); }
+      }
+      if (topic === 2651) query.bool.must.push({ term: { "p_tag_cat.keyword": "Healthcare" } });
+      if (topic === 2652 || topic === 2663) query.bool.must.push({ term: { "p_tag_cat.keyword": "Food and Beverages" } });
+
+      if (sentimentType && sentimentType !== "undefined" && sentimentType !== "null") {
+        if (sentimentType.includes(",")) {
+          query.bool.must.push({ bool: { should: sentimentType.split(",").map((s) => ({ match: { predicted_sentiment_value: s.trim() } })), minimum_should_match: 1 } });
+        } else {
+          query.bool.must.push({ match: { predicted_sentiment_value: sentimentType.trim() } });
+        }
+      }
+
+      let mentionTypesArray = [];
+      if (llm_mention_type) {
+        mentionTypesArray = Array.isArray(llm_mention_type) ? llm_mention_type : llm_mention_type.split(",").map((s) => s.trim());
+      }
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({ bool: { should: mentionTypesArray.map((t) => ({ match: { llm_mention_type: t } })), minimum_should_match: 1 } });
+      }
+
+      if (sourceName) {
+        if (sourceName === "LinkedIn") {
+          query.bool.must.push({ bool: { should: [{ match_phrase: { source: "LinkedIn" } }, { match_phrase: { source: "Linkedin" } }], minimum_should_match: 1 } });
+        } else {
+          query.bool.must.push({ match_phrase: { source: sourceName } });
+        }
+      }
+
+      // Scroll posts and collect comments filtered by llm_entity
+      const firstResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
+        body: { query, size: 500, _source: { includes: ["source", "llm_comments", "p_id"] } },
+      });
+
+      let allHits = [...(firstResponse.hits?.hits || [])];
+      let scrollId = firstResponse._scroll_id;
+      while (scrollId) {
+        const scrollResp = await elasticClient.scroll({ scroll_id: scrollId, scroll: "2m" });
+        if (!scrollResp.hits?.hits?.length) break;
+        allHits = [...allHits, ...scrollResp.hits.hits];
+        scrollId = scrollResp._scroll_id;
+      }
+
+      const matchedComments = [];
+      const maxLimit = Math.min(Number(limit) || 30, 200);
+
+      for (const hit of allHits) {
+        if (matchedComments.length >= maxLimit) break;
+        const llmComments = hit._source?.llm_comments || [];
+        for (const commentStr of llmComments) {
+          if (matchedComments.length >= maxLimit) break;
+          try {
+            const comment = typeof commentStr === "string" ? JSON.parse(commentStr) : commentStr;
+            const entityMatch = !llm_entity || comment.llm_entity === llm_entity;
+            if (entityMatch) {
+              matchedComments.push({ ...comment, source: hit._source?.source, p_id: hit._source?.p_id });
+            }
+          } catch (_) {}
+        }
+      }
+
+      return res.json({ posts: matchedComments });
+    } catch (error) {
+      console.error("Error fetching entity distribution comments:", error);
+      return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  },
+  getLocationDistributionComments: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        topicId,
+        country,
+        llm_mention_type,
+        llm_location,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId)
+      );
+
+       applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      //    return res.send(query)
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text
+            )
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (topic === 2651) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      // Filter by llm_location if provided
+      if (llm_location && llm_location !== "" && llm_location !== "null" && llm_location !== "undefined") {
+        const locationsArray = Array.isArray(llm_location)
+          ? llm_location
+          : llm_location.split(",").map((s) => s.trim()).filter(Boolean);
+
+        if (locationsArray.length > 0) {
+          query.bool.must.push({
+            bool: {
+              should: locationsArray.map((loc) => ({
+                match: { "llm_location.keyword": loc },
+              })),
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Scroll posts and aggregate llm_location from inside llm_comments
+      const firstResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
+        body: {
+          query: query,
+          size: 500,
+          _source: { includes: ["source", "llm_comments"] },
+        },
+      });
+
+      let allHits = [...(firstResponse.hits?.hits || [])];
+      let scrollId = firstResponse._scroll_id;
+
+      while (scrollId) {
+        const scrollResponse = await elasticClient.scroll({
+          scroll_id: scrollId,
+          scroll: "2m",
+        });
+        if (!scrollResponse.hits?.hits?.length) break;
+        allHits = [...allHits, ...scrollResponse.hits.hits];
+        scrollId = scrollResponse._scroll_id;
+      }
+
+      // Count llm_location per comment
+      const locationMap = {};
+
+      for (const hit of allHits) {
+        const llmComments = hit._source?.llm_comments || [];
+
+        for (const commentStr of llmComments) {
+          try {
+            const comment = typeof commentStr === "string" ? JSON.parse(commentStr) : commentStr;
+            const loc = comment.llm_location;
+            if (loc && loc !== "null" && loc !== "Not Specified" && loc !== "not specified" && loc.trim() !== "") {
+              locationMap[loc] = (locationMap[loc] || 0) + 1;
+            }
+          } catch (_) {
+            // skip malformed comment
+          }
+        }
+      }
+
+      return res.json(locationMap);
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+  
+  getLocationDistributionCommentsData: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        topicId,
+        country,
+        llm_mention_type,
+        sourceName,
+        llm_location,
+        limit = 30,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({ posts: [] });
+      }
+      let workingCategory = category;
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+        if (matchedKey) {
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          workingCategory = "all";
+        }
+      }
+
+      const baseQueryString = buildBaseQueryString(workingCategory, categoryData);
+      const filters = processFilters({ sentimentType, timeSlot, fromDate, toDate, queryString: baseQueryString });
+
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = { gte: filters.greaterThanTime, lte: filters.lessThanTime };
+      }
+      if (Number(topicId) == 2473) {
+        queryTimeRange = { gte: "2023-01-01", lte: "2023-04-30" };
+      }
+
+      const query = buildBaseQuery(
+        queryTimeRange ? { greaterThanTime: queryTimeRange.gte, lessThanTime: queryTimeRange.lte } : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId),
+      );
+
+      applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        query.bool.must.push({
+          bool: {
+            should: [{ multi_match: { query: category, fields: ["p_message_text", "p_message", "hashtags", "u_source", "p_url"], type: "phrase" } }],
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) => m.bool && Array.isArray(m.bool.should) && m.bool.should.some((s) => s.match_phrase && s.match_phrase.p_message_text)
+        );
+        if (messageTextShouldBlock) {
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          query.bool.must.push({ bool: { should: [termToAdd], minimum_should_match: 1 } });
+        }
+      }
+
+      if (topic === 2651) {
+        query.bool.must.push({ term: { "p_tag_cat.keyword": "Healthcare" } });
+      }
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({ term: { "p_tag_cat.keyword": "Food and Beverages" } });
+      }
+
+      if (sentimentType && sentimentType !== "undefined" && sentimentType !== "null") {
+        if (sentimentType.includes(",")) {
+          query.bool.must.push({ bool: { should: sentimentType.split(",").map((s) => ({ match: { predicted_sentiment_value: s.trim() } })), minimum_should_match: 1 } });
+        } else {
+          query.bool.must.push({ match: { predicted_sentiment_value: sentimentType.trim() } });
+        }
+      }
+
+      let mentionTypesArray = [];
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({ bool: { should: mentionTypesArray.map((type) => ({ match: { llm_mention_type: type } })), minimum_should_match: 1 } });
+      }
+
+      // Add source filter
+      if (sourceName) {
+        if (sourceName === "LinkedIn") {
+          query.bool.must.push({ bool: { should: [{ match_phrase: { source: "LinkedIn" } }, { match_phrase: { source: "Linkedin" } }], minimum_should_match: 1 } });
+        } else {
+          query.bool.must.push({ match_phrase: { source: sourceName } });
+        }
+      }
+
+      query.bool.must = query.bool.must.filter((item) => {
+  if (!item) return true;
+
+  if (item.match_phrase && item.match_phrase.source === "All") {
+    return false; // ❌ remove it
+  }
+
+  return true; // ✅ keep others
+});
+
+   
+      // Fetch posts with llm_comments via scroll
+      const firstResponse2 = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
+        body: {
+          query: query,
+          size: 500,
+          _source: { includes: ["source", "llm_comments", "p_id"] },
+        },
+      });
+
+      let allHits2 = [...(firstResponse2.hits?.hits || [])];
+      let scrollId2 = firstResponse2._scroll_id;
+
+      while (scrollId2) {
+        const scrollResponse2 = await elasticClient.scroll({ scroll_id: scrollId2, scroll: "2m" });
+        if (!scrollResponse2.hits?.hits?.length) break;
+        allHits2 = [...allHits2, ...scrollResponse2.hits.hits];
+        scrollId2 = scrollResponse2._scroll_id;
+      }
+
+      // Collect comments filtered by llm_location
+      const matchedComments = [];
+      const maxLimit = Math.min(Number(limit) || 30, 200);
+
+      for (const hit of allHits2) {
+        if (matchedComments.length >= maxLimit) break;
+        const llmComments = hit._source?.llm_comments || [];
+
+        for (const commentStr of llmComments) {
+          if (matchedComments.length >= maxLimit) break;
+          try {
+            const comment = typeof commentStr === "string" ? JSON.parse(commentStr) : commentStr;
+            const locationMatch = !llm_location || comment.llm_location === llm_location;
+            if (locationMatch) {
+              matchedComments.push({
+                ...comment,
+                source: hit._source?.source,
+                p_id: hit._source?.p_id,
+              });
+            }
+          } catch (_) {
+            // skip malformed comment
+          }
+        }
+      }
+
+      return res.json({ posts: matchedComments });
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  },
+  getLocationDistributionPosts: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        llm_location,
+        country,
+        category = "all",
+        source = "All",
+        topicId,
+        llm_mention_type,
+          limit = 30
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId)
+      );
+applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      //    return res.send(query)
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+          ? { term: { "customer_name.keyword": "omantel" } }
+          : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text
+            )
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (topic === 2651) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" }
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" }
+        });
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      // Filter by llm_location if provided
+      if (llm_location && llm_location !== "" && llm_location !== "null" && llm_location !== "undefined") {
+        const locationsArray = Array.isArray(llm_location)
+          ? llm_location
+          : llm_location.split(",").map((s) => s.trim()).filter(Boolean);
+
+        if (locationsArray.length > 0) {
+          query.bool.must.push({
+            bool: {
+              should: locationsArray.map((loc) => ({
+                match: { "llm_location.keyword": loc },
+              })),
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+
+
+      // ✅ Fetch latest posts instead of aggregation
+const postsResponse = await elasticClient.search({
+  index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+  body: {
+    size: Math.min(Number(req.body.limit) || 30, 100),
+    query,
+    sort: [
+      { p_created_time: { order: "desc" } } // latest posts first
+    ]
+  }
+});
+
+
+// Format posts
+const posts = postsResponse.hits.hits.map(hit => formatPostData(hit));
+
+// ✅ Return posts only
+return res.json({ posts });
+
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
     getContentDistributionBySource: async (req, res) => {
     try {
       const {
@@ -376,6 +2355,7 @@ const socialsDistributionsController = {
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
       } = req.body;
@@ -476,6 +2456,7 @@ const socialsDistributionsController = {
         parseInt(topicId),
       );
 
+      applyCountryLocationFilter(query,country)
       if (workingCategory == "all" && category !== "all") {
         const categoryFilter = {
           bool: {
@@ -680,6 +2661,970 @@ return res.json(formattedCounts);
     }
   },
 
+  getIndustrySubIndustryDistributionBySource: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        country,
+        topicId,
+        llm_mention_type,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData,
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData,
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId),
+      );
+
+      applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      //    return res.send(query)
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+            ? { term: { "customer_name.keyword": "omantel" } }
+            : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text,
+            ),
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (topic === 2651) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" },
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" },
+        });
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+      // Now create the aggregation query with industry/sub_industry breakdown per source
+      const aggQuery = {
+        query: query,
+        size: 0,
+        aggs: {
+          source_counts: {
+            terms: {
+              field: "source.keyword",
+              size: 20,
+            },
+            aggs: {
+              industries: {
+                terms: {
+                  field: "industry.keyword",
+                  size: 10,
+                  exclude: "null",
+                },
+              },
+              sub_industries: {
+                terms: {
+                  field: "sub_industry.keyword",
+                  size: 10,
+                  exclude: "null",
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Execute the aggregation query
+      const aggResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: aggQuery,
+      });
+
+      // Extract the aggregation buckets
+      const buckets = aggResponse.aggregations.source_counts.buckets;
+
+      const formattedCounts = buckets.reduce((acc, bucket) => {
+        if (bucket.doc_count > 0) {
+          const normalizedKey = bucket.key.toLowerCase();
+          const formattedKey =
+            normalizedKey === "linkedin"
+              ? "LinkedIn"
+              : normalizedKey.charAt(0).toUpperCase() + normalizedKey.slice(1);
+
+          const industries = (bucket.industries?.buckets || []).map((ib) => ({
+            name: ib.key,
+            count: ib.doc_count,
+          }));
+
+          const sub_industries = (bucket.sub_industries?.buckets || []).map((sb) => ({
+            name: sb.key,
+            count: sb.doc_count,
+          }));
+
+          acc[formattedKey] = {
+            posts: bucket.doc_count,
+            industries,
+            sub_industries,
+          };
+        }
+
+        return acc;
+      }, {});
+
+      return res.json(formattedCounts);
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+
+  getIndustrySubIndustryDistributionByComments:async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        country,
+        topicId,
+        llm_mention_type,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData,
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData,
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId),
+      );
+
+      applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      //    return res.send(query)
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+            ? { term: { "customer_name.keyword": "omantel" } }
+            : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text,
+            ),
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (topic === 2651) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" },
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" },
+        });
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+      // Fetch posts with llm_comments via scroll, count llm_category & llm_sub_category per source
+      const firstResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
+        body: {
+          query: query,
+          size: 500,
+          _source: { includes: ["source", "llm_comments"] },
+        },
+      });
+
+      let allHits = [...(firstResponse.hits?.hits || [])];
+      let scrollId = firstResponse._scroll_id;
+
+      while (scrollId) {
+        const scrollResponse = await elasticClient.scroll({
+          scroll_id: scrollId,
+          scroll: "2m",
+        });
+        if (!scrollResponse.hits?.hits?.length) break;
+        allHits = [...allHits, ...scrollResponse.hits.hits];
+        scrollId = scrollResponse._scroll_id;
+      }
+
+      // Count llm_category and llm_sub_category per source from comments
+      const sourceMap = {};
+
+      for (const hit of allHits) {
+        const sourceName = hit._source?.source;
+        const llmComments = hit._source?.llm_comments || [];
+        if (!sourceName) continue;
+
+        if (!sourceMap[sourceName]) {
+          sourceMap[sourceName] = { comments: 0, industries: {}, sub_industries: {} };
+        }
+
+        for (const commentStr of llmComments) {
+          try {
+            const comment = typeof commentStr === "string" ? JSON.parse(commentStr) : commentStr;
+
+            sourceMap[sourceName].comments += 1;
+
+            const category = comment.llm_category;
+            if (category && category !== "null" && category !== "") {
+              sourceMap[sourceName].industries[category] =
+                (sourceMap[sourceName].industries[category] || 0) + 1;
+            }
+
+            const subCategory = comment.llm_sub_category;
+            if (subCategory && subCategory !== "null" && subCategory !== "") {
+              sourceMap[sourceName].sub_industries[subCategory] =
+                (sourceMap[sourceName].sub_industries[subCategory] || 0) + 1;
+            }
+          } catch (_) {
+            // skip malformed comment
+          }
+        }
+      }
+
+      // Format response
+      const formattedCounts = {};
+      for (const [sourceName, srcData] of Object.entries(sourceMap)) {
+        if (srcData.comments === 0) continue;
+
+        const normalizedKey = sourceName.toLowerCase();
+        const formattedKey =
+          normalizedKey === "linkedin"
+            ? "LinkedIn"
+            : normalizedKey.charAt(0).toUpperCase() + normalizedKey.slice(1);
+
+        const industries = Object.entries(srcData.industries)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10);
+
+        const sub_industries = Object.entries(srcData.sub_industries)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10);
+
+        formattedCounts[formattedKey] = {
+          comments: srcData.comments,
+          industries,
+          sub_industries,
+        };
+      }
+
+      return res.json(formattedCounts);
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+  
+   getIndustrySubIndustryDistributionByCommentsData:async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        category = "all",
+        source = "All",
+        topicId,
+        llm_mention_type,
+        country,
+        sourceName,
+        industry,
+        sub_industry,
+        limit = 30,
+      } = req.body;
+
+      // Check if this is the special topicId
+      const isSpecialTopic =
+        (topicId && parseInt(topicId) === 2600) || parseInt(topicId) === 2627;
+
+      // Get category data from middleware
+      let categoryData = {};
+
+      if (
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        // Fall back to middleware data
+        categoryData = req.processedCategories || {};
+      }
+      // If there's nothing to search for, return zero counts
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({});
+      }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (
+        workingCategory !== "all" &&
+        workingCategory !== "" &&
+        workingCategory !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          workingCategory,
+          categoryData,
+        );
+
+        if (matchedKey) {
+          // Category found - filter to only this category
+          categoryData = { [matchedKey]: categoryData[matchedKey] };
+          workingCategory = matchedKey;
+        } else {
+          // Category not found - keep all categoryData and set workingCategory to 'all'
+          // This maintains existing functionality
+          workingCategory = "all";
+        }
+      }
+
+      // Build base query for filters processing
+      const baseQueryString = buildBaseQueryString(
+        workingCategory,
+        categoryData,
+      );
+      // Process filters (time slot, date range, sentiment)
+      const filters = processFilters({
+        sentimentType,
+        timeSlot,
+        fromDate,
+        toDate,
+        queryString: baseQueryString,
+      });
+
+      // Build time range: if no dates are provided, DO NOT apply default last90days
+      // For topicId 2641, only check fromDate and toDate (not timeSlot)
+      const noDateProvided =
+        parseInt(topicId) === 2641
+          ? (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "")
+          : (timeSlot === null || timeSlot === undefined || timeSlot === "") &&
+            (fromDate === null || fromDate === undefined || fromDate === "") &&
+            (toDate === null || toDate === undefined || toDate === "");
+
+      let queryTimeRange = null;
+      if (!noDateProvided) {
+        queryTimeRange = {
+          gte: filters.greaterThanTime,
+          lte: filters.lessThanTime,
+        };
+      }
+
+      if (Number(topicId) == 2473) {
+        queryTimeRange = {
+          gte: "2023-01-01",
+          lte: "2023-04-30",
+        };
+      }
+
+      // Build base query
+      const query = buildBaseQuery(
+        queryTimeRange
+          ? {
+              greaterThanTime: queryTimeRange.gte,
+              lessThanTime: queryTimeRange.lte,
+            }
+          : null,
+        source,
+        isSpecialTopic,
+        parseInt(topicId),
+      );
+applyCountryLocationFilter(query,country)
+      if (workingCategory == "all" && category !== "all") {
+        const categoryFilter = {
+          bool: {
+            should: [
+              {
+                multi_match: {
+                  query: category,
+                  fields: [
+                    "p_message_text",
+                    "p_message",
+                    "hashtags",
+                    "u_source",
+                    "p_url",
+                  ],
+                  type: "phrase",
+                },
+              },
+            ],
+            minimum_should_match: 1,
+          },
+        };
+        query.bool.must.push(categoryFilter);
+      }
+
+      //    return res.send(query)
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
+
+      const topic = parseInt(topicId);
+
+      const termToAdd =
+        topic === 2646
+          ? { term: { "customer_name.keyword": "oia" } }
+          : topic === 2650
+            ? { term: { "customer_name.keyword": "omantel" } }
+            : null;
+
+      if (termToAdd) {
+        // 🔍 find bool.should that contains p_message_text
+        let messageTextShouldBlock = query.bool.must.find(
+          (m) =>
+            m.bool &&
+            Array.isArray(m.bool.should) &&
+            m.bool.should.some(
+              (s) => s.match_phrase && s.match_phrase.p_message_text,
+            ),
+        );
+
+        if (messageTextShouldBlock) {
+          // ✅ already exists → push into same should
+          messageTextShouldBlock.bool.should.push(termToAdd);
+          messageTextShouldBlock.bool.minimum_should_match = 1;
+        } else {
+          // 🆕 not exists → create new should block
+          query.bool.must.push({
+            bool: {
+              should: [termToAdd],
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
+
+      // Special filter for topicId 2651 - only fetch Healthcare results
+      if (topic === 2651) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Healthcare" },
+        });
+      }
+
+      // Special filter for topicId 2652 - only fetch Food and Beverages results
+      if (topic === 2652 || topic === 2663) {
+        query.bool.must.push({
+          term: { "p_tag_cat.keyword": "Food and Beverages" },
+        });
+      }
+
+      // Apply sentiment filter if provided
+      if (
+        sentimentType &&
+        sentimentType !== "undefined" &&
+        sentimentType !== "null"
+      ) {
+        if (sentimentType.includes(",")) {
+          // Handle multiple sentiment types
+          const sentimentArray = sentimentType.split(",");
+          const sentimentFilter = {
+            bool: {
+              should: sentimentArray.map((sentiment) => ({
+                match: { predicted_sentiment_value: sentiment.trim() },
+              })),
+              minimum_should_match: 1,
+            },
+          };
+          query.bool.must.push(sentimentFilter);
+        } else {
+          // Handle single sentiment type
+          query.bool.must.push({
+            match: { predicted_sentiment_value: sentimentType.trim() },
+          });
+        }
+      }
+
+      // Normalize input into array
+      let mentionTypesArray = [];
+
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+
+      // Special filter for topicId 2641 - only fetch posts where is_public_opinion is true
+
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+      // Add source filter
+      if (sourceName) {
+        if (sourceName === 'LinkedIn') {
+          query.bool.must.push({ bool: { should: [ { match_phrase: { source: 'LinkedIn' } }, { match_phrase: { source: 'Linkedin' } } ], minimum_should_match: 1 } });
+        } else {
+          query.bool.must.push({ match_phrase: { source: sourceName } });
+        }
+      }
+
+      // Fetch posts with llm_comments via scroll
+      const firstResponse = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        scroll: "2m",
+        body: {
+          query: query,
+          size: 500,
+          _source: { includes: ["source", "llm_comments", "p_id"] },
+        },
+      });
+
+      let allHits = [...(firstResponse.hits?.hits || [])];
+      let scrollId = firstResponse._scroll_id;
+
+      while (scrollId) {
+        const scrollResponse = await elasticClient.scroll({
+          scroll_id: scrollId,
+          scroll: "2m",
+        });
+        if (!scrollResponse.hits?.hits?.length) break;
+        allHits = [...allHits, ...scrollResponse.hits.hits];
+        scrollId = scrollResponse._scroll_id;
+      }
+
+      // Collect comments filtered by llm_category (industry) and/or llm_sub_category (sub_industry)
+      const matchedComments = [];
+      const maxLimit = Math.min(Number(limit) || 30, 200);
+
+      for (const hit of allHits) {
+        if (matchedComments.length >= maxLimit) break;
+        const llmComments = hit._source?.llm_comments || [];
+
+        for (const commentStr of llmComments) {
+          if (matchedComments.length >= maxLimit) break;
+          try {
+            const comment = typeof commentStr === "string" ? JSON.parse(commentStr) : commentStr;
+
+            const categoryMatch = !industry || comment.llm_category === industry;
+            const subCategoryMatch = !sub_industry || comment.llm_sub_category === sub_industry;
+
+            if (categoryMatch && subCategoryMatch) {
+              matchedComments.push({
+                ...comment,
+                source: hit._source?.source,
+                p_id: hit._source?.p_id,
+              });
+            }
+          } catch (_) {
+            // skip malformed comment
+          }
+        }
+      }
+
+      return res.json({ posts: matchedComments });
+    } catch (error) {
+      console.error("Error fetching social media distributions:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+
+  
   getSentimentBySource: async (req, res) => {
     try {
       const {
@@ -691,6 +3636,7 @@ return res.json(formattedCounts);
         source = "All",
         topicId,
         llm_mention_type,
+        country
       } = req.body;
 
       // Check if this is the special topicId
@@ -789,6 +3735,7 @@ return res.json(formattedCounts);
         parseInt(topicId)
       );
 
+      applyCountryLocationFilter(query,country)
       if (workingCategory == "all" && category !== "all") {
         const categoryFilter = {
           bool: {
@@ -994,6 +3941,7 @@ return res.json(formattedCounts);
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
       } = req.body;
@@ -1093,7 +4041,7 @@ return res.json(formattedCounts);
         isSpecialTopic,
         parseInt(topicId)
       );
-
+applyCountryLocationFilter(query,country)
       if (workingCategory == "all" && category !== "all") {
         const categoryFilter = {
           bool: {
@@ -1299,6 +4247,7 @@ return res.json(formattedCounts);
         sentimentType,
         category = "all",
         source = "All",
+        country,
         topicId,
         llm_mention_type,
       } = req.body;
@@ -1398,7 +4347,7 @@ return res.json(formattedCounts);
         isSpecialTopic,
         parseInt(topicId)
       );
-
+applyCountryLocationFilter(query,country)
       if (workingCategory == "all" && category !== "all") {
         const categoryFilter = {
           bool: {

@@ -48,6 +48,7 @@ const getDistributionPosts = async (req, res) => {
       source = 'All',
       topicId,
       llm_mention_type,
+      llm_location,
       sourceName,
       emotion,
       limit = 30
@@ -237,8 +238,24 @@ const getDistributionPosts = async (req, res) => {
                 }
             });
         }
-      
 
+      // Filter by llm_location if provided
+      if (llm_location && llm_location !== "" && llm_location !== "null" && llm_location !== "undefined") {
+        const locationsArray = Array.isArray(llm_location)
+          ? llm_location
+          : llm_location.split(",").map((s) => s.trim()).filter(Boolean);
+
+        if (locationsArray.length > 0) {
+          query.bool.must.push({
+            bool: {
+              should: locationsArray.map((loc) => ({
+                match: { "llm_location.keyword": loc },
+              })),
+              minimum_should_match: 1,
+            },
+          });
+        }
+      }
 
     // Source filter for the posts we want
     if (sourceName === 'LinkedIn') {

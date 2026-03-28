@@ -252,6 +252,7 @@ const audienceController = {
         categoryItems,
         source = "All",
         category = "all",
+        courtry,
         llm_mention_type,
       } = req.body;
 
@@ -349,6 +350,7 @@ const audienceController = {
       // Special filter for topicId 2641, 2643, 2644, 2651, 2652 - only fetch posts where is_public_opinion is true
       let isPublicOpinionFilter = null;
 
+      const countryValue = String(courtry || "").trim();
       const params = {
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: {
@@ -375,6 +377,11 @@ const audienceController = {
                   },
                 },
                 ...(isPublicOpinionFilter ? [isPublicOpinionFilter] : []),
+              
+ ...(countryValue
+        ? [{ term: { "llm_location.keyword": countryValue } }]
+        : []),
+                
               ],
               must_not: [{ term: { "u_profile_photo.keyword": "" } }],
             },

@@ -6,6 +6,14 @@ const processCategoryItems = require('../../helpers/processedCategoryItems');
  * @param {Object} options Query options
  * @returns {Object} Elasticsearch query params
  */
+
+const applyCountryLocationFilter = (query, country) => {
+  const countryValue = String(country || '').trim();
+  if (!countryValue) return;
+  query.bool.must.push({ term: { 'llm_location.keyword': countryValue } });
+};
+
+
 const buildWordCloudParams = (options) => {
   const {
     queryString,
@@ -242,7 +250,7 @@ const wordCloudController = {
    */
   getWordPhrases: async (req, res) => {
     try {
-      const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type,topicId } = req.body;
+      const { sentimentType = "positive", fromDate, toDate, source, category = "all", llm_mention_type,topicId,country } = req.body;
       let categoryData = {};
       
       if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body.categoryItems.length > 0) {
@@ -306,6 +314,8 @@ const wordCloudController = {
         topicId
       });
 
+
+        applyCountryLocationFilter(params.query,country);
 
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
@@ -372,6 +382,7 @@ const wordCloudController = {
         size = 100,
         sort = "p_created_time:desc",
         llm_mention_type,
+        country,
         topicId
       } = req.body;
 
@@ -447,6 +458,7 @@ const wordCloudController = {
         topicId
       });
 
+applyCountryLocationFilter(params.query,country)
       const response = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         body: params,

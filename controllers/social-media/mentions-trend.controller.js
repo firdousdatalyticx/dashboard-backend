@@ -1007,52 +1007,52 @@ const mentionsTrendController = {
                     max: queryTimeRange.lte,
                   },
                 },
-                aggs: {
-                  top_posts: {
-                    top_hits: {
-                      size: 10,
-                      _source: {
-                        includes: [
-                          "u_profile_photo",
-                          "u_followers",
-                          "u_following",
-                          "u_posts",
-                          "p_likes",
-                          "llm_emotion",
-                          "llm_emotion_arabic",
-                          "llm_language",
-                          "u_country",
-                          "p_comments_text",
-                          "p_url",
-                          "p_comments",
-                          "p_shares",
-                          "p_engagement",
-                          "p_content",
-                          "p_picture_url",
-                          "predicted_sentiment_value",
-                          "predicted_category",
-                          "source",
-                          "rating",
-                          "u_fullname",
-                          "p_message_text",
-                          "comment",
-                          "business_response",
-                          "u_source",
-                          "name",
-                          "p_created_time",
-                          "created_at",
-                          "p_comments_data",
-                          "video_embed_url",
-                          "p_id",
-                          "p_picture",
-                          "llm_comments",
-                          "llm_category_confidence",
-                          "u_verified",
-                        ],
-                      },
-                    },
-                  },
-                },
+                // aggs: {
+                //   top_posts: {
+                //     top_hits: {
+                //       size: 0,
+                //       // _source: {
+                //       //   includes: [
+                //       //     "u_profile_photo",
+                //       //     "u_followers",
+                //       //     "u_following",
+                //       //     "u_posts",
+                //       //     "p_likes",
+                //       //     "llm_emotion",
+                //       //     "llm_emotion_arabic",
+                //       //     "llm_language",
+                //       //     "u_country",
+                //       //     "p_comments_text",
+                //       //     "p_url",
+                //       //     "p_comments",
+                //       //     "p_shares",
+                //       //     "p_engagement",
+                //       //     "p_content",
+                //       //     "p_picture_url",
+                //       //     "predicted_sentiment_value",
+                //       //     "predicted_category",
+                //       //     "source",
+                //       //     "rating",
+                //       //     "u_fullname",
+                //       //     "p_message_text",
+                //       //     "comment",
+                //       //     "business_response",
+                //       //     "u_source",
+                //       //     "name",
+                //       //     "p_created_time",
+                //       //     "created_at",
+                //       //     "p_comments_data",
+                //       //     "video_embed_url",
+                //       //     "p_id",
+                //       //     "p_picture",
+                //       //     "llm_comments",
+                //       //     "llm_category_confidence",
+                //       //     "u_verified",
+                //       //   ],
+                //       // },
+                //     },
+                //   },
+                // },
               },
             },
           },
@@ -1065,18 +1065,6 @@ const mentionsTrendController = {
         body: combinedQuery,
       });
 
-      // Gather all filter terms
-      let allFilterTerms = [];
-      if (categoryData) {
-        Object.values(categoryData).forEach((data) => {
-          if (data.keywords && data.keywords.length > 0)
-            allFilterTerms.push(...data.keywords);
-          if (data.hashtags && data.hashtags.length > 0)
-            allFilterTerms.push(...data.hashtags);
-          if (data.urls && data.urls.length > 0)
-            allFilterTerms.push(...data.urls);
-        });
-      }
 
       // Process results - grouped by source
       const sourcesTrend = {};
@@ -1098,48 +1086,44 @@ const mentionsTrendController = {
           const endDate = new Date(queryTimeRange.lte);
 
           if (bucketDate >= startDate && bucketDate <= endDate) {
-            const posts = bucket.top_posts.hits.hits.map((hit) =>
-              formatPostData(hit)
-            );
-
             // Add matched_terms to each post
-            const postsWithTerms = posts.map((post) => {
-              const textFields = [
-                post.message_text,
-                post.content,
-                post.keywords,
-                post.title,
-                post.hashtags,
-                post.uSource,
-                post.source,
-                post.p_url,
-                post.userFullname,
-              ];
-              return {
-                ...post,
-                matched_terms: allFilterTerms.filter((term) =>
-                  textFields.some((field) => {
-                    if (!field) return false;
-                    if (Array.isArray(field)) {
-                      return field.some(
-                        (f) =>
-                          typeof f === "string" &&
-                          f.toLowerCase().includes(term.toLowerCase())
-                      );
-                    }
-                    return (
-                      typeof field === "string" &&
-                      field.toLowerCase().includes(term.toLowerCase())
-                    );
-                  })
-                ),
-              };
-            });
+            // const postsWithTerms = posts.map((post) => {
+            //   const textFields = [
+            //     post.message_text,
+            //     post.content,
+            //     post.keywords,
+            //     post.title,
+            //     post.hashtags,
+            //     post.uSource,
+            //     post.source,
+            //     post.p_url,
+            //     post.userFullname,
+            //   ];
+            //   return {
+            //     ...post,
+            //     matched_terms: allFilterTerms.filter((term) =>
+            //       textFields.some((field) => {
+            //         if (!field) return false;
+            //         if (Array.isArray(field)) {
+            //           return field.some(
+            //             (f) =>
+            //               typeof f === "string" &&
+            //               f.toLowerCase().includes(term.toLowerCase())
+            //           );
+            //         }
+            //         return (
+            //           typeof field === "string" &&
+            //           field.toLowerCase().includes(term.toLowerCase())
+            //         );
+            //       })
+            //     ),
+            //   };
+            // });
 
             datesWithPosts.push({
               date: keyAsString,
               count: docCount,
-              posts: postsWithTerms,
+              // posts: postsWithTerms,
             });
           }
         }
@@ -2544,6 +2528,100 @@ const mentionsTrendController = {
         success: false,
         error: "Internal server error",
       });
+    }
+  },
+
+  getMentionsTrendBySourcePosts: async (req, res) => {
+    try {
+      const {
+        topicId,
+        date,
+        source,
+        sentimentType,
+        llm_mention_type,
+        country,
+        categoryItems = [],
+      } = req.body;
+
+      let category = req.body.category || "all";
+
+      let categoryData = {};
+      if (categoryItems && Array.isArray(categoryItems) && categoryItems.length > 0) {
+        categoryData = processCategoryItems(categoryItems);
+        category = "custom";
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({ success: false, error: "No category data available", responseArray: [] });
+      }
+
+      if (category !== "all" && category !== "" && category !== "custom") {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        category = matchedKey || "all";
+      }
+
+      const isSpecialTopic = parseInt(topicId) === 2627 || parseInt(topicId) === 2600;
+
+      const queryTimeRange = { gte: date, lte: date };
+
+      const query = buildBaseQuery(
+        { greaterThanTime: queryTimeRange.gte, lessThanTime: queryTimeRange.lte },
+        source || "All",
+        isSpecialTopic,
+        Number(topicId)
+      );
+ applyCountryLocationFilter(query,country)
+      addCategoryFilters(query, category, categoryData);
+
+      if (sentimentType && sentimentType !== "undefined" && sentimentType !== "null") {
+        if (sentimentType.includes(",")) {
+          const sentimentArray = sentimentType.split(",");
+          query.bool.must.push({
+            bool: {
+              should: sentimentArray.map((s) => ({ match: { predicted_sentiment_value: s.trim() } })),
+              minimum_should_match: 1,
+            },
+          });
+        } else {
+          query.bool.must.push({ match: { predicted_sentiment_value: sentimentType.trim() } });
+        }
+      }
+
+      if (llm_mention_type && Array.isArray(llm_mention_type) && llm_mention_type.length > 0) {
+        query.bool.must.push({
+          bool: {
+            should: llm_mention_type.map((t) => ({ match: { llm_mention_type: t } })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
+        query.bool.must.push({ term: { is_public_opinion: true } });
+      }
+      if (parseInt(topicId) === 2651) {
+        query.bool.must.push({ term: { "p_tag_cat.keyword": "Healthcare" } });
+      }
+      if (parseInt(topicId) === 2652 || parseInt(topicId) === 2663) {
+        query.bool.must.push({ term: { "p_tag_cat.keyword": "Food and Beverages" } });
+      }
+
+      const results = await elasticClient.search({
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: { query, size: 30 },
+      });
+
+      
+      
+
+      const responseArray = results?.hits?.hits?.map((hit) => formatPostData(hit)) || [];
+
+      return res.status(200).json({ success: true, responseArray, total: responseArray.length });
+    } catch (error) {
+      console.error("Error fetching posts by source:", error);
+      return res.status(500).json({ success: false, error: "Internal server error" });
     }
   },
 };

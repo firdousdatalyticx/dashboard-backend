@@ -24,5 +24,6 @@ router.post('/', express.json(), authMiddleware, transformCategoryData, mentions
 router.post('/by-sources', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendBySource);
 router.post('/by-sources-comments', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendBySourceComments);
 router.get('/posts', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendPost);
+router.post('/by-sources/posts', express.json(), authMiddleware, transformCategoryData, mentionsTrendController.getMentionsTrendBySourcePosts);
 
 module.exports = router; 

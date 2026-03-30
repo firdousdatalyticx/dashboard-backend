@@ -1659,7 +1659,7 @@ const mentionsTrendController = {
         body: {
           query: query,
           size: 500,
-          _source: { includes: ["source", "llm_comments", "p_id"] },
+          _source: { includes: ["source", "llm_comments", "p_id", "p_url"] },
         },
       });
 
@@ -1676,15 +1676,17 @@ const mentionsTrendController = {
         scrollId = scrollResponse._scroll_id;
       }
 
-      // Count comments per source per date and collect comment data
+      // Count comments per source per date and collect normalized comment data
       const commentDateMap = {};
 
       for (const hit of allHits) {
-        const sourceName = hit._source?.source;
+        const hitSourceName = hit._source?.source;
+        const hitPUrl = hit._source?.p_url || "";
+        const hitPId = hit._source?.p_id || null;
         const llmComments = hit._source?.llm_comments || [];
-        if (!sourceName) continue;
+        if (!hitSourceName) continue;
 
-        if (!commentDateMap[sourceName]) commentDateMap[sourceName] = {};
+        if (!commentDateMap[hitSourceName]) commentDateMap[hitSourceName] = {};
 
         for (const commentStr of llmComments) {
           try {
@@ -1698,11 +1700,51 @@ const mentionsTrendController = {
             const bucketDate = new Date(commentDate);
             if (bucketDate < startDate || bucketDate > endDate) continue;
 
-            if (!commentDateMap[sourceName][commentDate]) {
-              commentDateMap[sourceName][commentDate] = { count: 0, comments: [] };
+            if (!commentDateMap[hitSourceName][commentDate]) {
+              commentDateMap[hitSourceName][commentDate] = { count: 0, comments: [] };
             }
-            commentDateMap[sourceName][commentDate].count += 1;
-            commentDateMap[sourceName][commentDate].comments.push(comment);
+            commentDateMap[hitSourceName][commentDate].count += 1;
+
+            const originalText =
+              comment?.original_comment_text ||
+              comment?.translated_comment_text ||
+              comment?.text ||
+              comment?.comment ||
+              comment?.message ||
+              comment?.content ||
+              "";
+
+            commentDateMap[hitSourceName][commentDate].comments.push({
+              ...comment,
+              p_id: hitPId,
+              original_comment_text: originalText,
+              predicted_sentiment_value:
+                comment?.predicted_sentiment_value ||
+                comment?.mapped_sentiment ||
+                "Neutral",
+              mapped_sentiment:
+                comment?.mapped_sentiment ||
+                comment?.predicted_sentiment_value ||
+                "Neutral",
+              llm_emotion: comment?.llm_emotion || "N/A",
+              llm_language: comment?.llm_language || comment?.language || "Unknown",
+              llm_intent: comment?.llm_intent || comment?.intent || "N/A",
+              llm_key_topic: comment?.llm_key_topic || comment?.key_topic || "N/A",
+              llm_category: comment?.llm_category || "N/A",
+              llm_sub_category: comment?.llm_sub_category || "N/A",
+              llm_location: comment?.llm_location || "N/A",
+              post_context: {
+                ...(comment?.post_context || {}),
+                source: comment?.post_context?.source || comment?.source || hitSourceName,
+                p_created_time:
+                  comment?.post_context?.p_created_time ||
+                  comment?.p_created_time ||
+                  comment?.createdAt ||
+                  comment?.created_at ||
+                  null,
+                p_url: comment?.post_context?.p_url || comment?.p_url || hitPUrl,
+              },
+            });
           } catch (_) {
             // skip malformed comment
           }
@@ -1713,7 +1755,14 @@ const mentionsTrendController = {
       const sourcesTrend = {};
       for (const [sourceName, dateCounts] of Object.entries(commentDateMap)) {
         const datesWithPosts = Object.entries(dateCounts).map(
-          ([date, { count, comments }]) => ({ date, count, posts: comments })
+          ([date, { count, comments }]) => {
+            comments.sort((a, b) => {
+              const dateA = new Date(a.post_context?.p_created_time || a.p_created_time || 0).getTime();
+              const dateB = new Date(b.post_context?.p_created_time || b.p_created_time || 0).getTime();
+              return dateB - dateA;
+            });
+            return { date, count, posts: comments };
+          }
         );
         datesWithPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
         sourcesTrend[sourceName] = datesWithPosts;

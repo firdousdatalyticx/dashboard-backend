@@ -53,8 +53,9 @@ router.post('/location-distribution-comments', express.json(), authMiddleware, t
 router.post('/location-distribution-comments-data', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getLocationDistributionCommentsData);
 
 
-
 router.post('/location-distribution-posts', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getLocationDistributionPosts);
+router.post("/comments-posts", express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getDistributionComments)
+
 // New posts-only endpoint: same params plus "source" to fetch posts for a single source
 router.post('/posts', express.json(), authMiddleware, transformCategoryData, postsController.getDistributionPosts);
 

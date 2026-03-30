@@ -2480,7 +2480,7 @@ return res.json({
         parseInt(topicId),
       );
 
-      applyCountryLocationFilter(query,country)
+      applyCountryLocationFilter(query,llm_location)
       if (workingCategory == "all" && category !== "all") {
         query.bool.must.push({
           bool: {
@@ -2558,6 +2558,8 @@ return res.json({
       const maxLimit = Math.min(Number(limit) || 30, 200);
       const matchedComments = [];
 
+      
+      
       const firstResponse2 = await elasticClient.search({
         index: process.env.ELASTICSEARCH_DEFAULTINDEX,
         scroll: '2m',
@@ -2568,6 +2570,11 @@ return res.json({
         },
       });
 
+// return res.json({
+//           query: query,
+//           size: 500,
+//           _source: { includes: ['source', 'llm_comments','p_url', 'p_id'] },
+//         });
 
       let scrollId2 = firstResponse2._scroll_id;
 
@@ -2582,7 +2589,7 @@ return res.json({
             if (matchedComments.length >= maxLimit) break;
             try {
               const comment = typeof commentStr === 'string' ? JSON.parse(commentStr) : commentStr;
-              if (!llm_location || comment.llm_location === llm_location) {
+              // if (!llm_location || comment.llm_location === llm_location) {
                 const originalText =
                   comment?.original_comment_text ||
                   comment?.translated_comment_text ||
@@ -2623,7 +2630,7 @@ return res.json({
                     p_url: comment?.post_context?.p_url || comment?.p_url || hitPUrl,
                   },
                 });
-              }
+              // }
             } catch (_) {
               // skip malformed comment
             }

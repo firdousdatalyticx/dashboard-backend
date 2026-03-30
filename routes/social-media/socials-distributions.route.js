@@ -43,6 +43,8 @@ router.post('/industry-subindustry-distribution-by-comments-data', express.json(
 
 router.post('/location-distribution', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getLocationDistribution);
 
+router.post('/singles-distribution', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getSinglesDistribution);
+
 router.post('/entity-distribution', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistribution);
 router.post('/entity-distribution-posts-data', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistributionPostsData);
 router.post('/entity-distribution-comments', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistributionComments);

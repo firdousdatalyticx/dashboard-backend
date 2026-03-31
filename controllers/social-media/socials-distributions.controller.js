@@ -1526,7 +1526,7 @@ return res.json({ posts });
         if (entitiesArray.length > 0) {
           query.bool.must.push({
             bool: {
-              should: entitiesArray.map((e) => ({ match: { "llm_entity.keyword": e } })),
+              should: entitiesArray.map((e) => ({ match: { "llm_categories.keyword": e } })),
               minimum_should_match: 1,
             },
           });
@@ -1540,7 +1540,7 @@ return res.json({ posts });
         aggs: {
           entities: {
             terms: {
-              field: "llm_entity.keyword",
+              field: "llm_categories.keyword",
               size: 200,
               exclude: ["null", "Not Specified", "not specified", ""],
             },
@@ -1954,7 +1954,7 @@ return res.json({ posts });
       if (llm_entity && llm_entity !== "" && llm_entity !== "null" && llm_entity !== "undefined") {
         const entitiesArray = Array.isArray(llm_entity) ? llm_entity : llm_entity.split(",").map((s) => s.trim()).filter(Boolean);
         if (entitiesArray.length > 0) {
-          query.bool.must.push({ bool: { should: entitiesArray.map((e) => ({ match: { "llm_entity.keyword": e } })), minimum_should_match: 1 } });
+          query.bool.must.push({ bool: { should: entitiesArray.map((e) => ({ match: { "llm_categories.keyword": e } })), minimum_should_match: 1 } });
         }
       }
 

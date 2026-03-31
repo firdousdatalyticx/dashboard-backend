@@ -857,201 +857,201 @@ const sentimentsController = {
 
 
 getLatestPosts: async (req, res) => {
-    try {
-        const {
-            source = 'All',
-            category = 'all',
-            topicId,
-            fromDate,
-            toDate,
-            sentiment,
-            llm_mention_type,
-            limit = 30,
-            offset = 0,
-            countrys
-        } = req.body;
-        
-        // Check if this is the special topicId
-        const isSpecialTopic = topicId && parseInt(topicId) === 2600;
-        
-        // Get category data from middleware
-        let categoryData = {};
-  
-        if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body?.categoryItems?.length > 0) {
-            categoryData = processCategoryItems(req.body.categoryItems);
-        } else {
-            categoryData = req.processedCategories || {};
-        }
+  try {
+      const {
+          source = 'All',
+          category = 'all',
+          topicId,
+          fromDate,
+          toDate,
+          sentiment,
+          llm_mention_type,
+          limit = 30,
+          offset = 0,
+          countrys
+      } = req.body;
+      
+      // Check if this is the special topicId
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+      
+      // Get category data from middleware
+      let categoryData = {};
 
-        if (Object.keys(categoryData).length === 0) {
-            return res.json({
-                success: true,
-                posts: [],
-                total: 0
-            });
-        }
+      if (req.body.categoryItems && Array.isArray(req.body.categoryItems) && req.body?.categoryItems?.length > 0) {
+          categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+          categoryData = req.processedCategories || {};
+      }
 
-        let workingCategory = category;
-        // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
-        if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
-            const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
+      if (Object.keys(categoryData).length === 0) {
+          return res.json({
+              success: true,
+              posts: [],
+              total: 0
+          });
+      }
 
-            if (matchedKey) {
-                // Category found - filter to only this category
-                categoryData = { [matchedKey]: categoryData[matchedKey] };
-                workingCategory = matchedKey;
-            } else {
-                // Category not found - keep all categoryData and set workingCategory to 'all'
-                // This maintains existing functionality
-                workingCategory = 'all';
-            }
-        }
+      let workingCategory = category;
+      // Only filter categoryData if category is not 'all', not empty, not 'custom' AND exists
+      if (workingCategory !== 'all' && workingCategory !== '' && workingCategory !== 'custom') {
+          const matchedKey = findMatchingCategoryKey(workingCategory, categoryData);
 
-        // Set default date range - last 90 days
-        const now = new Date();
-        const ninetyDaysAgo = subDays(now, 90);
-        
-        let startDate;
-        let endDate = now;
-        
-        // Determine date range
-        if (fromDate && toDate) {
-            startDate = parseISO(fromDate);
-            endDate = parseISO(toDate);
-        } else {
-            startDate = format(ninetyDaysAgo, 'yyyy-MM-dd');
-            endDate = format(now, 'yyyy-MM-dd');
-        } 
+          if (matchedKey) {
+              // Category found - filter to only this category
+              categoryData = { [matchedKey]: categoryData[matchedKey] };
+              workingCategory = matchedKey;
+          } else {
+              // Category not found - keep all categoryData and set workingCategory to 'all'
+              // This maintains existing functionality
+              workingCategory = 'all';
+          }
+      }
 
-        const greaterThanTime = format(startDate, 'yyyy-MM-dd');
-        const lessThanTime = format(endDate, 'yyyy-MM-dd');
+      // Set default date range - last 90 days
+      const now = new Date();
+      const ninetyDaysAgo = subDays(now, 90);
+      
+      let startDate;
+      let endDate = now;
+      
+      // Determine date range
+      if (fromDate && toDate) {
+          startDate = parseISO(fromDate);
+          endDate = parseISO(toDate);
+      } else {
+          startDate = format(ninetyDaysAgo, 'yyyy-MM-dd');
+          endDate = format(now, 'yyyy-MM-dd');
+      } 
 
-        // Build base query with special topic source filtering
-        let query = buildBaseQuery({
-            greaterThanTime,
-            lessThanTime
-        }, source, isSpecialTopic, parseInt(topicId));
+      const greaterThanTime = format(startDate, 'yyyy-MM-dd');
+      const lessThanTime = format(endDate, 'yyyy-MM-dd');
+
+      // Build base query with special topic source filtering
+      let query = buildBaseQuery({
+          greaterThanTime,
+          lessThanTime
+      }, source, isSpecialTopic, parseInt(topicId));
 
 
-        applyCountryLocationFilter(query,countrys)
-        // Special filter for topicId 2643 and 2644 - only fetch posts where is_public_opinion is true
-        if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
-            query.bool.must.push({
-                term: {
-                    is_public_opinion: true
-                }
-            });
-        }
+      applyCountryLocationFilter(query,countrys)
+      // Special filter for topicId 2643 and 2644 - only fetch posts where is_public_opinion is true
+      if (parseInt(topicId) === 2643 || parseInt(topicId) === 2644) {
+          query.bool.must.push({
+              term: {
+                  is_public_opinion: true
+              }
+          });
+      }
 
-        if(workingCategory === "all" && category !== "all"){
-            const categoryFilter = {
-                bool: {
-                    should:  [
-                        {
-                            "multi_match": {
-                                "query": category,
-                                "fields": [
-                                    "p_message_text",
-                                    "p_message",
-                                    "hashtags",
-                                    "u_source",
-                                    "p_url"
-                                ],
-                                "type": "phrase"
-                            }
-                        }
-                    ],
-                    minimum_should_match: 1
-                }
-            };
-            query.bool.must.push(categoryFilter);
-        }
+      if(workingCategory === "all" && category !== "all"){
+          const categoryFilter = {
+              bool: {
+                  should:  [
+                      {
+                          "multi_match": {
+                              "query": category,
+                              "fields": [
+                                  "p_message_text",
+                                  "p_message",
+                                  "hashtags",
+                                  "u_source",
+                                  "p_url"
+                              ],
+                              "type": "phrase"
+                          }
+                      }
+                  ],
+                  minimum_should_match: 1
+              }
+          };
+          query.bool.must.push(categoryFilter);
+      }
 
-        // Add category filters
-        addCategoryFilters(query, workingCategory, categoryData);
+      // Add category filters
+      addCategoryFilters(query, workingCategory, categoryData);
 
-        // Add sentiment filter if specified
-        if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
-            if (sentiment.includes(',')) {
-                // Handle multiple sentiment types
-                const sentimentArray = sentiment.split(',');
-                const sentimentFilter = {
-                    bool: {
-                        should: sentimentArray.map(sentiment => ({
-                            match: { predicted_sentiment_value: sentiment.trim() }
-                        })),
-                        minimum_should_match: 1
-                    }
-                };
-                query.bool.must.push(sentimentFilter);
-            } else {
-                // Handle single sentiment type
-                query.bool.must.push({
-                    match: { predicted_sentiment_value: sentiment.trim() }
-                });
-            }
-        }
+      // Add sentiment filter if specified
+      if (sentiment && sentiment !== "" && sentiment !== 'undefined' && sentiment !== 'null') {
+          if (sentiment.includes(',')) {
+              // Handle multiple sentiment types
+              const sentimentArray = sentiment.split(',');
+              const sentimentFilter = {
+                  bool: {
+                      should: sentimentArray.map(sentiment => ({
+                          match: { predicted_sentiment_value: sentiment.trim() }
+                      })),
+                      minimum_should_match: 1
+                  }
+              };
+              query.bool.must.push(sentimentFilter);
+          } else {
+              // Handle single sentiment type
+              query.bool.must.push({
+                  match: { predicted_sentiment_value: sentiment.trim() }
+              });
+          }
+      }
 
-        // LLM Mention Type filtering logic
-        let mentionTypesArray = [];
+      // LLM Mention Type filtering logic
+      let mentionTypesArray = [];
 
-        if (llm_mention_type) {
-            if (Array.isArray(llm_mention_type)) {
-                mentionTypesArray = llm_mention_type;
-            } else if (typeof llm_mention_type === "string") {
-                mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
-            }
-        }
+      if (llm_mention_type) {
+          if (Array.isArray(llm_mention_type)) {
+              mentionTypesArray = llm_mention_type;
+          } else if (typeof llm_mention_type === "string") {
+              mentionTypesArray = llm_mention_type.split(",").map(s => s.trim());
+          }
+      }
 
-        // CASE 1: If mentionTypesArray has valid values → apply should-match filter
-        if (mentionTypesArray.length > 0) {
-            query.bool.must.push({
-                bool: {
-                    should: mentionTypesArray.map(type => ({
-                        match: { llm_mention_type: type }
-                    })),
-                    minimum_should_match: 1
-                }
-            });
-        }
+      // CASE 1: If mentionTypesArray has valid values → apply should-match filter
+      if (mentionTypesArray.length > 0) {
+          query.bool.must.push({
+              bool: {
+                  should: mentionTypesArray.map(type => ({
+                      match: { llm_mention_type: type }
+                  })),
+                  minimum_should_match: 1
+              }
+          });
+      }
 
-        // Get total count for pagination
-        const countResponse = await elasticClient.count({
-            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: { query }
-        });
+      // Get total count for pagination
+      const countResponse = await elasticClient.count({
+          index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+          body: { query }
+      });
 
-        const total = countResponse.count;
+      const total = countResponse.count;
 
-        // Get latest posts with pagination, sorted by creation time descending
-        const postsResponse = await elasticClient.search({
-            index: process.env.ELASTICSEARCH_DEFAULTINDEX,
-            body: {
-                size: limit,
-                from: offset,
-                query: query,
-                sort: [{ p_created_time: { order: 'desc' } }]
-            }
-        });
+      // Get latest posts with pagination, sorted by creation time descending
+      const postsResponse = await elasticClient.search({
+          index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+          body: {
+              size: limit,
+              from: offset,
+              query: query,
+              sort: [{ p_created_time: { order: 'desc' } }]
+          }
+      });
 
-        // Format posts
-        const posts = postsResponse.hits.hits.map(hit => formatPostData(hit));
+      // Format posts
+      const posts = postsResponse.hits.hits.map(hit => formatPostData(hit));
 
-        return res.json({
-            success: true,
-            posts,
-            total,
-            limit,
-            offset
-        });
+      return res.json({
+          success: true,
+          posts,
+          total,
+          limit,
+          offset
+      });
 
-    } catch (error) {
-        console.error('Error fetching latest posts:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Internal server error'
-        });
-    }
+  } catch (error) {
+      console.error('Error fetching latest posts:', error);
+      return res.status(500).json({
+          success: false,
+          error: 'Internal server error'
+      });
+  }
 },
 
 llmMotivationSentimentTrend: async (req, res) => {
@@ -1877,6 +1877,7 @@ const formatPostData = (hit) => {
         googleName: source.name,
         created_at: new Date(source.p_created_time || source.created_at).toLocaleString(),
         p_comments_data:source.p_comments_data,
+        llm_comments: source.llm_comments || [],
         p_id: source.p_id
     };
 };

@@ -1736,6 +1736,7 @@ const mentionsTrendController = {
               post_context: {
                 ...(comment?.post_context || {}),
                 source: comment?.post_context?.source || comment?.source || hitSourceName,
+                name:comment?.name,
                 p_created_time:
                   comment?.post_context?.p_created_time ||
                   comment?.p_created_time ||

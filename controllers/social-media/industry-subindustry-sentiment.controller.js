@@ -1088,7 +1088,8 @@ const industrySubindustrySentimentController = {
       } else if (clickedField === "location" && value) {
         query.bool.must.push({ term: { "llm_location.keyword": value } });
       } else if (clickedField === "entity" && value) {
-        query.bool.must.push({ term: { "llm_entity.keyword": value } });
+        // Filter posts by selected LLM category instead of entity
+        query.bool.must.push({ term: { "llm_categories.keyword": value } });
       } else {
         if (industry && industry !== "All") {
           query.bool.must.push({ term: { "industry.keyword": industry } });
@@ -1102,7 +1103,8 @@ const industrySubindustrySentimentController = {
         }
         const selectedEntity = llm_entity || entity;
         if (selectedEntity && selectedEntity !== "All") {
-          query.bool.must.push({ term: { "llm_entity.keyword": selectedEntity } });
+          // Default entity filter now targets LLM categories
+          query.bool.must.push({ term: { "llm_categories.keyword": selectedEntity } });
         }
       }
 
@@ -1191,7 +1193,8 @@ const industrySubindustrySentimentController = {
           aggs: {
             entities: {
               terms: {
-                field: "llm_entity.keyword",
+                // Aggregate over LLM categories instead of single entity field
+                field: "llm_categories.keyword",
                 size: 10,
                 exclude: "null",
               },
@@ -1284,7 +1287,8 @@ const industrySubindustrySentimentController = {
           aggs: {
             entities: {
               terms: {
-                field: "llm_entity.keyword",
+                // Aggregate over LLM categories instead of single entity field
+                field: "llm_categories.keyword",
                 size: 10,
                 exclude: "null",
               },

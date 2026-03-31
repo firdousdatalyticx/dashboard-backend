@@ -47,6 +47,10 @@ router.post('/keywords-distribution', express.json(), authMiddleware, transformC
 router.post('/keywords-distribution-posts', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getkeywordsDistributionPosts);
 
 
+router.post('/comments-keywords-distribution', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getCommentskeywordsDistribution);
+router.post('/comments-keywords-distribution-posts', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getCommentskeywordsDistributionPosts);
+
+
 router.post('/entity-distribution', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistribution);
 router.post('/entity-distribution-posts-data', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistributionPostsData);
 router.post('/entity-distribution-comments', express.json(), authMiddleware, transformCategoryData, socialsDistributionsController.getEntityDistributionComments);

@@ -116,6 +116,80 @@ function findMatchingCategoryKey(selectedCategory, categoryData = {}) {
   return matchedKey || null;
 }
 
+// Reuse post card formatting similar to socials-distributions.posts.controller
+const formatInfluencerPost = (hit) => {
+  const s = hit._source || {};
+  const profilePic = s.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+  const followers = s.u_followers > 0 ? `${s.u_followers}` : "";
+  const following = s.u_following > 0 ? `${s.u_following}` : "";
+  const posts = s.u_posts > 0 ? `${s.u_posts}` : "";
+  const likes = s.p_likes > 0 ? `${s.p_likes}` : "";
+  const llm_emotion = s.llm_emotion || "";
+  const llm_emotion_arabic = s.llm_emotion_arabic || "";
+  const commentsUrl =
+    s.p_comments_text && s.p_comments_text.trim()
+      ? s.p_url.trim().replace("https: // ", "https://")
+      : "";
+  const comments = `${s.p_comments}`;
+  const shares = s.p_shares > 0 ? `${s.p_shares}` : "";
+  const engagements = s.p_engagement > 0 ? `${s.p_engagement}` : "";
+  const content = s.p_content?.trim() || "";
+  const imageUrl = s.p_picture_url?.trim() || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+  const predicted_sentiment = s.predicted_sentiment_value || "";
+  const predicted_category = s.predicted_category || "";
+  let youtubeVideoUrl = "";
+  let profilePicture2 = "";
+  if (s.source === "Youtube") {
+    youtubeVideoUrl = s.video_embed_url
+      ? s.video_embed_url
+      : s.p_id
+      ? `https://www.youtube.com/embed/${s.p_id}`
+      : "";
+  } else {
+    profilePicture2 = s.p_picture || "";
+  }
+  const sourceIcon = ["Web", "DeepWeb"].includes(s.source) ? "Web" : s.source;
+  const message_text = (s.p_message_text || "").replace(/<\/?[^>]+(>|$)/g, "");
+
+  return {
+    profilePicture: profilePic,
+    profilePicture2,
+    userFullname: s.u_fullname,
+    user_data_string: "",
+    followers,
+    following,
+    posts,
+    likes,
+    llm_emotion,
+    llm_emotion_arabic,
+    llm_language: s.llm_language,
+    u_country: s.u_country,
+    commentsUrl,
+    comments,
+    shares,
+    engagements,
+    content,
+    image_url: imageUrl,
+    predicted_sentiment,
+    predicted_category,
+    youtube_video_url: youtubeVideoUrl,
+    source_icon: `${s.p_url},${sourceIcon}`,
+    message_text,
+    source: s.source,
+    rating: s.rating,
+    comment: s.comment,
+    businessResponse: s.business_response,
+    uSource: s.u_source,
+    googleName: s.name,
+    created_at: new Date(s.p_created_time || s.created_at).toLocaleString(),
+    p_comments_data: s.p_comments_data,
+    llm_comments: s.llm_comments,
+    llm_category_confidence: s.llm_category_confidence,
+    u_verified: s.u_verified,
+    p_id: s.p_id,
+  };
+};
+
 /**
  * Build source filter string for query_string
  * @param {string|Array} source - Source input
@@ -1026,6 +1100,131 @@ const influencersController = {
       });
     } catch (error) {
       console.error("Error fetching influencer categories:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+
+  // New: fetch posts for a single influencer (u_source) with same post shape as distribution posts
+  getInfluencerPostsByUser: async (req, res) => {
+    try {
+      let {
+        timeSlot,
+        greaterThanTime,
+        lessThanTime,
+        sentiment,
+        isScadUser = "false",
+        selectedTab = "",
+        topicId,
+        country,
+        category: inputCategory = "all",
+        u_source,
+        limit = 10,
+      } = req.query;
+
+      if (!u_source) {
+        return res
+          .status(400)
+          .json({ success: false, error: "u_source (influencer handle) is required" });
+      }
+
+      const isSpecialTopic = topicId && parseInt(topicId) === 2600;
+
+      let categoryData = {};
+      if (
+        req.body &&
+        req.body.categoryItems &&
+        Array.isArray(req.body.categoryItems) &&
+        req.body.categoryItems.length > 0
+      ) {
+        categoryData = processCategoryItems(req.body.categoryItems);
+      } else {
+        categoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(categoryData).length === 0) {
+        return res.json({ success: true, posts: [] });
+      }
+
+      let category = inputCategory;
+      if (category !== "all" && category !== "" && category !== "custom") {
+        const matchedKey = findMatchingCategoryKey(category, categoryData);
+        if (matchedKey) {
+          category = matchedKey;
+        } else {
+          inputCategory = "all";
+        }
+      }
+
+      // Build initial topic query string and filters
+      const topicQueryString = buildTopicQueryString(categoryData);
+      const filters = processFilters({
+        timeSlot,
+        fromDate: greaterThanTime,
+        toDate: lessThanTime,
+        sentimentType: sentiment,
+        queryString: topicQueryString,
+      });
+
+      const source = req.query.source || "All";
+      let finalQueryString = filters.queryString;
+
+      const countryValue = String(country || "").trim();
+      if (countryValue) {
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND llm_location:("${countryValue}")`
+          : `llm_location:("${countryValue}")`;
+      }
+
+      if (isScadUser === "true" && selectedTab === "GOOGLE") {
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND source:("GoogleMyBusiness")`
+          : `source:("GoogleMyBusiness")`;
+      } else {
+        const sourceFilter = buildSourceFilterString(source, topicId, isSpecialTopic);
+        finalQueryString = finalQueryString
+          ? `${finalQueryString} AND ${sourceFilter}`
+          : sourceFilter;
+      }
+
+      // Build ES query to fetch posts for this influencer only
+      const esQuery = {
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          size: Math.min(Number(limit) || 10, 100),
+          query: {
+            bool: {
+              must: [
+                { query_string: { query: finalQueryString } },
+                {
+                  range: {
+                    p_created_time: {
+                      gte: filters.greaterThanTime,
+                      lte: filters.lessThanTime,
+                    },
+                  },
+                },
+                { term: { "u_source.keyword": u_source } },
+              ],
+            },
+          },
+          sort: [{ p_created_time: { order: "desc" } }],
+        },
+      };
+
+      const results = await elasticClient.search(esQuery);
+      const hits = results?.hits?.hits || [];
+      const posts = hits.map((hit) => formatInfluencerPost(hit));
+
+      return res.status(200).json({
+        success: true,
+        posts,
+        total: results?.hits?.total?.value || posts.length,
+      });
+    } catch (error) {
+      console.error("Error fetching influencer posts by user:", error);
       return res.status(500).json({
         success: false,
         error: "Internal server error",

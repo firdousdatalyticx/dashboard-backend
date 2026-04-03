@@ -47,5 +47,8 @@ router.post('/commenter-engagement-breakdown', express.json(), authMiddleware, t
 router.post('/commenter-engagement-by-seniority', express.json(), authMiddleware, transformCategoryData, audienceController.getCommenterEngagementBySeniority);
 router.post('/comment-audience-trend', express.json(), authMiddleware, transformCategoryData, audienceController.getCommentAudienceTrend);
 
+// New: fetch posts for a specific active audience user (u_source) with same post shape as distribution posts
+router.post('/active-audience/posts', express.json(), authMiddleware, transformCategoryData, audienceController.getAudiencePosts);
+
 module.exports = router; 
 

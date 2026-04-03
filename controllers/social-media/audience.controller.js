@@ -75,6 +75,80 @@ const findMatchingCategoryKey = (selectedCategory, categoryData = {}) => {
   return matchedKey || null;
 };
 
+// Format a single post in the same structure as socials-distributions.posts.controller
+const formatAudiencePost = (hit) => {
+  const s = hit._source || {};
+  const profilePic = s.u_profile_photo || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+  const followers = s.u_followers > 0 ? `${s.u_followers}` : "";
+  const following = s.u_following > 0 ? `${s.u_following}` : "";
+  const posts = s.u_posts > 0 ? `${s.u_posts}` : "";
+  const likes = s.p_likes > 0 ? `${s.p_likes}` : "";
+  const llm_emotion = s.llm_emotion || "";
+  const llm_emotion_arabic = s.llm_emotion_arabic || "";
+  const commentsUrl =
+    s.p_comments_text && s.p_comments_text.trim()
+      ? s.p_url.trim().replace("https: // ", "https://")
+      : "";
+  const comments = `${s.p_comments}`;
+  const shares = s.p_shares > 0 ? `${s.p_shares}` : "";
+  const engagements = s.p_engagement > 0 ? `${s.p_engagement}` : "";
+  const content = s.p_content?.trim() || "";
+  const imageUrl = s.p_picture_url?.trim() || `${process.env.PUBLIC_IMAGES_PATH}grey.png`;
+  const predicted_sentiment = s.predicted_sentiment_value || "";
+  const predicted_category = s.predicted_category || "";
+  let youtubeVideoUrl = "";
+  let profilePicture2 = "";
+  if (s.source === "Youtube") {
+    youtubeVideoUrl = s.video_embed_url
+      ? s.video_embed_url
+      : s.p_id
+      ? `https://www.youtube.com/embed/${s.p_id}`
+      : "";
+  } else {
+    profilePicture2 = s.p_picture || "";
+  }
+  const sourceIcon = ["Web", "DeepWeb"].includes(s.source) ? "Web" : s.source;
+  const message_text = (s.p_message_text || "").replace(/<\/?[^>]+(>|$)/g, "");
+
+  return {
+    profilePicture: profilePic,
+    profilePicture2,
+    userFullname: s.u_fullname,
+    user_data_string: "",
+    followers,
+    following,
+    posts,
+    likes,
+    llm_emotion,
+    llm_emotion_arabic,
+    llm_language: s.llm_language,
+    u_country: s.u_country,
+    commentsUrl,
+    comments,
+    shares,
+    engagements,
+    content,
+    image_url: imageUrl,
+    predicted_sentiment,
+    predicted_category,
+    youtube_video_url: youtubeVideoUrl,
+    source_icon: `${s.p_url},${sourceIcon}`,
+    message_text,
+    source: s.source,
+    rating: s.rating,
+    comment: s.comment,
+    businessResponse: s.business_response,
+    uSource: s.u_source,
+    googleName: s.name,
+    created_at: new Date(s.p_created_time || s.created_at).toLocaleString(),
+    p_comments_data: s.p_comments_data,
+    llm_comments: s.llm_comments,
+    llm_category_confidence: s.llm_category_confidence,
+    u_verified: s.u_verified,
+    p_id: s.p_id,
+  };
+};
+
 createCountryWiseAggregations = (categoryData) => {
   // Group data by country
   const countryGroups = {};
@@ -496,6 +570,185 @@ const audienceController = {
       return res.json({ data_array, params });
     } catch (error) {
       console.error("Error fetching audience data:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  },
+  // New: fetch posts for a specific active audience user (u_source) with same post shape as distribution posts
+  getAudiencePosts: async (req, res) => {
+    try {
+      const {
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        topicId,
+        categoryItems,
+        source = "All",
+        category = "all",
+        courtry,
+        llm_mention_type,
+        u_source,
+        limit = 10,
+      } = req.body;
+
+      if (!u_source) {
+        return res
+          .status(400)
+          .json({ success: false, error: "u_source (audience handle) is required" });
+      }
+
+      // Determine which category data to use
+      let audienceCategoryData = {};
+      if (
+        categoryItems &&
+        Array.isArray(categoryItems) &&
+        categoryItems.length > 0
+      ) {
+        audienceCategoryData = processCategoryItems(categoryItems);
+      } else {
+        audienceCategoryData = req.processedCategories || {};
+      }
+
+      if (Object.keys(audienceCategoryData).length === 0) {
+        return res.json({ success: true, posts: [] });
+      }
+
+      // Handle category parameter - validate if provided
+      let selectedCategory = category;
+      if (
+        category &&
+        category !== "all" &&
+        category !== "" &&
+        category !== "custom"
+      ) {
+        const matchedKey = findMatchingCategoryKey(
+          category,
+          audienceCategoryData,
+        );
+        selectedCategory = matchedKey || "all";
+      }
+
+      const topicQueryString = buildTopicQueryString(audienceCategoryData);
+
+      // Source filtering logic (same as getAudience)
+      const normalizedSources = normalizeSourceInput(source);
+      let sourcesQuery = "";
+      if (normalizedSources.length > 0) {
+        const sourcesStr = normalizedSources.map((s) => `"${s}"`).join(" OR ");
+        sourcesQuery = ` AND source:(${sourcesStr})`;
+      } else {
+        if (
+          parseInt(topicId) === 2619 ||
+          parseInt(topicId) === 2639 ||
+          parseInt(topicId) === 2640
+        ) {
+          sourcesQuery = ` AND source:("LinkedIn" OR "Linkedin")`;
+        } else if (
+          parseInt(topicId) === 2641 ||
+          parseInt(topicId) === 2643 ||
+          parseInt(topicId) === 2644 ||
+          parseInt(topicId) === 2651 ||
+          parseInt(topicId) === 2652 ||
+          parseInt(topicId) === 2653 ||
+          parseInt(topicId) === 2654 ||
+          parseInt(topicId) === 2655 ||
+          parseInt(topicId) === 2658 ||
+          parseInt(topicId) === 2659 ||
+          parseInt(topicId) === 2660 ||
+          parseInt(topicId) === 2661 ||
+          parseInt(topicId) === 2662 ||
+          parseInt(topicId) === 2663 ||
+          parseInt(topicId) === 2664
+        ) {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook")`;
+        } else if (parseInt(topicId) === 2656 || parseInt(topicId) === 2657) {
+          sourcesQuery = ` AND source:("Facebook" OR "Twitter" OR "Instagram" OR "Youtube")`;
+        } else {
+          sourcesQuery = ` AND source:("Twitter" OR "Instagram" OR "Facebook" OR "TikTok" OR "Youtube" OR "LinkedIn" OR "Linkedin" OR "Pinterest" OR "Web" OR "Reddit")`;
+        }
+      }
+
+      // Process filters for time range and sentiment
+      const filters = processFilters({
+        timeSlot,
+        fromDate,
+        toDate,
+        sentimentType,
+        queryString: topicQueryString,
+      });
+
+      const countryValue = String(courtry || "").trim();
+
+      const mustClauses = [
+        {
+          query_string: {
+            query: `${topicQueryString} ${sourcesQuery}`,
+            analyze_wildcard: true,
+            default_operator: "AND",
+          },
+        },
+        {
+          range: {
+            p_created_time: {
+              gte: filters.greaterThanTime,
+              lte: filters.lessThanTime,
+            },
+          },
+        },
+        { term: { "u_source.keyword": u_source } },
+      ];
+
+      if (countryValue) {
+        mustClauses.push({ term: { "llm_location.keyword": countryValue } });
+      }
+
+      // LLM mention type filter
+      let mentionTypesArray = [];
+      if (llm_mention_type) {
+        if (Array.isArray(llm_mention_type)) {
+          mentionTypesArray = llm_mention_type;
+        } else if (typeof llm_mention_type === "string") {
+          mentionTypesArray = llm_mention_type.split(",").map((s) => s.trim());
+        }
+      }
+      if (mentionTypesArray.length > 0) {
+        mustClauses.push({
+          bool: {
+            should: mentionTypesArray.map((type) => ({
+              match: { llm_mention_type: type },
+            })),
+            minimum_should_match: 1,
+          },
+        });
+      }
+
+      const esQuery = {
+        index: process.env.ELASTICSEARCH_DEFAULTINDEX,
+        body: {
+          size: Math.min(Number(limit) || 10, 100),
+          query: {
+            bool: {
+              must: mustClauses,
+            },
+          },
+          sort: [{ p_created_time: { order: "desc" } }],
+        },
+      };
+
+      const results = await elasticClient.search(esQuery);
+      const hits = results?.hits?.hits || [];
+      const posts = hits.map((hit) => formatAudiencePost(hit));
+
+      return res.status(200).json({
+        success: true,
+        posts,
+        total: results?.hits?.total?.value || posts.length,
+      });
+    } catch (error) {
+      console.error("Error fetching audience posts:", error);
       return res.status(500).json({
         success: false,
         error: "Internal server error",

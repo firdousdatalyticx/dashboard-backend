@@ -58,5 +58,7 @@ router.post('/categories', express.json(), transformCategoryData, influencersCon
 // router.get('/categories/posts', express.json(), mentionsChartController.mentionsPost);
 router.get('/categories/posts', express.json(),  transformCategoryData, influencersController.getInfluencerPost);
 
+// New endpoint: fetch posts for a specific influencer (u_source) with same post shape as distribution posts
+router.get('/posts', express.json(), transformCategoryData, influencersController.getInfluencerPostsByUser);
 
 module.exports = router; 

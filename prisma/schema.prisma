@@ -181,6 +181,7 @@ model customer_topics {
   
   // Relations
   enabled_graphs            topic_enabled_graphs[]
+  tabs                      topic_tabs[]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -1036,6 +1037,7 @@ model topic_enabled_graphs {
   id                    Int      @id @default(autoincrement())
   topic_id              Int
   graph_id              Int
+  tab_id                Int?
   is_enabled            Boolean  @default(true)
   position_order        Int?     @default(0)
   custom_title          String?  @db.VarChar(200)
@@ -1052,8 +1054,27 @@ model topic_enabled_graphs {
   // Relations
   topic                 customer_topics @relation(fields: [topic_id], references: [topic_id], onDelete: Cascade)
   graph                 available_graphs @relation(fields: [graph_id], references: [id], onDelete: Cascade)
+  tab                   topic_tabs? @relation(fields: [tab_id], references: [id], onDelete: SetNull)
   
   @@unique([topic_id, graph_id])
+  @@index([topic_id, is_enabled, position_order])
+  @@index([topic_id, tab_id, is_enabled])
+}
+
+model topic_tabs {
+  id                    Int      @id @default(autoincrement())
+  topic_id              Int
+  name                  String   @db.VarChar(100)
+  position_order        Int?     @default(0)
+  is_enabled            Boolean  @default(true)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  // Relations
+  topic                 customer_topics @relation(fields: [topic_id], references: [topic_id], onDelete: Cascade)
+  enabled_graphs        topic_enabled_graphs[]
+
+  @@unique([topic_id, name])
   @@index([topic_id, is_enabled, position_order])
 }
 

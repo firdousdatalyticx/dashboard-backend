@@ -27,4 +27,10 @@ router.put('/enabled-graphs/:topicId/:graphId', dashboardController.updateEnable
 // Bulk update enabled graphs with AI configuration
 router.post('/enabled-graphs/:topicId/bulk', dashboardController.bulkUpdateEnabledGraphs);
 
+// Topic tab management
+router.get('/tabs/:topicId', dashboardController.getTopicTabs);
+router.post('/tabs/:topicId', express.json(), dashboardController.createTopicTab);
+router.put('/tabs/:topicId/:tabId', express.json(), dashboardController.updateTopicTab);
+router.delete('/tabs/:topicId/:tabId', dashboardController.deleteTopicTab);
+
 module.exports = router; 

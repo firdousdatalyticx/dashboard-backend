@@ -52,16 +52,64 @@ const topicController = {
                     is_enabled: true
                 },
                 include: {
-                    graph: true
+                    graph: true,
+                    tab: true
                 },
                 orderBy: {
                     position_order: 'asc'
                 }
             });
 
+            const topicTabs = await prisma.topic_tabs.findMany({
+                where: {
+                    topic_id: parseInt(id),
+                    is_enabled: true
+                },
+                orderBy: {
+                    position_order: 'asc'
+                }
+            });
+
+            // Map enabled graphs under each tab for frontend-ready response
+            const tabsWithGraphs = topicTabs.map((tab) => ({
+                ...tab,
+                enabledGraphs: enabledGraphs
+                    .filter((eg) => eg.tab_id === tab.id)
+                    .map((eg) => ({
+                        id: eg.id,
+                        graph_id: eg.graph_id,
+                        tab_id: eg.tab_id,
+                        position_order: eg.position_order,
+                        custom_title: eg.custom_title,
+                        graph_message_prompt: eg.graph_message_prompt,
+                        output_fields: eg.output_fields,
+                        frequency: eg.frequency,
+                        date_range: eg.date_range,
+                        graph: eg.graph
+                    }))
+            }));
+
+            // Keep backward compatibility: include graphs that don't have a tab assignment
+            const unassignedGraphs = enabledGraphs
+                .filter((eg) => !eg.tab_id)
+                .map((eg) => ({
+                    id: eg.id,
+                    graph_id: eg.graph_id,
+                    tab_id: eg.tab_id,
+                    position_order: eg.position_order,
+                    custom_title: eg.custom_title,
+                    graph_message_prompt: eg.graph_message_prompt,
+                    output_fields: eg.output_fields,
+                    frequency: eg.frequency,
+                    date_range: eg.date_range,
+                    graph: eg.graph
+                }));
+
             // Add category count and enabled graphs to topic
             topic.categoryCount = categoryCount;
             topic.enabledGraphs = enabledGraphs;
+            topic.tabs = tabsWithGraphs;
+            topic.unassignedGraphs = unassignedGraphs;
 
             return res.json({
                 success: true,
@@ -100,6 +148,8 @@ const topicController = {
                 dashboard_end_date,
                 // Graph enablement
                 enabledGraphs, // Array of graph IDs
+                topicTabs, // Optional custom tabs
+                graphTabAssignments, // Optional graph-tab mapping
                 // Premium status
                 topic_is_premium,
                 // Archive configuration fields
@@ -207,6 +257,118 @@ const topicController = {
                 }
 
                 if (Array.isArray(parsedEnabledGraphs)) {
+                    const hasTopicTabsModel =
+                        prisma.topic_tabs && typeof prisma.topic_tabs.createMany === 'function';
+
+                    // Parse topicTabs if provided
+                    let parsedTopicTabs = topicTabs;
+                    if (typeof parsedTopicTabs === 'string') {
+                        try {
+                            parsedTopicTabs = JSON.parse(parsedTopicTabs);
+                        } catch (_) {
+                            parsedTopicTabs = [];
+                        }
+                    }
+
+                    // Parse graphTabAssignments if provided
+                    let parsedGraphTabAssignments = graphTabAssignments;
+                    if (typeof parsedGraphTabAssignments === 'string') {
+                        try {
+                            parsedGraphTabAssignments = JSON.parse(parsedGraphTabAssignments);
+                        } catch (_) {
+                            parsedGraphTabAssignments = [];
+                        }
+                    }
+
+                    // Build tab map (tab_name -> tab_id) if tabs model exists
+                    let tabNameToId = {};
+                    if (hasTopicTabsModel) {
+                        // Replace tabs only if payload is provided
+                        if (parsedTopicTabs !== undefined) {
+                            const normalizedTabs = Array.isArray(parsedTopicTabs)
+                                ? parsedTopicTabs
+                                      .map((tab, index) => ({
+                                          name: String(tab?.name || '').trim(),
+                                          position_order:
+                                              tab?.position_order !== undefined
+                                                  ? Number(tab.position_order)
+                                                  : index,
+                                          is_enabled:
+                                              tab?.is_enabled !== undefined
+                                                  ? Boolean(tab.is_enabled)
+                                                  : true
+                                      }))
+                                      .filter((tab) => tab.name)
+                                : [];
+
+                            await prisma.topic_tabs.deleteMany({
+                                where: { topic_id: parseInt(id) }
+                            });
+
+                            if (normalizedTabs.length > 0) {
+                                await prisma.topic_tabs.createMany({
+                                    data: normalizedTabs.map((tab) => ({
+                                        topic_id: parseInt(id),
+                                        name: tab.name,
+                                        position_order: tab.position_order,
+                                        is_enabled: tab.is_enabled
+                                    }))
+                                });
+                            } else {
+                                await prisma.topic_tabs.create({
+                                    data: {
+                                        topic_id: parseInt(id),
+                                        name: 'Overview',
+                                        position_order: 0,
+                                        is_enabled: true
+                                    }
+                                });
+                            }
+                        } else {
+                            // Ensure at least one tab exists
+                            const tabCount = await prisma.topic_tabs.count({
+                                where: { topic_id: parseInt(id) }
+                            });
+                            if (tabCount === 0) {
+                                await prisma.topic_tabs.create({
+                                    data: {
+                                        topic_id: parseInt(id),
+                                        name: 'Overview',
+                                        position_order: 0,
+                                        is_enabled: true
+                                    }
+                                });
+                            }
+                        }
+
+                        const finalTabs = await prisma.topic_tabs.findMany({
+                            where: { topic_id: parseInt(id), is_enabled: true },
+                            orderBy: { position_order: 'asc' }
+                        });
+                        tabNameToId = finalTabs.reduce((acc, tab) => {
+                            acc[tab.name] = tab.id;
+                            return acc;
+                        }, {});
+                    }
+
+                    // Build assignment map from graphTabAssignments
+                    const graphAssignmentMap = {};
+                    if (Array.isArray(parsedGraphTabAssignments)) {
+                        parsedGraphTabAssignments.forEach((assignment) => {
+                            const graphId = Number(assignment?.graph_id);
+                            const tabName = String(assignment?.tab_name || '').trim();
+                            if (graphId && tabName) {
+                                graphAssignmentMap[graphId] = {
+                                    tab_name: tabName,
+                                    position_order:
+                                        assignment?.position_order !== undefined
+                                            ? Number(assignment.position_order)
+                                            : undefined
+                                };
+                            }
+                        });
+                    }
+
                     // Remove all existing enabled graphs for this topic
                     await prisma.topic_enabled_graphs.deleteMany({
                         where: { topic_id: parseInt(id) }
@@ -214,26 +376,65 @@ const topicController = {
 
                     // Add new enabled graphs if any
                     if (parsedEnabledGraphs.length > 0) {
+                        const normalizedEnabledGraphs = parsedEnabledGraphs.map((item, index) => {
+                            if (typeof item === 'object' && item !== null) {
+                                const graphId = Number(item.graphId || item.graph_id || item.id);
+                                return {
+                                    graphId,
+                                    customTitle: item.customTitle ?? item.custom_title ?? null,
+                                    tab_name: item.tab_name ? String(item.tab_name).trim() : '',
+                                    position_order:
+                                        item.position_order !== undefined
+                                            ? Number(item.position_order)
+                                            : index
+                                };
+                            }
+                            return {
+                                graphId: Number(item),
+                                customTitle: null,
+                                tab_name: '',
+                                position_order: index
+                            };
+                        }).filter((g) => g.graphId);
                         
                         // Validate that all provided graph IDs exist and are active
                         const validGraphs = await prisma.available_graphs.findMany({
                             where: {
-                                id: { in: parsedEnabledGraphs.map(item => item.graphId || item.id || item) },
+                                id: { in: normalizedEnabledGraphs.map((g) => g.graphId) },
                                 is_active: true
                             }
                         });
 
                         if (validGraphs.length > 0) {
-                            const graphsToCreate = validGraphs.map((graph, index) => ({
-                                topic_id: parseInt(id),
-                                graph_id: graph.id,
-                                is_enabled: true,
-                                position_order: index
-                            }));
+                            const graphExists = new Set(validGraphs.map((g) => g.id));
+                            const graphsToCreate = normalizedEnabledGraphs
+                                .filter((g) => graphExists.has(g.graphId))
+                                .map((g, index) => {
+                                    const assignment = graphAssignmentMap[g.graphId];
+                                    const mappedTabName = assignment?.tab_name || g.tab_name || '';
+                                    const mappedTabId =
+                                        hasTopicTabsModel && mappedTabName
+                                            ? tabNameToId[mappedTabName] || null
+                                            : null;
 
-                            await prisma.topic_enabled_graphs.createMany({
-                                data: graphsToCreate
-                            });
+                                    return {
+                                        topic_id: parseInt(id),
+                                        graph_id: g.graphId,
+                                        ...(mappedTabId ? { tab_id: mappedTabId } : {}),
+                                        is_enabled: true,
+                                        position_order:
+                                            assignment?.position_order !== undefined
+                                                ? Number(assignment.position_order)
+                                                : (g.position_order ?? index),
+                                        ...(g.customTitle !== undefined ? { custom_title: g.customTitle } : {})
+                                    };
+                                });
+
+                            if (graphsToCreate.length > 0) {
+                                await prisma.topic_enabled_graphs.createMany({
+                                    data: graphsToCreate
+                                });
+                            }
                         }
                     }
                 }
@@ -462,6 +663,8 @@ const topicController = {
                 dashboard_end_date,
                 // Graph enablement
                 enabledGraphs, // Array of graph IDs
+                topicTabs, // Optional custom tabs
+                graphTabAssignments, // Optional graph-tab mapping
                 // Premium status
                 topic_is_premium,
                 // Archive configuration fields
@@ -647,8 +850,53 @@ const topicController = {
                 }
             });
 
+            // Prisma client may be stale if schema changed but `prisma generate` wasn't run yet.
+            // Keep topic creation backward-compatible by creating tabs only when model exists.
+            const hasTopicTabsModel =
+                prisma.topic_tabs && typeof prisma.topic_tabs.create === 'function';
+            const hasTopicEnabledGraphsModel =
+                prisma.topic_enabled_graphs && typeof prisma.topic_enabled_graphs.createMany === 'function';
+
+            let createdTabsByName = {};
+            if (hasTopicTabsModel) {
+                // Parse incoming topic tabs (string JSON or array)
+                let parsedTopicTabs = topicTabs;
+                if (typeof parsedTopicTabs === 'string') {
+                    try {
+                        parsedTopicTabs = JSON.parse(parsedTopicTabs);
+                    } catch (_) {
+                        parsedTopicTabs = [];
+                    }
+                }
+
+                const tabsToCreate =
+                    Array.isArray(parsedTopicTabs) && parsedTopicTabs.length > 0
+                        ? parsedTopicTabs
+                              .map((tab, index) => ({
+                                  name: String(tab?.name || '').trim(),
+                                  position_order:
+                                      tab?.position_order !== undefined
+                                          ? Number(tab.position_order)
+                                          : index,
+                              }))
+                              .filter((tab) => tab.name)
+                        : [{ name: 'Overview', position_order: 0 }];
+
+                for (const tab of tabsToCreate) {
+                    const createdTab = await prisma.topic_tabs.create({
+                        data: {
+                            topic_id: newTopic.topic_id,
+                            name: tab.name,
+                            position_order: tab.position_order,
+                            is_enabled: true,
+                        },
+                    });
+                    createdTabsByName[tab.name] = createdTab.id;
+                }
+            }
+
             // Enable selected graphs for this topic
-            if (enabledGraphs) {
+            if (enabledGraphs && hasTopicEnabledGraphsModel) {
                 let parsedEnabledGraphs = enabledGraphs;
                 
                 // If enabledGraphs is a string, try to parse it as JSON
@@ -662,6 +910,23 @@ const topicController = {
                 }
 
                 if (Array.isArray(parsedEnabledGraphs) && parsedEnabledGraphs.length > 0) {
+                    // Parse graph-tab assignments (optional)
+                    let parsedAssignments = graphTabAssignments;
+                    if (typeof parsedAssignments === 'string') {
+                        try {
+                            parsedAssignments = JSON.parse(parsedAssignments);
+                        } catch (_) {
+                            parsedAssignments = [];
+                        }
+                    }
+                    const assignmentMap = {};
+                    if (Array.isArray(parsedAssignments)) {
+                        parsedAssignments.forEach((a) => {
+                            const graphId = Number(a?.graph_id);
+                            const tabName = String(a?.tab_name || '').trim();
+                            if (graphId && tabName) assignmentMap[graphId] = tabName;
+                        });
+                    }
                     
                     // Validate that all provided graph IDs exist and are active
                     const validGraphs = await prisma.available_graphs.findMany({
@@ -672,12 +937,21 @@ const topicController = {
                     });
 
                     if (validGraphs.length > 0) {
-                        const graphsToCreate = validGraphs.map((graph, index) => ({
-                            topic_id: newTopic.topic_id,
-                            graph_id: graph.id,
-                            is_enabled: true,
-                            position_order: index
-                        }));
+                        const graphsToCreate = validGraphs.map((graph, index) => {
+                            const mappedTabName = assignmentMap[graph.id];
+                            const mappedTabId =
+                                mappedTabName && createdTabsByName[mappedTabName]
+                                    ? createdTabsByName[mappedTabName]
+                                    : null;
+
+                            return {
+                                topic_id: newTopic.topic_id,
+                                graph_id: graph.id,
+                                ...(mappedTabId ? { tab_id: mappedTabId } : {}),
+                                is_enabled: true,
+                                position_order: index
+                            };
+                        });
 
                         await prisma.topic_enabled_graphs.createMany({
                             data: graphsToCreate

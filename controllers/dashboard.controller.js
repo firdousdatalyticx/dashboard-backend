@@ -1,6 +1,32 @@
 const prisma = require('../config/database');
 const { decrypt } = require('../utils/encryption.util');
 
+const verifyTopicOwnership = async (topicId, userId) =>
+    prisma.customer_topics.findFirst({
+        where: {
+            topic_id: parseInt(topicId),
+            topic_user_id: userId,
+            topic_is_deleted: { not: 'Y' }
+        }
+    });
+
+const ensureDefaultTopicTab = async (topicId) => {
+    const existing = await prisma.topic_tabs.findFirst({
+        where: { topic_id: parseInt(topicId), is_enabled: true },
+        orderBy: { position_order: 'asc' }
+    });
+    if (existing) return existing;
+
+    return prisma.topic_tabs.create({
+        data: {
+            topic_id: parseInt(topicId),
+            name: 'Overview',
+            position_order: 0,
+            is_enabled: true
+        }
+    });
+};
+
 const dashboardController = {
     // Get all dashboards/topics for a user
     getDashboards: async (req, res) => {
@@ -240,13 +266,7 @@ const dashboardController = {
 
             // Verify topic ownership
             if (topicId) {
-                const topic = await prisma.customer_topics.findFirst({
-                    where: {
-                        topic_id: parseInt(topicId),
-                        topic_user_id: userId,
-                        topic_is_deleted: { not: 'Y' }
-                    }
-                });
+                const topic = await verifyTopicOwnership(topicId, userId);
 
                 if (!topic) {
                     return res.status(403).json({
@@ -267,24 +287,45 @@ const dashboardController = {
 
             // Get enabled graphs for this topic if topicId provided
             let enabledGraphs = [];
+            let topicTabs = [];
             if (topicId) {
+                // Optional model guard to avoid runtime failures if Prisma client is stale
+                const includeObj = prisma.topic_tabs
+                    ? { graph: true, tab: true }
+                    : { graph: true };
+
                 enabledGraphs = await prisma.topic_enabled_graphs.findMany({
                     where: { 
                         topic_id: parseInt(topicId),
                         is_enabled: true 
                     },
-                    include: { graph: true }
+                    include: includeObj
                 });
+
+                if (prisma.topic_tabs) {
+                    topicTabs = await prisma.topic_tabs.findMany({
+                        where: {
+                            topic_id: parseInt(topicId),
+                            is_enabled: true
+                        },
+                        orderBy: { position_order: 'asc' }
+                    });
+                }
             }
 
             // Add enabled status to each graph and group by category
             const graphsWithStatus = graphs.map(graph => {
-                // Check if this graph is enabled for the topic
-                const isEnabled = enabledGraphs.some(eg => eg.graph_id === graph.id);
+                // Check if this graph is enabled for the topic and return tab mapping
+                const enabledGraph = enabledGraphs.find(eg => eg.graph_id === graph.id);
+                const isEnabled = Boolean(enabledGraph);
+                const tabId = enabledGraph?.tab_id || null;
+                const tabName = enabledGraph?.tab?.name || topicTabs.find(t => t.id === tabId)?.name || null;
                 
                 return {
                     ...graph,
-                    isEnabled
+                    isEnabled,
+                    tab_id: tabId,
+                    tab_name: tabName
                 };
             });
 
@@ -312,6 +353,7 @@ const dashboardController = {
                 success: true,
                 data: {
                     categorizedGraphs: orderedCategorizedGraphs,
+                    tabs: topicTabs,
                     customerAllowedSources: customer?.customer_allowed_sources || null
                 }
             });
@@ -341,13 +383,7 @@ const dashboardController = {
             } = req.body;
 
             // Verify topic ownership
-            const topic = await prisma.customer_topics.findFirst({
-                where: {
-                    topic_id: parseInt(topicId),
-                    topic_user_id: userId,
-                    topic_is_deleted: { not: 'Y' }
-                }
-            });
+            const topic = await verifyTopicOwnership(topicId, userId);
 
             if (!topic) {
                 return res.status(403).json({
@@ -408,22 +444,38 @@ const dashboardController = {
                 });
             }
 
+            // Validate payload
+            if (enabledGraphs && !Array.isArray(enabledGraphs)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'enabledGraphs must be an array'
+                });
+            }
+
+            // Normalize graph IDs for validation (supports [1,2] and [{graph_id, tab_id}, ...])
+            const normalizedGraphIds = (enabledGraphs || [])
+                .map(item => (typeof item === 'object' ? Number(item.graph_id) : Number(item)))
+                .filter(Boolean);
+
             // Validate that all provided graph IDs exist
             if (enabledGraphs && enabledGraphs.length > 0) {
                 const validGraphs = await prisma.available_graphs.findMany({
                     where: {
-                        id: { in: enabledGraphs },
+                        id: { in: normalizedGraphIds },
                         is_active: true
                     }
                 });
 
-                if (validGraphs.length !== enabledGraphs.length) {
+                if (validGraphs.length !== normalizedGraphIds.length) {
                     return res.status(400).json({
                         success: false,
                         error: 'Some graph IDs are invalid'
                     });
                 }
             }
+
+            // Ensure there is at least one tab and use it as fallback
+            const defaultTab = await ensureDefaultTopicTab(topicId);
 
             // Remove all existing enabled graphs for this topic
             await prisma.topic_enabled_graphs.deleteMany({
@@ -432,12 +484,17 @@ const dashboardController = {
 
             // Add new enabled graphs
             if (enabledGraphs && enabledGraphs.length > 0) {
-                const graphsToCreate = enabledGraphs.map((graphId, index) => ({
-                    topic_id: parseInt(topicId),
-                    graph_id: graphId,
-                    is_enabled: true,
-                    position_order: index
-                }));
+                const graphsToCreate = enabledGraphs.map((item, index) => {
+                    const graphId = typeof item === 'object' ? Number(item.graph_id) : Number(item);
+                    const tabId = typeof item === 'object' ? Number(item.tab_id || item.tabId) : null;
+                    return {
+                        topic_id: parseInt(topicId),
+                        graph_id: graphId,
+                        tab_id: tabId || defaultTab.id,
+                        is_enabled: true,
+                        position_order: index
+                    };
+                });
 
                 await prisma.topic_enabled_graphs.createMany({
                     data: graphsToCreate
@@ -471,9 +528,13 @@ const dashboardController = {
                     topic_is_deleted: { not: 'Y' }
                 },
                 include: {
+                    tabs: {
+                        where: { is_enabled: true },
+                        orderBy: { position_order: 'asc' }
+                    },
                     enabled_graphs: {
                         where: { is_enabled: true },
-                        include: { graph: true },
+                        include: { graph: true, tab: true },
                         orderBy: { position_order: 'asc' }
                     }
                 }
@@ -485,6 +546,33 @@ const dashboardController = {
                     error: 'Topic not found or access denied'
                 });
             }
+
+            const tabs = topic.tabs?.length > 0 ? topic.tabs : [await ensureDefaultTopicTab(topicId)];
+            const tabMap = {};
+            tabs.forEach((tab) => {
+                tabMap[tab.id] = { ...tab, enabled_graphs: [] };
+            });
+
+            topic.enabled_graphs.forEach((eg) => {
+                const assignedTabId = eg.tab_id || tabs[0].id;
+                if (!tabMap[assignedTabId]) {
+                    tabMap[assignedTabId] = {
+                        id: assignedTabId,
+                        name: 'Overview',
+                        position_order: 0,
+                        is_enabled: true,
+                        enabled_graphs: []
+                    };
+                }
+                tabMap[assignedTabId].enabled_graphs.push({
+                    id: eg.id,
+                    graph_id: eg.graph_id,
+                    tab_id: assignedTabId,
+                    position_order: eg.position_order,
+                    custom_title: eg.custom_title,
+                    graph: eg.graph
+                });
+            });
 
             // Extract dashboard configuration
             const dashboardConfig = {
@@ -498,9 +586,11 @@ const dashboardController = {
                 dashboard_layout: topic.dashboard_layout,
                 dashboard_theme: topic.dashboard_theme,
                 dashboard_auto_refresh: topic.dashboard_auto_refresh,
+                tabs: Object.values(tabMap).sort((a, b) => (a.position_order || 0) - (b.position_order || 0)),
                 enabled_graphs: topic.enabled_graphs.map(eg => ({
                     id: eg.id,
                     graph_id: eg.graph_id,
+                    tab_id: eg.tab_id || tabs[0].id,
                     position_order: eg.position_order,
                     custom_title: eg.custom_title,
                     graph: eg.graph
@@ -530,13 +620,7 @@ const dashboardController = {
             const userId = customer_id ? Number(customer_id) : req.user.id;
 
             // Verify topic ownership
-            const topic = await prisma.customer_topics.findFirst({
-                where: {
-                    topic_id: parseInt(topicId),
-                    topic_user_id: userId,
-                    topic_is_deleted: { not: 'Y' }
-                }
-            });
+            const topic = await verifyTopicOwnership(topicId, userId);
 
             if (!topic) {
                 return res.status(403).json({
@@ -552,7 +636,8 @@ const dashboardController = {
                     is_enabled: true
                 },
                 include: {
-                    graph: true
+                    graph: true,
+                    tab: true
                 },
                 orderBy: {
                     position_order: 'asc'
@@ -564,6 +649,8 @@ const dashboardController = {
                 id: eg.id,
                 topic_id: eg.topic_id,
                 graph_id: eg.graph_id,
+                tab_id: eg.tab_id,
+                tab: eg.tab,
                 is_enabled: eg.is_enabled,
                 position_order: eg.position_order,
                 custom_title: eg.custom_title,
@@ -612,20 +699,15 @@ const dashboardController = {
                 graph_message_prompt,
                 output_fields,
                 frequency,
-                date_range
+                date_range,
+                tab_id
             } = req.body;
 
             // Use customer_id from query param if provided (for admin access), otherwise use authenticated user's id
             const userId = customer_id ? Number(customer_id) : req.user.id;
 
             // Verify topic ownership
-            const topic = await prisma.customer_topics.findFirst({
-                where: {
-                    topic_id: parseInt(topicId),
-                    topic_user_id: userId,
-                    topic_is_deleted: { not: 'Y' }
-                }
-            });
+            const topic = await verifyTopicOwnership(topicId, userId);
 
             if (!topic) {
                 return res.status(403).json({
@@ -671,6 +753,7 @@ const dashboardController = {
             if (output_fields !== undefined) updateData.output_fields = output_fields;
             if (frequency !== undefined) updateData.frequency = frequency;
             if (date_range !== undefined) updateData.date_range = date_range;
+            if (tab_id !== undefined) updateData.tab_id = tab_id ? parseInt(tab_id) : null;
 
             // Update the enabled graph
             const updatedGraph = await prisma.topic_enabled_graphs.update({
@@ -679,7 +762,8 @@ const dashboardController = {
                 },
                 data: updateData,
                 include: {
-                    graph: true
+                    graph: true,
+                    tab: true
                 }
             });
 
@@ -708,13 +792,7 @@ const dashboardController = {
             const userId = customer_id ? Number(customer_id) : req.user.id;
 
             // Verify topic ownership
-            const topic = await prisma.customer_topics.findFirst({
-                where: {
-                    topic_id: parseInt(topicId),
-                    topic_user_id: userId,
-                    topic_is_deleted: { not: 'Y' }
-                }
-            });
+            const topic = await verifyTopicOwnership(topicId, userId);
 
             if (!topic) {
                 return res.status(403).json({
@@ -740,7 +818,8 @@ const dashboardController = {
                     date_range,
                     custom_title,
                     position_order,
-                    is_enabled
+                    is_enabled,
+                    tab_id
                 } = graphConfig;
 
                 if (!graph_id) {
@@ -772,7 +851,8 @@ const dashboardController = {
                             frequency,
                             date_range,
                             custom_title,
-                            position_order
+                            position_order,
+                            tab_id: tab_id ? parseInt(tab_id) : null
                         }
                     });
                 } else {
@@ -785,6 +865,7 @@ const dashboardController = {
                     if (custom_title !== undefined) updateData.custom_title = custom_title;
                     if (position_order !== undefined) updateData.position_order = position_order;
                     if (is_enabled !== undefined) updateData.is_enabled = is_enabled;
+                    if (tab_id !== undefined) updateData.tab_id = tab_id ? parseInt(tab_id) : null;
 
                     return prisma.topic_enabled_graphs.update({
                         where: { id: enabledGraph.id },
@@ -802,7 +883,8 @@ const dashboardController = {
                     is_enabled: true
                 },
                 include: {
-                    graph: true
+                    graph: true,
+                    tab: true
                 },
                 orderBy: {
                     position_order: 'asc'
@@ -820,6 +902,129 @@ const dashboardController = {
                 success: false,
                 error: error.message || 'Failed to bulk update enabled graphs'
             });
+        }
+    },
+
+    getTopicTabs: async (req, res) => {
+        try {
+            const { topicId } = req.params;
+            const userId = req.user.id;
+            const topic = await verifyTopicOwnership(topicId, userId);
+            if (!topic) {
+                return res.status(403).json({ success: false, error: 'Topic not found or access denied' });
+            }
+
+            const tabs = await prisma.topic_tabs.findMany({
+                where: { topic_id: parseInt(topicId), is_enabled: true },
+                orderBy: { position_order: 'asc' }
+            });
+
+            if (!tabs.length) {
+                const created = await ensureDefaultTopicTab(topicId);
+                return res.json({ success: true, data: [created] });
+            }
+
+            return res.json({ success: true, data: tabs });
+        } catch (error) {
+            console.error('Error fetching topic tabs:', error);
+            return res.status(500).json({ success: false, error: 'Failed to fetch topic tabs' });
+        }
+    },
+
+    createTopicTab: async (req, res) => {
+        try {
+            const { topicId } = req.params;
+            const userId = req.user.id;
+            const { name, position_order } = req.body;
+
+            if (!name || !String(name).trim()) {
+                return res.status(400).json({ success: false, error: 'Tab name is required' });
+            }
+
+            const topic = await verifyTopicOwnership(topicId, userId);
+            if (!topic) {
+                return res.status(403).json({ success: false, error: 'Topic not found or access denied' });
+            }
+
+            const count = await prisma.topic_tabs.count({ where: { topic_id: parseInt(topicId) } });
+            const createdTab = await prisma.topic_tabs.create({
+                data: {
+                    topic_id: parseInt(topicId),
+                    name: String(name).trim(),
+                    position_order: position_order !== undefined ? Number(position_order) : count
+                }
+            });
+
+            return res.status(201).json({ success: true, data: createdTab });
+        } catch (error) {
+            console.error('Error creating topic tab:', error);
+            return res.status(500).json({ success: false, error: 'Failed to create topic tab' });
+        }
+    },
+
+    updateTopicTab: async (req, res) => {
+        try {
+            const { topicId, tabId } = req.params;
+            const userId = req.user.id;
+            const { name, position_order, is_enabled } = req.body;
+
+            const topic = await verifyTopicOwnership(topicId, userId);
+            if (!topic) {
+                return res.status(403).json({ success: false, error: 'Topic not found or access denied' });
+            }
+
+            const existingTab = await prisma.topic_tabs.findFirst({
+                where: { id: parseInt(tabId), topic_id: parseInt(topicId) }
+            });
+            if (!existingTab) {
+                return res.status(404).json({ success: false, error: 'Tab not found' });
+            }
+
+            const updated = await prisma.topic_tabs.update({
+                where: { id: parseInt(tabId) },
+                data: {
+                    ...(name !== undefined ? { name: String(name).trim() } : {}),
+                    ...(position_order !== undefined ? { position_order: Number(position_order) } : {}),
+                    ...(is_enabled !== undefined ? { is_enabled: Boolean(is_enabled) } : {})
+                }
+            });
+
+            return res.json({ success: true, data: updated });
+        } catch (error) {
+            console.error('Error updating topic tab:', error);
+            return res.status(500).json({ success: false, error: 'Failed to update topic tab' });
+        }
+    },
+
+    deleteTopicTab: async (req, res) => {
+        try {
+            const { topicId, tabId } = req.params;
+            const userId = req.user.id;
+
+            const topic = await verifyTopicOwnership(topicId, userId);
+            if (!topic) {
+                return res.status(403).json({ success: false, error: 'Topic not found or access denied' });
+            }
+
+            const existingTab = await prisma.topic_tabs.findFirst({
+                where: { id: parseInt(tabId), topic_id: parseInt(topicId) }
+            });
+            if (!existingTab) {
+                return res.status(404).json({ success: false, error: 'Tab not found' });
+            }
+
+            const fallbackTab = await ensureDefaultTopicTab(topicId);
+            await prisma.topic_enabled_graphs.updateMany({
+                where: { topic_id: parseInt(topicId), tab_id: parseInt(tabId) },
+                data: { tab_id: fallbackTab.id }
+            });
+
+            await prisma.topic_tabs.delete({ where: { id: parseInt(tabId) } });
+
+            return res.json({ success: true, message: 'Tab deleted successfully' });
+        } catch (error) {
+            console.error('Error deleting topic tab:', error);
+            return res.status(500).json({ success: false, error: 'Failed to delete topic tab' });
         }
     }
 };

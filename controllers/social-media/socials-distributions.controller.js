@@ -998,7 +998,7 @@ return res.json({
         fromDate,
         toDate,
         sentimentType,
-        llm_keywords,
+        llm_signals,
         country,
         category = "all",
         source = "All",
@@ -1232,16 +1232,16 @@ applyCountryLocationFilter(query,country)
       }
 
       // Filter by llm_keywords if provided
-      if (llm_keywords && llm_keywords !== "" && llm_keywords !== "null" && llm_keywords !== "undefined") {
-        const keywordsArray = Array.isArray(llm_keywords)
-          ? llm_keywords
-          : llm_keywords.split(",").map((s) => s.trim()).filter(Boolean);
+      if (llm_signals && llm_signals !== "" && llm_signals !== "null" && llm_signals !== "undefined") {
+        const keywordsArray = Array.isArray(llm_signals)
+          ? llm_signals
+          : llm_signals.split(",").map((s) => s.trim()).filter(Boolean);
 
         if (keywordsArray.length > 0) {
           query.bool.must.push({
             bool: {
               should: keywordsArray.map((loc) => ({
-                match: { "llm_keywords.keyword": loc },
+                match: { "llm_signals.keyword": loc },
               })),
               minimum_should_match: 1,
             },
@@ -1262,6 +1262,8 @@ const postsResponse = await elasticClient.search({
     ]
   }
 });
+
+
 
 
 // Format posts
